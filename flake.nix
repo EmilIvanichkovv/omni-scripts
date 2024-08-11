@@ -16,6 +16,9 @@
           mkShell {
             packages = [
               jq
+
+              # Bash Automated Testing System
+              bats
             ];
           };
       };

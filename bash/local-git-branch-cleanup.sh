@@ -12,14 +12,14 @@ DELETED_BRANCHES=()
 # Initilize an array to keep track of branches that do not have a remote counterpart
 LOCAL_BRANCHES=()
 
-# Get all local branches
-ALL_BRANCHES=$(git for-each-ref --format='%(refname:short)' refs/heads/)
-
-get_local_branches() {
-  for branch in $ALL_BRANCHES; do
+# Get all local Git branches that either:
+# - Do not have an upstream (remote tracking) branch, or
+# - Have an upstream branch that no longer exists (e.g. deleted on the remote)
+get_branches_with_no_remote_counterpart() {
+  for branch in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
     # Check if the branch has a remote counterpart
-    upstream=$(git rev-parse --symbolic-full-name "$branch"@{u} 2>/dev/null)
-    if [ -z "$upstream" ]; then
+    _upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "$branch@{u}" 2>/dev/null)
+    if [ $? -ne 0 ]; then
       # If the branch does not have a remote counterpart, add it to the LOCAL_BRANCHES array
       LOCAL_BRANCHES+=("$branch")
     fi
@@ -38,7 +38,7 @@ list_local_branches () {
   print_boxed_text " Scanning local git branches..." $WIDTH
   print_boxed_new_line $WIDTH
 
-  get_local_branches
+  get_branches_with_no_remote_counterpart
 
   # If there are no local branches without a remote counterpart, exit
   if [ ${#LOCAL_BRANCHES[@]} -eq 0 ]; then

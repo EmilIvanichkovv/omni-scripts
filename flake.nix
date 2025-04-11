@@ -21,6 +21,10 @@
               bats
             ];
           };
+
+        packages = {
+          local-git-branch-cleanup = pkgs.callPackage ./pkgs/local-git-branch-cleanup { };
+        };
       };
     };
 }

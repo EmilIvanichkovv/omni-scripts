@@ -6,6 +6,14 @@ source "${BASH_SOURCE%/*}/utils/ansi.sh"
 
 WIDTH=120
 
+# Parse flags
+CHRONOLOGICAL=false
+for arg in "$@"; do
+  if [ "$arg" == "--chronological" ]; then
+    CHRONOLOGICAL=true
+  fi
+done
+
 # Initialize an array to keep track of deleted branches
 DELETED_BRANCHES=()
 
@@ -17,11 +25,10 @@ LOCAL_BRANCHES=()
 # - Have an upstream branch that no longer exists (e.g. deleted on the remote)
 get_branches_with_no_remote_counterpart() {
   for branch in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
-    # Check if the branch has a remote counterpart
     _upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "$branch@{u}" 2>/dev/null)
     if [ $? -ne 0 ]; then
-      # If the branch does not have a remote counterpart, add it to the LOCAL_BRANCHES array
-      LOCAL_BRANCHES+=("$branch")
+      last_epoch=$(git log -1 --format="%ct" "$branch")
+      LOCAL_BRANCHES+=("$branch|$last_epoch")
     fi
   done
 }
@@ -40,23 +47,27 @@ list_local_branches () {
 
   get_branches_with_no_remote_counterpart
 
-  # If there are no local branches without a remote counterpart, exit
   if [ ${#LOCAL_BRANCHES[@]} -eq 0 ]; then
     print_boxed_text " No local branches without a remote counterpart." $WIDTH
     print_line "$BL_CORNER" $WIDTH "$BR_CORNER"
-
     exit 0
   fi
 
-  # Print the local branches without a remote counterpart
+  if $CHRONOLOGICAL; then
+    IFS=$'\n' LOCAL_BRANCHES=($(for item in "${LOCAL_BRANCHES[@]}"; do echo "$item"; done | sort -t '|' -k2 -n))
+  fi
+
   print_boxed_text " Local branches without a remote counterpart:" $WIDTH
   print_boxed_new_line $WIDTH
 
-  for branch in "${LOCAL_BRANCHES[@]}"; do
-    last_update=$(git log -1 --format="%cr" "$branch")
+  for entry in "${LOCAL_BRANCHES[@]}"; do
+    branch="${entry%%|*}"
+    last_epoch="${entry##*|}"
+    last_update=$(date -d "@$last_epoch" "+%Y-%m-%d %H:%M")
     print_boxed_text " ${BOLD} • $branch${RESET} [Last update: ${UNDERLINE}$last_update${RESET}"] $WIDTH
   done
 }
+
 
 print_confirmation() {
   print_line "$L_MID" $WIDTH "$R_MID"
@@ -79,7 +90,8 @@ print_confirmation() {
 
 list_deleted_branches() {
   # Delete the local branches without a remote counterpart
-  for branch in "${LOCAL_BRANCHES[@]}"; do
+  for entry in "${LOCAL_BRANCHES[@]}"; do
+    branch="${entry%%|*}"
     git branch -D "$branch" 1>/dev/null
     DELETED_BRANCHES+=("$branch")
   done

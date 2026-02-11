@@ -4,6 +4,7 @@ mod ui;
 
 use clap::Parser;
 use color_eyre::Result;
+use git::BranchStatus;
 use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
@@ -13,33 +14,42 @@ struct Args {
     /// Override the default trunk branch
     #[arg(long)]
     trunk: Option<String>,
+
+    /// Force delete unmerged branches (use with caution!)
+    #[arg(long, short = 'f')]
+    force: bool,
 }
 
 fn main() -> Result<()> {
     // Initialize error handling
     color_eyre::install()?;
 
-    let _args = Args::parse();
+    let args = Args::parse();
 
     // Verify we're in a git repository
     match git::verify_repo() {
-        Ok(repo_path) => {
-            println!("📂 Repository: {}", repo_path);
+        Ok(path) => {
+            println!("📂 Repository: {}", path);
         }
         Err(e) => {
             eprintln!("❌ Error: {}", e);
             std::process::exit(1);
         }
-    }
+    };
+
+    // Get the trunk branch
+    let trunk = git::get_default_branch(args.trunk.as_deref())?;
+    println!("🌳 Trunk branch: {}", trunk);
+    println!();
 
     // Print header
     print_header();
 
-    // Get branches without remote counterparts
+    // Get branches with classification
     print_boxed_line("🔍 Scanning local git branches...");
     println!();
 
-    let branches = match git::get_branches_without_remote() {
+    let branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
         Ok(branches) => branches,
         Err(e) => {
             eprintln!("❌ Error scanning branches: {}", e);
@@ -54,24 +64,61 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Display branches
+    // Count by status
+    let deletable_count = branches.iter().filter(|b| b.status.is_deletable()).count();
+    let protected_count = branches.len() - deletable_count;
+
+    // Display branches with status
     print_boxed_line(&format!(
-        "📋 Local branches without a remote counterpart: ({})",
-        branches.len()
+        "📋 Found {} branches ({} deletable, {} protected):",
+        branches.len(),
+        deletable_count,
+        protected_count
     ));
     println!();
 
+    // Print legend
+    print_boxed_line("   Legend: ● merged  ◆ gone  ▲ unmerged  ⛔ protected  ★ current");
+    print_separator();
+
     for branch in &branches {
-        print_boxed_line(&format!(
-            "   • {} [Last update: {}]",
-            branch.name, branch.last_commit_relative
-        ));
+        let status_indicator = format!("{} {}", branch.status.icon(), branch.status.label());
+        let line = format!(
+            "   {} {:30} [{:>12}] {}",
+            if branch.status.is_deletable() { "[ ]" } else { "   " },
+            branch.name,
+            branch.last_commit_relative,
+            status_indicator
+        );
+        print_boxed_line(&line);
+    }
+
+    // If no deletable branches, exit
+    if deletable_count == 0 {
+        print_separator();
+        print_boxed_line("ℹ️  No branches can be deleted (all protected or current).");
+        print_footer();
+        return Ok(());
     }
 
     // Print confirmation prompt
     print_separator();
     print_boxed_line("⚠️  These branches are not present on the remote.");
-    print_boxed_line("🗑️  Do you want to delete them locally?");
+
+    // Show warning about unmerged branches
+    let unmerged_count = branches
+        .iter()
+        .filter(|b| b.status == BranchStatus::Unmerged)
+        .count();
+
+    if unmerged_count > 0 && !args.force {
+        print_boxed_line(&format!(
+            "⚠️  {} branch(es) have UNMERGED commits - use --force to delete them",
+            unmerged_count
+        ));
+    }
+
+    print_boxed_line("🗑️  Do you want to delete the deletable branches?");
     println!();
     print_boxed_line("   [y] Yes, delete them");
     print_boxed_line("   [n] No, do not delete them");
@@ -95,37 +142,62 @@ fn main() -> Result<()> {
     // Delete branches
     println!();
     print_header();
-    print_boxed_line("🗑️  Deleting selected branches...");
+    print_boxed_line("🗑️  Deleting branches...");
     print_separator();
 
-    let mut deleted_branches = Vec::new();
-    let mut failed_branches = Vec::new();
+    let mut deleted_count = 0;
+    let mut skipped_count = 0;
+    let mut failed_count = 0;
 
     for branch in &branches {
-        match git::delete_branch(&branch.name) {
+        // Skip non-deletable branches
+        if !branch.status.is_deletable() {
+            print_boxed_line(&format!(
+                "   ⏭️  Skipped: {} ({})",
+                branch.name,
+                branch.status.label()
+            ));
+            skipped_count += 1;
+            continue;
+        }
+
+        // For unmerged branches, only delete if --force is set
+        if branch.status == BranchStatus::Unmerged && !args.force {
+            print_boxed_line(&format!(
+                "   ⏭️  Skipped: {} (unmerged - use --force)",
+                branch.name
+            ));
+            skipped_count += 1;
+            continue;
+        }
+
+        // Use safe delete for merged/gone branches, force for unmerged
+        let use_force = branch.status == BranchStatus::Unmerged;
+
+        match git::delete_branch_with_mode(&branch.name, use_force) {
             Ok(_) => {
-                print_boxed_line(&format!("   ✓ Deleted: {}", branch.name));
-                deleted_branches.push(&branch.name);
+                let method = if use_force { "-D" } else { "-d" };
+                print_boxed_line(&format!("   ✓ Deleted: {} ({})", branch.name, method));
+                deleted_count += 1;
             }
             Err(e) => {
                 print_boxed_line(&format!("   ✗ Failed: {} ({})", branch.name, e));
-                failed_branches.push(&branch.name);
+                failed_count += 1;
             }
         }
     }
 
     // Print summary
     print_separator();
-    if failed_branches.is_empty() {
+    if failed_count == 0 {
         print_boxed_line(&format!(
-            "✅ Cleanup complete! Deleted {} branches.",
-            deleted_branches.len()
+            "✅ Cleanup complete! Deleted: {}, Skipped: {}",
+            deleted_count, skipped_count
         ));
     } else {
         print_boxed_line(&format!(
-            "⚠️  Cleanup finished with errors. Deleted: {}, Failed: {}",
-            deleted_branches.len(),
-            failed_branches.len()
+            "⚠️  Cleanup finished. Deleted: {}, Skipped: {}, Failed: {}",
+            deleted_count, skipped_count, failed_count
         ));
     }
     print_footer();

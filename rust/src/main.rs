@@ -17,6 +17,7 @@ use std::io::{self, Write};
 #[derive(Parser, Debug)]
 #[command(name = "local-git-branch-cleanup-tui")]
 #[command(about = "Interactive TUI for cleaning up local Git branches", long_about = None)]
+#[command(version)]
 struct Args {
     /// Override the default trunk branch
     #[arg(long)]
@@ -64,7 +65,7 @@ fn main() -> Result<()> {
 
     // Use CLI mode if --cli flag is set
     if args.cli {
-        return run_cli_mode(&branches, &trunk, args.force);
+        return run_cli_mode(&branches, &trunk, args.force, args.dry_run);
     }
 
     // Run TUI mode
@@ -213,8 +214,17 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
 }
 
 /// Run the CLI mode (non-interactive)
-fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool) -> Result<()> {
+fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run: bool) -> Result<()> {
     println!("🌳 Trunk branch: {}", trunk);
+    
+    // Show mode indicators
+    if force {
+        println!("⚠️  FORCE MODE: Will force-delete unmerged branches");
+    }
+    if dry_run {
+        println!("🔍 DRY RUN: Preview mode - no branches will be deleted");
+    }
+    
     println!();
 
     // Print header

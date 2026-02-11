@@ -11,7 +11,7 @@
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux"];
-      perSystem = {pkgs, ...}: {
+      perSystem = {pkgs, system, self', ...}: {
         devShells = {
           default = with pkgs;
             mkShell {
@@ -39,7 +39,11 @@
         };
 
         packages = {
-          local-git-branch-cleanup = pkgs.callPackage ./pkgs/local-git-branch-cleanup { };
+          local-git-branch-cleanup = pkgs.callPackage ./pkgs/local-git-branch-cleanup {
+            inherit (pkgs) lib git;
+            inherit (pkgs) rustPlatform;
+          };
+          default = self'.packages.local-git-branch-cleanup;
         };
       };
     };

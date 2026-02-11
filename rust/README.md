@@ -111,13 +111,113 @@ cp ./target/release/local-git-branch-cleanup-tui ~/.local/bin/
 ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 ```
 
-## Keyboard Controls (TUI Mode)
+## TUI Guide
+
+### Getting Started
+
+When you launch the TUI, you'll see:
+- **Header** - Repository path, trunk branch, selection count, and force mode indicator
+- **Branch List** - All branches with status icons, checkboxes, and metadata
+- **Action Log** - Deletion results (appears after deletions)
+- **Footer** - Status legend and keyboard shortcuts
+
+### Navigation
 
 | Key | Action |
 |-----|--------|
-| `↑` / `k` | Move selection up |
-| `↓` / `j` | Move selection down |
-| `q` / `Esc` | Quit |
+| `↑` / `k` | Move cursor up |
+| `↓` / `j` | Move cursor down |
+| `q` / `Esc` | Quit application |
+
+### Branch Selection
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle selection for current branch |
+| `a` | Select/deselect all safe branches |
+| `c` | Clear all selections |
+| `f` | Toggle force mode (enables unmerged branches) |
+
+**Understanding Checkboxes:**
+- `[✓]` - Selected for deletion
+- `[ ]` - Not selected (can be toggled)
+- ` - ` - Disabled (unmerged branch without force mode)
+- No checkbox - Protected/current branch (cannot be deleted)
+
+### Deleting Branches
+
+1. **Select branches** - Use `Space` to select individual branches, or `a` to select all safe branches
+2. **Review selection** - The header shows how many branches are selected
+3. **Confirm deletion** - Press `Enter` to open the confirmation modal
+4. **Approve or cancel** - Press `y` to delete, `n` to cancel
+
+The confirmation modal shows:
+- Number of branches to be deleted
+- Names of selected branches (up to 3, with "and X more" if needed)
+- Warning if any branches are unmerged
+- The delete command that will be used (`-d` or `-D`)
+
+### Force Mode
+
+By default, unmerged branches show a `-` checkbox and cannot be selected. This protects you from accidentally losing work.
+
+To delete unmerged branches:
+1. Press `f` to toggle force mode
+2. Header shows "⚠️ FORCE" indicator
+3. Unmerged branches now show `[ ]` checkboxes
+4. Selected unmerged branches will be deleted with `git branch -D` (force delete)
+
+**⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. Use with caution!
+
+### Action Log
+
+After deleting branches, the action log appears at the bottom showing:
+- ✓ Successfully deleted branches
+- ✗ Failed deletions with error messages
+- Success/failure counts
+
+The branch list automatically refreshes after deletion.
+
+### Example Workflow
+
+```
+1. Launch TUI
+   $ ./target/release/local-git-branch-cleanup-tui
+
+2. Navigate to an unmerged branch you want to delete
+   → Press ↓ or j to move down
+
+3. Enable force mode (if needed)
+   → Press f
+   → Header shows "⚠️ FORCE"
+
+4. Select the branch
+   → Press Space
+   → Checkbox shows [✓]
+
+5. Review your selection
+   → Header shows "📦 1 selected"
+
+6. Confirm deletion
+   → Press Enter
+   → Modal shows "Delete 1 branch(es)?"
+
+7. Approve
+   → Press y
+   → Action log shows "✓ branch-name - Deleted (-D)"
+   → Branch list refreshes
+
+8. Quit when done
+   → Press q
+```
+
+### Tips
+
+- **Start without force mode** - Review merged/gone branches first
+- **Use `a` for bulk cleanup** - Quickly select all safe branches
+- **Check the status icons** - ● merged and ◆ gone are always safe to delete
+- **Read the confirmation modal** - It shows exactly which branches will be deleted
+- **Watch the action log** - Verify deletions succeeded
 
 ## Branch Status Legend
 

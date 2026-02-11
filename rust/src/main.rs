@@ -88,17 +88,59 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => {
-                            app.quit();
+                    // Handle confirmation modal
+                    if app.show_confirmation {
+                        match key.code {
+                            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                // Confirm deletion
+                                app.delete_selected_branches();
+                                app.show_confirmation = false;
+                                app.refresh_branches();
+                            }
+                            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                                // Cancel deletion
+                                app.show_confirmation = false;
+                            }
+                            _ => {}
                         }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            app.select_next();
+                    } else {
+                        // Normal mode
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => {
+                                app.quit();
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                app.select_next();
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                app.select_prev();
+                            }
+                            KeyCode::Char(' ') => {
+                                // Toggle selection of current branch
+                                app.toggle_selection(app.selected_index);
+                            }
+                            KeyCode::Char('a') => {
+                                // Select all safe branches
+                                app.select_all_safe();
+                            }
+                            KeyCode::Char('c') => {
+                                // Clear selection
+                                app.clear_selection();
+                            }
+                            KeyCode::Char('f') => {
+                                // Toggle force mode
+                                app.force_mode = !app.force_mode;
+                                // Clear selection when toggling force mode
+                                app.clear_selection();
+                            }
+                            KeyCode::Enter => {
+                                // Show confirmation if branches are selected
+                                if app.selected_count() > 0 {
+                                    app.show_confirmation = true;
+                                }
+                            }
+                            _ => {}
                         }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            app.select_prev();
-                        }
-                        _ => {}
                     }
                 }
             }

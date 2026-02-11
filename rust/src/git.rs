@@ -45,6 +45,7 @@ impl BranchStatus {
     }
 
     /// Check if this branch can be safely deleted (without force)
+    #[allow(dead_code)]
     pub fn is_safe_to_delete(&self) -> bool {
         matches!(self, BranchStatus::SafeMerged | BranchStatus::GoneUpstream)
     }
@@ -202,6 +203,7 @@ pub fn is_protected_branch(branch: &str) -> bool {
 
 /// Get all local branches without remote counterparts
 /// (Replicates bash script logic)
+#[allow(dead_code)]
 pub fn get_branches_without_remote() -> Result<Vec<BranchInfo>> {
     get_branches_with_classification(None)
 }
@@ -345,6 +347,7 @@ fn classify_branch(
 }
 
 /// Delete a branch (force delete)
+#[allow(dead_code)]
 pub fn delete_branch(branch_name: &str) -> Result<()> {
     delete_branch_with_mode(branch_name, true)
 }

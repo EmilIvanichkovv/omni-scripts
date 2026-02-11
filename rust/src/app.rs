@@ -34,6 +34,7 @@ impl FilterMode {
     }
 
     /// Get filter by number (1-4)
+    #[allow(dead_code)]
     pub fn from_number(n: u8) -> Option<Self> {
         match n {
             1 => Some(FilterMode::SafeMerged),
@@ -179,11 +180,13 @@ impl App {
     }
 
     /// Count of deletable branches
+    #[allow(dead_code)]
     pub fn deletable_count(&self) -> usize {
         self.branches.iter().filter(|b| b.status.is_deletable()).count()
     }
 
     /// Count of protected branches
+    #[allow(dead_code)]
     pub fn protected_count(&self) -> usize {
         self.branches.len() - self.deletable_count()
     }
@@ -269,6 +272,7 @@ impl App {
     }
 
     /// Show the confirmation modal
+    #[allow(dead_code)]
     pub fn show_confirm_modal(&mut self) {
         if !self.selected_branches.is_empty() {
             self.show_confirmation = true;
@@ -276,6 +280,7 @@ impl App {
     }
 
     /// Hide the confirmation modal
+    #[allow(dead_code)]
     pub fn hide_confirm_modal(&mut self) {
         self.show_confirmation = false;
     }

@@ -75,6 +75,10 @@ pub struct App {
     pub force_mode: bool,
     /// Current filter mode
     pub current_filter: FilterMode,
+    /// Whether to show help modal
+    pub show_help: bool,
+    /// Dry run mode - preview actions without executing
+    pub dry_run: bool,
 }
 
 impl App {
@@ -90,6 +94,8 @@ impl App {
             action_log: Vec::new(),
             force_mode: false,
             current_filter: FilterMode::All,
+            show_help: false,
+            dry_run: false,
         }
     }
 

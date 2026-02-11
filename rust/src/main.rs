@@ -29,6 +29,10 @@ struct Args {
     /// Use CLI mode instead of TUI
     #[arg(long)]
     cli: bool,
+
+    /// Dry run mode - preview actions without executing
+    #[arg(long)]
+    dry_run: bool,
 }
 
 fn main() -> Result<()> {
@@ -64,11 +68,11 @@ fn main() -> Result<()> {
     }
 
     // Run TUI mode
-    run_tui_mode(branches, repo_path, trunk)
+    run_tui_mode(branches, repo_path, trunk, args.force, args.dry_run)
 }
 
 /// Run the interactive TUI mode
-fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String) -> Result<()> {
+fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String, force_mode: bool, dry_run: bool) -> Result<()> {
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -78,6 +82,8 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
 
     // Create app state
     let mut app = App::new(branches, repo_path, trunk);
+    app.force_mode = force_mode;
+    app.dry_run = dry_run;
 
     // Main loop
     loop {
@@ -88,14 +94,33 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    // Handle confirmation modal
-                    if app.show_confirmation {
+                    // Handle help modal
+                    if app.show_help {
+                        // Any key closes help modal
+                        app.show_help = false;
+                    } else if app.show_confirmation {
+                        // Handle confirmation modal
                         match key.code {
                             KeyCode::Char('y') | KeyCode::Char('Y') => {
                                 // Confirm deletion
-                                app.delete_selected_branches();
+                                if !app.dry_run {
+                                    app.delete_selected_branches();
+                                } else {
+                                    // Dry run: just log what would happen
+                                    let branches_to_preview: Vec<_> = app.get_selected_branches().iter().map(|b| b.name.clone()).collect();
+                                    for branch_name in branches_to_preview {
+                                        app.action_log.push(app::ActionLogEntry {
+                                            branch_name: branch_name.clone(),
+                                            success: true,
+                                            message: format!("[DRY RUN] Would delete: {}", branch_name),
+                                        });
+                                    }
+                                    app.clear_selection();
+                                }
                                 app.show_confirmation = false;
-                                app.refresh_branches();
+                                if !app.dry_run {
+                                    app.refresh_branches();
+                                }
                             }
                             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                                 // Cancel deletion
@@ -132,6 +157,14 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.force_mode = !app.force_mode;
                                 // Clear selection when toggling force mode
                                 app.clear_selection();
+                            }
+                            KeyCode::Char('d') => {
+                                // Toggle dry run mode
+                                app.dry_run = !app.dry_run;
+                            }
+                            KeyCode::Char('?') => {
+                                // Toggle help modal
+                                app.show_help = !app.show_help;
                             }
                             KeyCode::Tab => {
                                 // Cycle to next filter

@@ -366,3 +366,147 @@ pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_branch_status_label() {
+        assert_eq!(BranchStatus::SafeMerged.label(), "merged");
+        assert_eq!(BranchStatus::GoneUpstream.label(), "gone");
+        assert_eq!(BranchStatus::Unmerged.label(), "unmerged");
+        assert_eq!(BranchStatus::Protected.label(), "protected");
+        assert_eq!(BranchStatus::Current.label(), "current");
+    }
+
+    #[test]
+    fn test_branch_status_icon() {
+        assert_eq!(BranchStatus::SafeMerged.icon(), "●");
+        assert_eq!(BranchStatus::GoneUpstream.icon(), "◆");
+        assert_eq!(BranchStatus::Unmerged.icon(), "▲");
+        assert_eq!(BranchStatus::Protected.icon(), "⛔");
+        assert_eq!(BranchStatus::Current.icon(), "★");
+    }
+
+    #[test]
+    fn test_branch_status_is_safe_to_delete() {
+        assert!(BranchStatus::SafeMerged.is_safe_to_delete());
+        assert!(BranchStatus::GoneUpstream.is_safe_to_delete());
+        assert!(!BranchStatus::Unmerged.is_safe_to_delete());
+        assert!(!BranchStatus::Protected.is_safe_to_delete());
+        assert!(!BranchStatus::Current.is_safe_to_delete());
+    }
+
+    #[test]
+    fn test_branch_status_is_deletable() {
+        assert!(BranchStatus::SafeMerged.is_deletable());
+        assert!(BranchStatus::GoneUpstream.is_deletable());
+        assert!(BranchStatus::Unmerged.is_deletable());
+        assert!(!BranchStatus::Protected.is_deletable());
+        assert!(!BranchStatus::Current.is_deletable());
+    }
+
+    #[test]
+    fn test_is_protected_branch() {
+        assert!(is_protected_branch("main"));
+        assert!(is_protected_branch("master"));
+        assert!(is_protected_branch("develop"));
+        assert!(is_protected_branch("development"));
+        assert!(!is_protected_branch("feature/test"));
+        assert!(!is_protected_branch("bugfix/something"));
+    }
+
+    #[test]
+    fn test_classify_branch_current() {
+        let status = classify_branch(
+            "feature/test",
+            "feature/test",  // current
+            "main",
+            &["other-branch".to_string()],
+            false,
+        );
+        assert_eq!(status, BranchStatus::Current);
+    }
+
+    #[test]
+    fn test_classify_branch_protected() {
+        let status = classify_branch(
+            "main",
+            "feature/test",
+            "main",
+            &[],
+            false,
+        );
+        assert_eq!(status, BranchStatus::Protected);
+
+        let status2 = classify_branch(
+            "master",
+            "feature/test",
+            "main",
+            &[],
+            false,
+        );
+        assert_eq!(status2, BranchStatus::Protected);
+    }
+
+    #[test]
+    fn test_classify_branch_gone() {
+        let status = classify_branch(
+            "feature/old",
+            "main",
+            "main",
+            &[],
+            true,  // is_gone
+        );
+        assert_eq!(status, BranchStatus::GoneUpstream);
+    }
+
+    #[test]
+    fn test_classify_branch_merged() {
+        let merged = vec!["feature/done".to_string()];
+        let status = classify_branch(
+            "feature/done",
+            "main",
+            "main",
+            &merged,
+            false,
+        );
+        assert_eq!(status, BranchStatus::SafeMerged);
+    }
+
+    #[test]
+    fn test_classify_branch_unmerged() {
+        let status = classify_branch(
+            "feature/wip",
+            "main",
+            "main",
+            &[],
+            false,
+        );
+        assert_eq!(status, BranchStatus::Unmerged);
+    }
+
+    #[test]
+    fn test_classify_branch_priority() {
+        // Current branch takes priority over protected
+        let status = classify_branch(
+            "main",
+            "main",  // current
+            "main",
+            &["main".to_string()],  // also merged
+            false,
+        );
+        assert_eq!(status, BranchStatus::Current);
+
+        // Protected takes priority over merged
+        let status2 = classify_branch(
+            "main",
+            "feature/test",  // not current
+            "develop",  // trunk is something else
+            &["main".to_string()],  // merged
+            false,
+        );
+        assert_eq!(status2, BranchStatus::Protected);
+    }
+}

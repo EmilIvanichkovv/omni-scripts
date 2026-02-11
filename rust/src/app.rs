@@ -337,3 +337,352 @@ impl App {
         self.action_log.iter().filter(|e| !e.success).count()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_branch(name: &str, status: BranchStatus) -> BranchInfo {
+        BranchInfo {
+            name: name.to_string(),
+            upstream: None,
+            last_commit_relative: "2 days ago".to_string(),
+            status,
+            last_commit_sha: "abc123".to_string(),
+            last_commit_author: "Test Author".to_string(),
+            last_commit_message: "Test commit".to_string(),
+            ahead: None,
+            behind: None,
+        }
+    }
+
+    fn create_test_app() -> App {
+        let branches = vec![
+            create_test_branch("main", BranchStatus::Protected),
+            create_test_branch("feature/merged", BranchStatus::SafeMerged),
+            create_test_branch("feature/gone", BranchStatus::GoneUpstream),
+            create_test_branch("feature/unmerged", BranchStatus::Unmerged),
+            create_test_branch("current-branch", BranchStatus::Current),
+        ];
+        App::new(branches, "/test/repo".to_string(), "main".to_string())
+    }
+
+    #[test]
+    fn test_filter_mode_label() {
+        assert_eq!(FilterMode::All.label(), "ALL");
+        assert_eq!(FilterMode::SafeMerged.label(), "SAFE MERGED");
+        assert_eq!(FilterMode::GoneUpstream.label(), "UPSTREAM GONE");
+        assert_eq!(FilterMode::Unmerged.label(), "UNMERGED");
+    }
+
+    #[test]
+    fn test_filter_mode_next() {
+        assert_eq!(FilterMode::All.next(), FilterMode::SafeMerged);
+        assert_eq!(FilterMode::SafeMerged.next(), FilterMode::GoneUpstream);
+        assert_eq!(FilterMode::GoneUpstream.next(), FilterMode::Unmerged);
+        assert_eq!(FilterMode::Unmerged.next(), FilterMode::All);
+    }
+
+    #[test]
+    fn test_filter_mode_from_number() {
+        assert_eq!(FilterMode::from_number(1), Some(FilterMode::SafeMerged));
+        assert_eq!(FilterMode::from_number(2), Some(FilterMode::GoneUpstream));
+        assert_eq!(FilterMode::from_number(3), Some(FilterMode::Unmerged));
+        assert_eq!(FilterMode::from_number(4), Some(FilterMode::All));
+        assert_eq!(FilterMode::from_number(5), None);
+        assert_eq!(FilterMode::from_number(0), None);
+    }
+
+    #[test]
+    fn test_app_creation() {
+        let app = create_test_app();
+        assert_eq!(app.branches.len(), 5);
+        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.selected_branches.len(), 0);
+        assert!(!app.should_quit);
+        assert!(!app.show_confirmation);
+        assert!(!app.force_mode);
+        assert!(!app.show_help);
+        assert!(!app.dry_run);
+    }
+
+    #[test]
+    fn test_select_next_prev() {
+        let mut app = create_test_app();
+        
+        // Initially at index 0
+        assert_eq!(app.selected_index, 0);
+        
+        // Move next
+        app.select_next();
+        assert_eq!(app.selected_index, 1);
+        
+        app.select_next();
+        assert_eq!(app.selected_index, 2);
+        
+        // Move prev
+        app.select_prev();
+        assert_eq!(app.selected_index, 1);
+        
+        // Wrap around at end
+        app.selected_index = 4;
+        app.select_next();
+        assert_eq!(app.selected_index, 0);
+        
+        // Wrap around at beginning
+        app.selected_index = 0;
+        app.select_prev();
+        assert_eq!(app.selected_index, 4);
+    }
+
+    #[test]
+    fn test_filtered_branches() {
+        let app = create_test_app();
+        
+        // All filter
+        let all = app.filtered_branches();
+        assert_eq!(all.len(), 5);
+        
+        // Safe merged filter
+        let mut app = create_test_app();
+        app.current_filter = FilterMode::SafeMerged;
+        let safe = app.filtered_branches();
+        assert_eq!(safe.len(), 1);
+        assert_eq!(safe[0].name, "feature/merged");
+        
+        // Gone upstream filter
+        let mut app = create_test_app();
+        app.current_filter = FilterMode::GoneUpstream;
+        let gone = app.filtered_branches();
+        assert_eq!(gone.len(), 1);
+        assert_eq!(gone[0].name, "feature/gone");
+        
+        // Unmerged filter
+        let mut app = create_test_app();
+        app.current_filter = FilterMode::Unmerged;
+        let unmerged = app.filtered_branches();
+        assert_eq!(unmerged.len(), 1);
+        assert_eq!(unmerged[0].name, "feature/unmerged");
+    }
+
+    #[test]
+    fn test_filter_count() {
+        let app = create_test_app();
+        
+        assert_eq!(app.filter_count(FilterMode::All), 5);
+        assert_eq!(app.filter_count(FilterMode::SafeMerged), 1);
+        assert_eq!(app.filter_count(FilterMode::GoneUpstream), 1);
+        assert_eq!(app.filter_count(FilterMode::Unmerged), 1);
+    }
+
+    #[test]
+    fn test_set_filter() {
+        let mut app = create_test_app();
+        app.selected_index = 3;
+        
+        app.set_filter(FilterMode::SafeMerged);
+        assert_eq!(app.current_filter, FilterMode::SafeMerged);
+        assert_eq!(app.selected_index, 0); // Reset on filter change
+    }
+
+    #[test]
+    fn test_next_filter() {
+        let mut app = create_test_app();
+        
+        assert_eq!(app.current_filter, FilterMode::All);
+        app.next_filter();
+        assert_eq!(app.current_filter, FilterMode::SafeMerged);
+        app.next_filter();
+        assert_eq!(app.current_filter, FilterMode::GoneUpstream);
+        app.next_filter();
+        assert_eq!(app.current_filter, FilterMode::Unmerged);
+        app.next_filter();
+        assert_eq!(app.current_filter, FilterMode::All);
+    }
+
+    #[test]
+    fn test_deletable_count() {
+        let app = create_test_app();
+        // SafeMerged, GoneUpstream, Unmerged are deletable (3)
+        // Protected and Current are not (2)
+        assert_eq!(app.deletable_count(), 3);
+        assert_eq!(app.protected_count(), 2);
+    }
+
+    #[test]
+    fn test_toggle_selection() {
+        let mut app = create_test_app();
+        
+        // Cannot select protected branch (index 0)
+        app.toggle_selection(0);
+        assert!(!app.is_branch_selected(0));
+        
+        // Can select safe merged branch (index 1)
+        app.toggle_selection(1);
+        assert!(app.is_branch_selected(1));
+        
+        // Toggle again to deselect
+        app.toggle_selection(1);
+        assert!(!app.is_branch_selected(1));
+        
+        // Can select gone upstream (index 2)
+        app.toggle_selection(2);
+        assert!(app.is_branch_selected(2));
+        
+        // Cannot select unmerged without force mode (index 3)
+        app.toggle_selection(3);
+        assert!(!app.is_branch_selected(3));
+        
+        // Can select unmerged with force mode
+        app.force_mode = true;
+        app.toggle_selection(3);
+        assert!(app.is_branch_selected(3));
+    }
+
+    #[test]
+    fn test_select_all_safe() {
+        let mut app = create_test_app();
+        
+        // Select all safe branches (without force mode)
+        app.select_all_safe();
+        assert!(!app.is_branch_selected(0)); // Protected
+        assert!(app.is_branch_selected(1));  // SafeMerged
+        assert!(app.is_branch_selected(2));  // GoneUpstream
+        assert!(!app.is_branch_selected(3)); // Unmerged (no force)
+        assert!(!app.is_branch_selected(4)); // Current
+        
+        // Toggle again to deselect all
+        app.select_all_safe();
+        assert_eq!(app.selected_count(), 0);
+        
+        // With force mode, unmerged branches should be selectable
+        app.force_mode = true;
+        app.select_all_safe();
+        assert!(app.is_branch_selected(1));  // SafeMerged
+        assert!(app.is_branch_selected(2));  // GoneUpstream
+        assert!(app.is_branch_selected(3));  // Unmerged (with force)
+    }
+
+    #[test]
+    fn test_clear_selection() {
+        let mut app = create_test_app();
+        
+        app.toggle_selection(1);
+        app.toggle_selection(2);
+        assert_eq!(app.selected_count(), 2);
+        
+        app.clear_selection();
+        assert_eq!(app.selected_count(), 0);
+    }
+
+    #[test]
+    fn test_get_selected_branches() {
+        let mut app = create_test_app();
+        
+        app.toggle_selection(1);
+        app.toggle_selection(2);
+        
+        let selected = app.get_selected_branches();
+        assert_eq!(selected.len(), 2);
+        
+        // Check that both branches are present (order not guaranteed from HashSet)
+        let names: Vec<&str> = selected.iter().map(|b| b.name.as_str()).collect();
+        assert!(names.contains(&"feature/merged"));
+        assert!(names.contains(&"feature/gone"));
+    }
+
+    #[test]
+    fn test_selected_branch() {
+        let mut app = create_test_app();
+        
+        let branch = app.selected_branch();
+        assert!(branch.is_some());
+        assert_eq!(branch.unwrap().name, "main");
+        
+        app.selected_index = 1;
+        let branch = app.selected_branch();
+        assert_eq!(branch.unwrap().name, "feature/merged");
+    }
+
+    #[test]
+    fn test_quit() {
+        let mut app = create_test_app();
+        assert!(!app.should_quit);
+        
+        app.quit();
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn test_confirmation_modal() {
+        let mut app = create_test_app();
+        
+        // Cannot show confirmation with no selection
+        app.show_confirm_modal();
+        assert!(!app.show_confirmation);
+        
+        // Can show with selection
+        app.toggle_selection(1);
+        app.show_confirm_modal();
+        assert!(app.show_confirmation);
+        
+        // Can hide
+        app.hide_confirm_modal();
+        assert!(!app.show_confirmation);
+    }
+
+    #[test]
+    fn test_action_log() {
+        let mut app = create_test_app();
+        
+        app.action_log.push(ActionLogEntry {
+            branch_name: "test1".to_string(),
+            success: true,
+            message: "Deleted (-d)".to_string(),
+        });
+        
+        app.action_log.push(ActionLogEntry {
+            branch_name: "test2".to_string(),
+            success: false,
+            message: "Failed to delete".to_string(),
+        });
+        
+        assert_eq!(app.deletion_success_count(), 1);
+        assert_eq!(app.deletion_failure_count(), 1);
+    }
+
+    #[test]
+    fn test_toggle_selection_at_cursor() {
+        let mut app = create_test_app();
+        
+        // Move to safe merged branch
+        app.selected_index = 1;
+        app.toggle_selection_at_cursor();
+        assert!(app.is_branch_selected(1));
+        
+        // Move to another branch
+        app.selected_index = 2;
+        app.toggle_selection_at_cursor();
+        assert!(app.is_branch_selected(2));
+    }
+
+    #[test]
+    fn test_filtered_selection() {
+        let mut app = create_test_app();
+        
+        // Switch to SafeMerged filter
+        app.set_filter(FilterMode::SafeMerged);
+        
+        // Should have only 1 item in filtered list
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "feature/merged");
+        
+        // Select at cursor (should select the merged branch)
+        app.selected_index = 0;
+        app.toggle_selection_at_cursor();
+        
+        // Original index 1 should be selected
+        assert!(app.is_branch_selected(1));
+    }
+}

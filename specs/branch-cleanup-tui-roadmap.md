@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
 **Target Name**: `local-git-branch-cleanup-tui`  
 **Location**: `./rust/` directory in repository  
-**Status**: 🚀 M3 Complete → Starting M4  
+**Status**: 🚀 M4 Complete → Starting M5  
 **Last Updated**: 2026-02-11
 
 ---
@@ -282,10 +282,10 @@ Improve branch analysis beyond "has remote" / "no remote".
 
 ---
 
-### 🎯 Milestone 4: Basic TUI (Non-Interactive List)
-**Status**: 🔴 Not Started  
+### ✅ Milestone 4: Basic TUI (Non-Interactive List)
+**Status**: ✅ Complete (2026-02-11)  
 **Priority**: P1  
-**Estimated Effort**: 16-24 hours  
+**Estimated Effort**: 16-24 hours (Actual: ~2 hours)  
 **Depends On**: M3
 
 #### Goals
@@ -330,15 +330,24 @@ Display branch information in terminal UI, read-only initially.
    - Footer: Navigation keys, quit hint
 
 #### Acceptance Criteria
-- [ ] Displays all branches from M3
-- [ ] Scrollable list with keyboard navigation
-- [ ] Status colors match specification
-- [ ] Graceful handling of small terminal sizes
+- [x] Displays all branches from M3 with status icons
+- [x] Scrollable list with keyboard navigation (j/k, arrows)
+- [x] Status colors match specification (cyan, amber, red, purple)
+- [x] Graceful handling of small terminal sizes (Ratatui handles this)
+
+#### Implementation Notes
+- TUI is now the default mode, --cli flag for CLI mode
+- Uses Ratatui with Crossterm backend
+- Terminal init/restore pattern with alternate screen and raw mode
+- Color palette: cyan (#2EC4B6), amber (#FFB86C), red (#FF5555), purple (#BD93F9)
+- Header shows app name, repo path, and trunk branch
+- Footer shows status legend and navigation hints
+- Table highlights selected row with background color
 
 #### Out of Scope (for M4)
-- Selection/deletion (read-only view)
-- Filters
-- Details pane
+- Selection/deletion (read-only view) → M5
+- Filters → M6
+- Details pane → M6
 
 ---
 
@@ -692,3 +701,12 @@ touch src/app.rs src/git.rs src/ui.rs
     - Added --force/-f flag for unmerged branch deletion
     - Uses safe delete (-d) by default, force delete (-D) only when --force set
     - CLI displays status icons and legends for branch classification
+  - ✅ Milestone 4 completed: Basic TUI (Non-Interactive List)
+    - Enhanced App state with repo_path, trunk, and helper methods
+    - Implemented full TUI rendering with Ratatui and Crossterm
+    - Added header with app name, repo path, and trunk branch
+    - Created branch list table with status icons, highlighting, and colors
+    - Added footer with status legend and navigation key hints
+    - Implemented event loop with keyboard navigation (q/Esc, j/k, arrows)
+    - TUI is now default mode, --cli flag for CLI mode
+    - Color palette: cyan accent, amber warning, red danger, purple current

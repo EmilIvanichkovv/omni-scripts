@@ -440,10 +440,10 @@ Enable branch selection and deletion within TUI.
 
 ---
 
-### 🎯 Milestone 6: Filters & Details Pane
-**Status**: 🔴 Not Started  
+### ✅ Milestone 6: Filters & Details Pane
+**Status**: ✅ Complete (2026-02-11)  
 **Priority**: P2 (Nice to Have)  
-**Estimated Effort**: 8-12 hours  
+**Actual Effort**: 4 hours  
 **Depends On**: M5
 
 > **Note**: This is beyond MVP. M1-M5 deliver complete functional replacement.
@@ -452,22 +452,22 @@ Enable branch selection and deletion within TUI.
 Add filtering and detailed branch information view.
 
 #### Tasks
-1. **Filter Tabs**
+1. **Filter Tabs** ✅
    ```
    [ SAFE MERGED (N) ] [ UPSTREAM GONE (M) ] [ UNMERGED (K) ] [ ALL (T) ]
    ```
-   - Keys `1-4` or `F1-F4` to switch
-   - `Tab` to cycle
-   - Show branch count per filter
+   - [x] Keys `1-4` or `F1-F4` to switch
+   - [x] `Tab` to cycle
+   - [x] Show branch count per filter
 
-2. **Details Pane** (Right Side, 30% width)
-   - Branch name (large)
-   - Status explanation
-   - Upstream info
-   - Ahead/behind details
-   - Last commit SHA, author, message
+2. **Details Pane** (Right Side, 30% width) ✅
+   - [x] Branch name (large)
+   - [x] Status explanation
+   - [x] Upstream info
+   - [x] Ahead/behind details
+   - [x] Last commit SHA, author, message
 
-3. **Split Layout**
+3. **Split Layout** ✅
    ```
    ┌─────────────────────────────────────────┐
    │ HEADER                                  │
@@ -484,9 +484,28 @@ Add filtering and detailed branch information view.
    ```
 
 #### Acceptance Criteria
-- [ ] Filters work correctly
-- [ ] Details pane updates on selection
-- [ ] Layout adapts to terminal size
+- [x] Filters work correctly (1-4, F1-F4, Tab navigation)
+- [x] Details pane updates on selection
+- [x] Layout adapts to terminal size
+
+#### Implementation Summary
+**Key Features Implemented:**
+- **FilterMode enum (app.rs)**: Added All, SafeMerged, GoneUpstream, Unmerged variants
+- **Filter methods**: `get_filtered_branches()`, `cycle_filter()`, `set_filter()`, `get_filter_counts()`
+- **Enhanced BranchInfo (git.rs)**: Added commit_sha, commit_author, commit_message, ahead, behind fields
+- **Git integration**: Added `get_ahead_behind_counts()` function using `git rev-list --left-right --count`
+- **Filter tabs UI (ui.rs)**: Horizontal tabs with branch counts and cyan highlighting for active filter
+- **Details pane (ui.rs)**: Right-side panel (30% width) showing comprehensive branch information
+- **Split layout**: Filter tabs row + branch list (70%) + details pane (30%) + action log
+- **Event handlers (main.rs)**: Keys 1-4, F1-F4, and Tab for filter navigation
+- **Footer updates**: Added filter navigation hints (1-4: Filters, Tab: Next)
+
+**Technical Details:**
+- Filter tabs use Tabs widget with active highlight
+- Details pane uses List widget with proper text wrapping
+- Branch list automatically filters based on current filter mode
+- Selection index adjusts to filtered branch list
+- Filter counts update dynamically based on branch status
 
 ---
 
@@ -753,3 +772,12 @@ touch src/app.rs src/git.rs src/ui.rs
     - Implemented event loop with keyboard navigation (q/Esc, j/k, arrows)
     - TUI is now default mode, --cli flag for CLI mode
     - Color palette: cyan accent, amber warning, red danger, purple current
+  - ✅ Milestone 6 completed: Filters & Details Pane
+    - Added FilterMode enum with All, SafeMerged, GoneUpstream, Unmerged variants
+    - Enhanced BranchInfo with commit SHA, author, message, ahead/behind counts
+    - Implemented filter tabs UI with branch counts and active highlighting
+    - Added details pane (30% width) showing comprehensive branch information
+    - Split layout: filter tabs + branch list (70%) + details pane (30%)
+    - Event handlers for 1-4, F1-F4, Tab keys to navigate filters
+    - Dynamic filter counts and automatic list filtering
+    - Footer updated with filter navigation hints

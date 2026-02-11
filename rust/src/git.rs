@@ -62,6 +62,16 @@ pub struct BranchInfo {
     pub upstream: Option<String>,
     pub last_commit_relative: String,
     pub status: BranchStatus,
+    /// Last commit SHA (short)
+    pub last_commit_sha: String,
+    /// Last commit author
+    pub last_commit_author: String,
+    /// Last commit message (first line)
+    pub last_commit_message: String,
+    /// Number of commits ahead of upstream (if tracked)
+    pub ahead: Option<usize>,
+    /// Number of commits behind upstream (if tracked)
+    pub behind: Option<usize>,
 }
 
 /// Verify we're inside a Git repository
@@ -166,6 +176,25 @@ pub fn get_gone_branches() -> Result<Vec<String>> {
     Ok(gone_branches)
 }
 
+/// Get ahead/behind counts for a branch relative to its upstream
+fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(Option<usize>, Option<usize>)> {
+    let output = Command::new("git")
+        .args(["rev-list", "--left-right", "--count", &format!("{}...{}", branch, upstream)])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok((None, None));
+    }
+
+    let counts = String::from_utf8(output.stdout)?.trim().to_string();
+    let parts: Vec<&str> = counts.split_whitespace().collect();
+    
+    let ahead = parts.get(0).and_then(|s| s.parse().ok());
+    let behind = parts.get(1).and_then(|s| s.parse().ok());
+
+    Ok((ahead, behind))
+}
+
 /// Check if a branch name is protected
 pub fn is_protected_branch(branch: &str) -> bool {
     PROTECTED_BRANCHES.contains(&branch)
@@ -228,6 +257,24 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
 
         let last_commit_relative = String::from_utf8(last_commit.stdout)?.trim().to_string();
 
+        // Get commit details
+        let commit_details = Command::new("git")
+            .args(["log", "-1", "--format=%h|%an|%s", branch])
+            .output()?;
+
+        let details_str = String::from_utf8(commit_details.stdout)?.trim().to_string();
+        let details_parts: Vec<&str> = details_str.split('|').collect();
+        let last_commit_sha = details_parts.get(0).unwrap_or(&"").to_string();
+        let last_commit_author = details_parts.get(1).unwrap_or(&"").to_string();
+        let last_commit_message = details_parts.get(2).unwrap_or(&"").to_string();
+
+        // Get ahead/behind counts if there's an upstream
+        let (ahead, behind) = if has_upstream && !is_gone {
+            get_ahead_behind_counts(branch, upstream.as_ref().unwrap())?
+        } else {
+            (None, None)
+        };
+
         // Determine branch status
         let status = classify_branch(
             branch,
@@ -242,6 +289,11 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             upstream,
             last_commit_relative,
             status,
+            last_commit_sha,
+            last_commit_author,
+            last_commit_message,
+            ahead,
+            behind,
         });
     }
 

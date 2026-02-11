@@ -3,6 +3,48 @@
 use crate::git::{self, BranchInfo, BranchStatus};
 use std::collections::HashSet;
 
+/// Filter mode for branch list
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterMode {
+    All,
+    SafeMerged,
+    GoneUpstream,
+    Unmerged,
+}
+
+impl FilterMode {
+    /// Get the label for the filter
+    pub fn label(&self) -> &'static str {
+        match self {
+            FilterMode::All => "ALL",
+            FilterMode::SafeMerged => "SAFE MERGED",
+            FilterMode::GoneUpstream => "UPSTREAM GONE",
+            FilterMode::Unmerged => "UNMERGED",
+        }
+    }
+
+    /// Cycle to the next filter mode
+    pub fn next(&self) -> Self {
+        match self {
+            FilterMode::All => FilterMode::SafeMerged,
+            FilterMode::SafeMerged => FilterMode::GoneUpstream,
+            FilterMode::GoneUpstream => FilterMode::Unmerged,
+            FilterMode::Unmerged => FilterMode::All,
+        }
+    }
+
+    /// Get filter by number (1-4)
+    pub fn from_number(n: u8) -> Option<Self> {
+        match n {
+            1 => Some(FilterMode::SafeMerged),
+            2 => Some(FilterMode::GoneUpstream),
+            3 => Some(FilterMode::Unmerged),
+            4 => Some(FilterMode::All),
+            _ => None,
+        }
+    }
+}
+
 /// Log entry for deletion actions
 #[derive(Debug, Clone)]
 pub struct ActionLogEntry {
@@ -15,9 +57,9 @@ pub struct ActionLogEntry {
 pub struct App {
     /// All discovered branches
     pub branches: Vec<BranchInfo>,
-    /// Currently selected branch index (cursor)
+    /// Currently selected branch index (cursor) - relative to filtered list
     pub selected_index: usize,
-    /// Set of selected branch indices (for deletion)
+    /// Set of selected branch indices (for deletion) - relative to all branches
     pub selected_branches: HashSet<usize>,
     /// Whether the app should quit
     pub should_quit: bool,
@@ -31,6 +73,8 @@ pub struct App {
     pub action_log: Vec<ActionLogEntry>,
     /// Force mode for deleting unmerged branches
     pub force_mode: bool,
+    /// Current filter mode
+    pub current_filter: FilterMode,
 }
 
 impl App {
@@ -45,6 +89,7 @@ impl App {
             show_confirmation: false,
             action_log: Vec::new(),
             force_mode: false,
+            current_filter: FilterMode::All,
         }
     }
 
@@ -53,15 +98,17 @@ impl App {
     }
 
     pub fn select_next(&mut self) {
-        if !self.branches.is_empty() {
-            self.selected_index = (self.selected_index + 1) % self.branches.len();
+        let filtered = self.filtered_branches();
+        if !filtered.is_empty() {
+            self.selected_index = (self.selected_index + 1) % filtered.len();
         }
     }
 
     pub fn select_prev(&mut self) {
-        if !self.branches.is_empty() {
+        let filtered = self.filtered_branches();
+        if !filtered.is_empty() {
             if self.selected_index == 0 {
-                self.selected_index = self.branches.len() - 1;
+                self.selected_index = filtered.len() - 1;
             } else {
                 self.selected_index -= 1;
             }
@@ -70,7 +117,59 @@ impl App {
 
     /// Get the currently selected branch, if any
     pub fn selected_branch(&self) -> Option<&BranchInfo> {
-        self.branches.get(self.selected_index)
+        let filtered = self.filtered_branches();
+        filtered.get(self.selected_index).copied()
+    }
+
+    /// Get filtered branches based on current filter mode
+    pub fn filtered_branches(&self) -> Vec<&BranchInfo> {
+        match self.current_filter {
+            FilterMode::All => self.branches.iter().collect(),
+            FilterMode::SafeMerged => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::SafeMerged)
+                .collect(),
+            FilterMode::GoneUpstream => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::GoneUpstream)
+                .collect(),
+            FilterMode::Unmerged => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::Unmerged)
+                .collect(),
+        }
+    }
+
+    /// Get count of branches for a specific filter
+    pub fn filter_count(&self, filter: FilterMode) -> usize {
+        match filter {
+            FilterMode::All => self.branches.len(),
+            FilterMode::SafeMerged => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::SafeMerged)
+                .count(),
+            FilterMode::GoneUpstream => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::GoneUpstream)
+                .count(),
+            FilterMode::Unmerged => self.branches
+                .iter()
+                .filter(|b| b.status == BranchStatus::Unmerged)
+                .count(),
+        }
+    }
+
+    /// Set the current filter mode
+    pub fn set_filter(&mut self, filter: FilterMode) {
+        self.current_filter = filter;
+        // Reset selection when filter changes
+        self.selected_index = 0;
+    }
+
+    /// Cycle to next filter
+    pub fn next_filter(&mut self) {
+        self.current_filter = self.current_filter.next();
+        self.selected_index = 0;
     }
 
     /// Count of deletable branches
@@ -81,6 +180,17 @@ impl App {
     /// Count of protected branches
     pub fn protected_count(&self) -> usize {
         self.branches.len() - self.deletable_count()
+    }
+
+    /// Toggle selection of a branch by filtered index
+    pub fn toggle_selection_at_cursor(&mut self) {
+        let filtered = self.filtered_branches();
+        if let Some(&branch) = filtered.get(self.selected_index) {
+            // Find the original index in all branches
+            if let Some(original_idx) = self.branches.iter().position(|b| b.name == branch.name) {
+                self.toggle_selection(original_idx);
+            }
+        }
     }
 
     /// Toggle selection of a branch by index

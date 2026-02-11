@@ -73,6 +73,11 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_confirmation {
         render_confirmation_modal(frame, app);
     }
+    
+    // Render help modal on top if shown
+    if app.show_help {
+        render_help_modal(frame);
+    }
 }
 
 /// Render the header with app name and repo info
@@ -85,6 +90,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 
     let force_indicator = if app.force_mode {
         " │ ⚠️ FORCE"
+    } else {
+        ""
+    };
+    
+    let dry_run_indicator = if app.dry_run {
+        " │ 🔍 DRY RUN"
     } else {
         ""
     };
@@ -104,6 +115,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(&app.trunk, Style::default().fg(COLOR_SUCCESS)),
             Span::styled(&selected_info, Style::default().fg(COLOR_SELECTED)),
             Span::styled(force_indicator, Style::default().fg(COLOR_DANGER)),
+            Span::styled(dry_run_indicator, Style::default().fg(COLOR_WARNING)),
         ]),
     ];
 
@@ -456,11 +468,15 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 
     let key_hints = if app.branches.is_empty() {
         Line::from(vec![
+            Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     } else {
         Line::from(vec![
+            Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("↑↓/jk", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("1-4/Tab", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -471,6 +487,8 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" all  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
             Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("d", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
+            Span::styled(" dry-run  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
@@ -510,16 +528,29 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
 
     let mut lines = vec![
         Line::from(""),
-        Line::from(vec![
+    ];
+    
+    if app.dry_run {
+        lines.push(Line::from(vec![
+            Span::styled("  Preview ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(
+                format!("{}", app.selected_count()),
+                Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" branch(es) ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("(Dry Run)", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
+        ]));
+    } else {
+        lines.push(Line::from(vec![
             Span::styled("  Delete ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
                 format!("{}", app.selected_count()),
                 Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD),
             ),
             Span::styled(" branch(es)?", Style::default().fg(COLOR_MUTED)),
-        ]),
-        Line::from(""),
-    ];
+        ]));
+    }
+    lines.push(Line::from(""));
 
     // Show branch names (up to 3)
     for (i, branch) in selected_branches.iter().take(3).enumerate() {
@@ -563,13 +594,19 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
         Span::styled(" cancel", Style::default().fg(COLOR_MUTED)),
     ]));
 
+    let (modal_border_color, modal_title) = if app.dry_run {
+        (COLOR_WARNING, " 🔍 Preview (Dry Run) ")
+    } else {
+        (COLOR_DANGER, " ⚠️  Confirm Deletion ")
+    };
+
     let modal = Paragraph::new(lines)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_DANGER))
-                .title(" ⚠️  Confirm Deletion ")
-                .title_style(Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
+                .border_style(Style::default().fg(modal_border_color))
+                .title(modal_title)
+                .title_style(Style::default().fg(modal_border_color).add_modifier(Modifier::BOLD)),
         )
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
@@ -591,4 +628,120 @@ fn get_status_color(status: &BranchStatus) -> Color {
         BranchStatus::Protected => COLOR_DANGER,
         BranchStatus::Current => COLOR_CURRENT,
     }
+}
+
+/// Render the help modal
+fn render_help_modal(frame: &mut Frame) {
+    let area = frame.area();
+    
+    // Calculate modal size (larger for help content)
+    let modal_width = 70.min(area.width - 4);
+    let modal_height = 28.min(area.height - 4);
+    
+    let modal_area = Rect {
+        x: (area.width - modal_width) / 2,
+        y: (area.height - modal_height) / 2,
+        width: modal_width,
+        height: modal_height,
+    };
+
+    // Clear the area behind the modal
+    frame.render_widget(Clear, modal_area);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Navigation", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ↑/k", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("          Move cursor up", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ↓/j", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("          Move cursor down", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Filters", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    1 / F1", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("        Show safe merged branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    2 / F2", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("        Show upstream gone branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    3 / F3", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("        Show unmerged branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    4 / F4", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("        Show all branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Tab", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("           Cycle through filters", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Selection", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Space", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("         Toggle selection for current branch", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    a", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Select/deselect all safe branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    c", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Clear all selections", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Actions", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Enter", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("         Confirm and delete selected branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    f", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
+            Span::styled("             Toggle force mode (allow unmerged)", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    d", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
+            Span::styled("             Toggle dry run mode (preview only)", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Other", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ?", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Show this help", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    q / Esc", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("       Quit application", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+    ];
+
+    let modal = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_ACCENT))
+                .title(" 📖 Help - Keyboard Shortcuts ")
+                .title_style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        )
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left);
+
+    frame.render_widget(modal, modal_area);
 }

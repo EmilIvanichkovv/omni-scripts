@@ -76,6 +76,7 @@ Options:
       --trunk <TRUNK>  Override the default trunk branch
   -f, --force          Force delete unmerged branches (use with caution!)
       --cli            Use CLI mode instead of TUI
+      --dry-run        Dry run mode - preview actions without executing
   -h, --help           Print help
 ```
 
@@ -87,6 +88,9 @@ Options:
 
 # Use CLI mode
 ./target/release/local-git-branch-cleanup-tui --cli
+
+# Preview deletions without executing (dry run)
+./target/release/local-git-branch-cleanup-tui --dry-run
 
 # Override trunk branch detection
 ./target/release/local-git-branch-cleanup-tui --trunk develop
@@ -182,6 +186,30 @@ To delete unmerged branches:
 4. Selected unmerged branches will be deleted with `git branch -D` (force delete)
 
 **⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. Use with caution!
+
+### Dry Run Mode
+
+Dry run mode lets you preview what would be deleted without actually executing the deletions:
+1. Press `d` to toggle dry run mode
+2. Header shows "🔍 DRY RUN" indicator
+3. Select branches and press `Enter` to preview
+4. Confirmation modal shows "Preview (Dry Run)" title
+5. Press `y` to see preview in action log
+6. Action log shows "[DRY RUN] Would delete: branch-name"
+7. No branches are actually deleted
+
+This is useful for testing your selection before committing to deletions.
+
+### Help Modal
+
+Press `?` at any time to show the comprehensive help modal with all keyboard shortcuts organized by category:
+- **Navigation** - Arrow keys, j/k
+- **Filters** - 1-4, F1-F4, Tab
+- **Selection** - Space, a (all), c (clear)
+- **Actions** - Enter (delete), f (force), d (dry run)
+- **Other** - ? (help), q (quit)
+
+Press any key to close the help modal.
 
 ### Action Log
 

@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
 **Target Name**: `local-git-branch-cleanup-tui`  
 **Location**: `./rust/` directory in repository  
-**Status**: 🚀 M2 Complete → Starting M3  
+**Status**: 🚀 M3 Complete → Starting M4  
 **Last Updated**: 2026-02-11
 
 ---
@@ -219,10 +219,10 @@ Replicate existing bash script functionality using Rust + Git commands.
 
 ---
 
-### 🎯 Milestone 3: Enhanced Branch Classification
-**Status**: 🔴 Not Started  
+### ✅ Milestone 3: Enhanced Branch Classification
+**Status**: ✅ Complete (2026-02-11)  
 **Priority**: P1 (High Value)  
-**Estimated Effort**: 12-20 hours  
+**Estimated Effort**: 12-20 hours (Actual: ~2 hours)  
 **Depends On**: M2
 
 #### Goals
@@ -264,14 +264,21 @@ Improve branch analysis beyond "has remote" / "no remote".
      - Trunk branch
 
 #### Acceptance Criteria
-- [ ] Correctly classifies 5 test scenarios
-- [ ] Protected branches cannot be selected
-- [ ] Merged branches identified accurately
-- [ ] Gone branches detected after `git fetch --prune`
+- [x] Correctly classifies 5 test scenarios (Current, Protected, SafeMerged, GoneUpstream, Unmerged)
+- [x] Protected branches cannot be selected (main/master/develop/current)
+- [x] Merged branches identified accurately using `git branch --merged <trunk>`
+- [x] Gone branches detected using `git for-each-ref` with [gone] marker
+
+#### Implementation Notes
+- BranchStatus enum with 5 variants and helper methods (icon, label, is_deletable)
+- Trunk detection via `git symbolic-ref` with main/master fallback
+- --trunk CLI flag for override
+- --force/-f flag for unmerged branch deletion
+- Safe delete (-d) for merged/gone, force delete (-D) only when --force set
 
 #### Risks
 - **Risk**: Different Git configurations (e.g., `origin` vs other remotes)
-- **Mitigation**: Support `--remote <name>` CLI flag
+- **Mitigation**: Support `--remote <name>` CLI flag (future enhancement)
 
 ---
 
@@ -676,3 +683,12 @@ touch src/app.rs src/git.rs src/ui.rs
     - Implemented branch deletion with comprehensive error handling
     - Verified behavior matches bash script exactly
     - Successfully tested on live repository
+  - ✅ Milestone 3 completed: Enhanced Branch Classification
+    - Added BranchStatus enum with 5 variants (SafeMerged, GoneUpstream, Unmerged, Protected, Current)
+    - Implemented trunk detection via git symbolic-ref with main/master fallback
+    - Added merged branch detection using git branch --merged
+    - Added gone upstream detection using git for-each-ref [gone] marker
+    - Implemented protection rules for main/master/develop/current branches
+    - Added --force/-f flag for unmerged branch deletion
+    - Uses safe delete (-d) by default, force delete (-D) only when --force set
+    - CLI displays status icons and legends for branch classification

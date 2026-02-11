@@ -20,7 +20,17 @@
 
                 # Bash Automated Testing System
                 bats
+                
+                # Rust toolchain
+                cargo
+                rustc
+                rustfmt
+                clippy
+                rust-analyzer
+                git
               ];
+              
+              RUST_BACKTRACE = 1;
             };
 
           rust-tui = with pkgs;

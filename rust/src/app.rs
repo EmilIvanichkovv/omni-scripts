@@ -4,17 +4,26 @@ use crate::git::BranchInfo;
 
 /// Main application state
 pub struct App {
+    /// All discovered branches
     pub branches: Vec<BranchInfo>,
+    /// Currently selected branch index
     pub selected_index: usize,
+    /// Whether the app should quit
     pub should_quit: bool,
+    /// Repository path
+    pub repo_path: String,
+    /// Trunk branch name
+    pub trunk: String,
 }
 
 impl App {
-    pub fn new(branches: Vec<BranchInfo>) -> Self {
+    pub fn new(branches: Vec<BranchInfo>, repo_path: String, trunk: String) -> Self {
         Self {
             branches,
             selected_index: 0,
             should_quit: false,
+            repo_path,
+            trunk,
         }
     }
 
@@ -36,5 +45,20 @@ impl App {
                 self.selected_index -= 1;
             }
         }
+    }
+
+    /// Get the currently selected branch, if any
+    pub fn selected_branch(&self) -> Option<&BranchInfo> {
+        self.branches.get(self.selected_index)
+    }
+
+    /// Count of deletable branches
+    pub fn deletable_count(&self) -> usize {
+        self.branches.iter().filter(|b| b.status.is_deletable()).count()
+    }
+
+    /// Count of protected branches
+    pub fn protected_count(&self) -> usize {
+        self.branches.len() - self.deletable_count()
     }
 }

@@ -2,9 +2,16 @@ mod app;
 mod git;
 mod ui;
 
+use app::App;
 use clap::Parser;
 use color_eyre::Result;
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use git::BranchStatus;
+use ratatui::prelude::*;
 use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
@@ -18,6 +25,10 @@ struct Args {
     /// Force delete unmerged branches (use with caution!)
     #[arg(long, short = 'f')]
     force: bool,
+
+    /// Use CLI mode instead of TUI
+    #[arg(long)]
+    cli: bool,
 }
 
 fn main() -> Result<()> {
@@ -27,10 +38,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Verify we're in a git repository
-    match git::verify_repo() {
-        Ok(path) => {
-            println!("📂 Repository: {}", path);
-        }
+    let repo_path = match git::verify_repo() {
+        Ok(path) => path,
         Err(e) => {
             eprintln!("❌ Error: {}", e);
             std::process::exit(1);
@@ -39,16 +48,8 @@ fn main() -> Result<()> {
 
     // Get the trunk branch
     let trunk = git::get_default_branch(args.trunk.as_deref())?;
-    println!("🌳 Trunk branch: {}", trunk);
-    println!();
-
-    // Print header
-    print_header();
 
     // Get branches with classification
-    print_boxed_line("🔍 Scanning local git branches...");
-    println!();
-
     let branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
         Ok(branches) => branches,
         Err(e) => {
@@ -56,6 +57,73 @@ fn main() -> Result<()> {
             std::process::exit(1);
         }
     };
+
+    // Use CLI mode if --cli flag is set
+    if args.cli {
+        return run_cli_mode(&branches, &trunk, args.force);
+    }
+
+    // Run TUI mode
+    run_tui_mode(branches, repo_path, trunk)
+}
+
+/// Run the interactive TUI mode
+fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String) -> Result<()> {
+    // Set up terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    // Create app state
+    let mut app = App::new(branches, repo_path, trunk);
+
+    // Main loop
+    loop {
+        // Draw UI
+        terminal.draw(|frame| ui::render(frame, &app))?;
+
+        // Handle events
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => {
+                            app.quit();
+                        }
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            app.select_next();
+                        }
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            app.select_prev();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        if app.should_quit {
+            break;
+        }
+    }
+
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    Ok(())
+}
+
+/// Run the CLI mode (non-interactive)
+fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool) -> Result<()> {
+    println!("🌳 Trunk branch: {}", trunk);
+    println!();
+
+    // Print header
+    print_header();
 
     // If no branches found, exit
     if branches.is_empty() {
@@ -81,7 +149,7 @@ fn main() -> Result<()> {
     print_boxed_line("   Legend: ● merged  ◆ gone  ▲ unmerged  ⛔ protected  ★ current");
     print_separator();
 
-    for branch in &branches {
+    for branch in branches {
         let status_indicator = format!("{} {}", branch.status.icon(), branch.status.label());
         let line = format!(
             "   {} {:30} [{:>12}] {}",
@@ -111,7 +179,7 @@ fn main() -> Result<()> {
         .filter(|b| b.status == BranchStatus::Unmerged)
         .count();
 
-    if unmerged_count > 0 && !args.force {
+    if unmerged_count > 0 && !force {
         print_boxed_line(&format!(
             "⚠️  {} branch(es) have UNMERGED commits - use --force to delete them",
             unmerged_count
@@ -149,7 +217,7 @@ fn main() -> Result<()> {
     let mut skipped_count = 0;
     let mut failed_count = 0;
 
-    for branch in &branches {
+    for branch in branches {
         // Skip non-deletable branches
         if !branch.status.is_deletable() {
             print_boxed_line(&format!(
@@ -162,7 +230,7 @@ fn main() -> Result<()> {
         }
 
         // For unmerged branches, only delete if --force is set
-        if branch.status == BranchStatus::Unmerged && !args.force {
+        if branch.status == BranchStatus::Unmerged && !force {
             print_boxed_line(&format!(
                 "   ⏭️  Skipped: {} (unmerged - use --force)",
                 branch.name

@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
 **Target Name**: `local-git-branch-cleanup-tui`  
 **Location**: `./rust/` directory in repository  
-**Status**: � Planning Complete → Ready for M1  
+**Status**: 🚀 M1 Complete → Starting M2  
 **Last Updated**: 2026-02-11
 
 ---
@@ -118,38 +118,46 @@ Interactive TUI with better branch classification, selective deletion, and impro
 
 ---
 
-### 🎯 Milestone 1: Development Environment Setup
-**Status**: 🔴 Not Started  
+### ✅ Milestone 1: Development Environment Setup
+**Status**: ✅ Complete (2026-02-11)  
 **Priority**: P0 (Blocker)  
-**Estimated Effort**: 2-4 hours
+**Estimated Effort**: 2-4 hours (Actual: ~2 hours)
 
 #### Tasks
-1. **Rust Environment via Nix**
-   - Option A: Use ephemeral shell: `nix develop nixpkgs#cargo`
-   - Option B: Add `devShells.rust-tui` to existing `flake.nix`
-   - Decision needed: Choose approach based on team preference
+1. **Rust Environment via Nix** ✅
+   - ~~Option A: Use ephemeral shell: `nix develop nixpkgs#cargo`~~
+   - ✅ Option B: Added `devShells.rust-tui` to existing `flake.nix`
+   - Updated nixpkgs to `nixos-unstable` for modern Rust toolchain
+   - Included: cargo, rustc, rustfmt, clippy, rust-analyzer, git
 
-2. **Project Initialization**
-   - Create `./rust` directory
-   - Run `cargo init --bin local-git-branch-cleanup-tui`
+2. **Project Initialization** ✅
+   - Created `./rust` directory
+   - Ran `cargo init --bin --name local-git-branch-cleanup-tui`
    - Set up `.gitignore` for Rust artifacts
 
-3. **Dependency Management**
-   - Add core dependencies:
-     - `ratatui` (TUI framework) with `all-widgets` feature
-     - `crossterm` (terminal backend)
-     - `color-eyre` (error handling)
-     - `clap` (CLI parsing)
-     - `chrono` (date formatting)
+3. **Dependency Management** ✅
+   - Added core dependencies:
+     - `ratatui` v0.30.0 (TUI framework) with `all-widgets` feature
+     - `crossterm` v0.29.0 (terminal backend)
+     - `color-eyre` v0.6.5 (error handling)
+     - `clap` v4.5.57 (CLI parsing) with `derive` feature
+     - `chrono` v0.4.43 (date formatting) with `clock` feature
+
+4. **Module Structure** ✅
+   - Created `src/app.rs` - Application state with navigation methods
+   - Created `src/git.rs` - Git integration functions (bash script parity)
+   - Created `src/ui.rs` - TUI rendering placeholder (for M4)
+   - Updated `src/main.rs` - Entry point with CLI arg parsing
 
 #### Acceptance Criteria
-- [ ] `cargo build` completes successfully
-- [ ] `cargo run` executes placeholder app
-- [ ] All team members can reproduce environment
+- [x] `cargo build` completes successfully
+- [x] `cargo run` executes placeholder app
+- [x] All team members can reproduce environment via `nix develop .#rust-tui`
 
-#### Risks & Mitigations
-- **Risk**: Nix version incompatibilities
-- **Mitigation**: Document exact Nix version and fallback to `rustup` if needed
+#### Notes
+- Upgraded nixpkgs from `24.05` to `unstable` to resolve Rust edition2024 requirement
+- Module stubs include basic implementation ready for M2
+- All dependencies compile without errors
 
 ---
 
@@ -567,7 +575,7 @@ Add filtering and detailed branch information view.
 - **Development Environment**: Nix
 
 ### ⚠️ Pending Decisions
-- **Nix Integration Approach**: Ephemeral shell vs flake devShell?
+- ~~**Nix Integration Approach**: Ephemeral shell vs flake devShell?~~ ✅ Decided: flake devShell
 - **Testing Framework**: Built-in + which test harness?
 - **Release Strategy**: Replace bash script or run side-by-side?
 - **Performance Target**: Max acceptable branches count?
@@ -652,3 +660,9 @@ touch src/app.rs src/git.rs src/ui.rs
   - Identified 7 functionality gaps in bash script
   - Documented 3 major safety concerns
   - Roadmap approved for implementation
+  - ✅ Milestone 1 completed: Development environment setup
+    - Created rust-tui devShell in flake.nix
+    - Upgraded nixpkgs to unstable for modern Rust
+    - Initialized Cargo project with all dependencies
+    - Created module structure (app.rs, git.rs, ui.rs)
+    - Verified build and execution

@@ -1,0 +1,13 @@
+[package]
+name = "local-git-branch-cleanup-tui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = { version = "0.4.43", features = ["clock"] }
+clap = { version = "4.5.57", features = ["derive"] }
+color-eyre = "0.6.5"
+crossterm = "0.29.0"
+ratatui = { version = "0.30.0", features = ["all-widgets"] }

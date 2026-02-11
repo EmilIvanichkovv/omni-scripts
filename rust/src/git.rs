@@ -3,12 +3,65 @@
 use color_eyre::Result;
 use std::process::Command;
 
+/// Protected branch names that should never be deleted
+const PROTECTED_BRANCHES: &[&str] = &["main", "master", "develop", "development"];
+
+/// Branch classification status
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BranchStatus {
+    /// Merged into trunk - safe to delete with `git branch -d`
+    SafeMerged,
+    /// Remote tracking branch was deleted (shows as [gone] in git branch -vv)
+    GoneUpstream,
+    /// Has unmerged commits - requires force delete with `git branch -D`
+    Unmerged,
+    /// Protected branch (main/master/develop) - cannot be deleted
+    Protected,
+    /// Currently checked out branch - cannot be deleted
+    Current,
+}
+
+impl BranchStatus {
+    /// Get a human-readable label for the status
+    pub fn label(&self) -> &'static str {
+        match self {
+            BranchStatus::SafeMerged => "merged",
+            BranchStatus::GoneUpstream => "gone",
+            BranchStatus::Unmerged => "unmerged",
+            BranchStatus::Protected => "protected",
+            BranchStatus::Current => "current",
+        }
+    }
+
+    /// Get an icon for the status
+    pub fn icon(&self) -> &'static str {
+        match self {
+            BranchStatus::SafeMerged => "●",
+            BranchStatus::GoneUpstream => "◆",
+            BranchStatus::Unmerged => "▲",
+            BranchStatus::Protected => "⛔",
+            BranchStatus::Current => "★",
+        }
+    }
+
+    /// Check if this branch can be safely deleted (without force)
+    pub fn is_safe_to_delete(&self) -> bool {
+        matches!(self, BranchStatus::SafeMerged | BranchStatus::GoneUpstream)
+    }
+
+    /// Check if this branch can be deleted at all
+    pub fn is_deletable(&self) -> bool {
+        !matches!(self, BranchStatus::Protected | BranchStatus::Current)
+    }
+}
+
 /// Information about a Git branch
 #[derive(Debug, Clone)]
 pub struct BranchInfo {
     pub name: String,
     pub upstream: Option<String>,
     pub last_commit_relative: String,
+    pub status: BranchStatus,
 }
 
 /// Verify we're inside a Git repository
@@ -33,10 +86,107 @@ pub fn get_current_branch() -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
 
+/// Detect the default/trunk branch
+/// Tries: git symbolic-ref, then fallback to main/master
+pub fn get_default_branch(trunk_override: Option<&str>) -> Result<String> {
+    // Use CLI override if provided
+    if let Some(trunk) = trunk_override {
+        return Ok(trunk.to_string());
+    }
+
+    // Try to get the default branch from origin/HEAD
+    let output = Command::new("git")
+        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .output()?;
+
+    if output.status.success() {
+        let branch = String::from_utf8(output.stdout)?.trim().to_string();
+        // Strip "origin/" prefix if present
+        return Ok(branch.strip_prefix("origin/").unwrap_or(&branch).to_string());
+    }
+
+    // Fallback: check if main or master exists
+    for candidate in &["main", "master"] {
+        let check = Command::new("git")
+            .args(["rev-parse", "--verify", &format!("refs/heads/{}", candidate)])
+            .output()?;
+
+        if check.status.success() {
+            return Ok(candidate.to_string());
+        }
+    }
+
+    // Default to "main" if nothing found
+    Ok("main".to_string())
+}
+
+/// Get list of branches merged into the trunk
+pub fn get_merged_branches(trunk: &str) -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["branch", "--format=%(refname:short)", "--merged", trunk])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let branches = String::from_utf8(output.stdout)?
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    Ok(branches)
+}
+
+/// Get branches with "gone" upstream (remote was deleted)
+pub fn get_gone_branches() -> Result<Vec<String>> {
+    // Use git for-each-ref to get upstream status
+    let output = Command::new("git")
+        .args([
+            "for-each-ref",
+            "--format=%(refname:short) %(upstream:track)",
+            "refs/heads/",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let mut gone_branches = Vec::new();
+    for line in String::from_utf8(output.stdout)?.lines() {
+        if line.contains("[gone]") {
+            if let Some(branch_name) = line.split_whitespace().next() {
+                gone_branches.push(branch_name.to_string());
+            }
+        }
+    }
+
+    Ok(gone_branches)
+}
+
+/// Check if a branch name is protected
+pub fn is_protected_branch(branch: &str) -> bool {
+    PROTECTED_BRANCHES.contains(&branch)
+}
+
 /// Get all local branches without remote counterparts
 /// (Replicates bash script logic)
 pub fn get_branches_without_remote() -> Result<Vec<BranchInfo>> {
+    get_branches_with_classification(None)
+}
+
+/// Get all local branches with full classification
+/// This is the enhanced version that classifies branches by status
+pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<Vec<BranchInfo>> {
     let mut branches = Vec::new();
+
+    // Get context for classification
+    let current_branch = get_current_branch()?;
+    let trunk = get_default_branch(trunk_override)?;
+    let merged_branches = get_merged_branches(&trunk)?;
+    let gone_branches = get_gone_branches()?;
 
     // Get all local branches
     let output = Command::new("git")
@@ -61,35 +211,108 @@ pub fn get_branches_without_remote() -> Result<Vec<BranchInfo>> {
             ])
             .output()?;
 
-        // If no upstream (exit code != 0), add to list
-        if !upstream_check.status.success() {
-            // Get last commit time
-            let last_commit = Command::new("git")
-                .args(["log", "-1", "--format=%cr", branch])
-                .output()?;
+        let has_upstream = upstream_check.status.success();
+        let upstream = if has_upstream {
+            Some(String::from_utf8(upstream_check.stdout)?.trim().to_string())
+        } else {
+            None
+        };
 
-            let last_commit_relative = String::from_utf8(last_commit.stdout)?.trim().to_string();
-
-            branches.push(BranchInfo {
-                name: branch.to_string(),
-                upstream: None,
-                last_commit_relative,
-            });
+        // Skip branches that have a valid remote (unless they're "gone")
+        let is_gone = gone_branches.contains(&branch.to_string());
+        if has_upstream && !is_gone {
+            continue;
         }
+
+        // Get last commit time
+        let last_commit = Command::new("git")
+            .args(["log", "-1", "--format=%cr", branch])
+            .output()?;
+
+        let last_commit_relative = String::from_utf8(last_commit.stdout)?.trim().to_string();
+
+        // Determine branch status
+        let status = classify_branch(
+            branch,
+            &current_branch,
+            &trunk,
+            &merged_branches,
+            is_gone,
+        );
+
+        branches.push(BranchInfo {
+            name: branch.to_string(),
+            upstream,
+            last_commit_relative,
+            status,
+        });
     }
+
+    // Sort branches: protected/current first (so user sees them), then by status
+    branches.sort_by(|a, b| {
+        let order = |s: &BranchStatus| match s {
+            BranchStatus::Current => 0,
+            BranchStatus::Protected => 1,
+            BranchStatus::SafeMerged => 2,
+            BranchStatus::GoneUpstream => 3,
+            BranchStatus::Unmerged => 4,
+        };
+        order(&a.status).cmp(&order(&b.status))
+    });
 
     Ok(branches)
 }
 
+/// Classify a branch based on its relationship to trunk and current state
+fn classify_branch(
+    branch: &str,
+    current_branch: &str,
+    trunk: &str,
+    merged_branches: &[String],
+    is_gone: bool,
+) -> BranchStatus {
+    // Check if it's the current branch
+    if branch == current_branch {
+        return BranchStatus::Current;
+    }
+
+    // Check if it's a protected branch
+    if is_protected_branch(branch) || branch == trunk {
+        return BranchStatus::Protected;
+    }
+
+    // Check if upstream is gone
+    if is_gone {
+        return BranchStatus::GoneUpstream;
+    }
+
+    // Check if merged into trunk
+    if merged_branches.contains(&branch.to_string()) {
+        return BranchStatus::SafeMerged;
+    }
+
+    // Otherwise it's unmerged
+    BranchStatus::Unmerged
+}
+
 /// Delete a branch (force delete)
 pub fn delete_branch(branch_name: &str) -> Result<()> {
+    delete_branch_with_mode(branch_name, true)
+}
+
+/// Delete a branch with optional force mode
+/// - force=false: uses `git branch -d` (safe delete, fails if unmerged)
+/// - force=true: uses `git branch -D` (force delete, always succeeds)
+pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
+    let flag = if force { "-D" } else { "-d" };
+
     let output = Command::new("git")
-        .args(["branch", "-D", branch_name])
+        .args(["branch", flag, branch_name])
         .output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(color_eyre::eyre::eyre!("Failed to delete branch: {}", stderr));
+        return Err(color_eyre::eyre::eyre!("Failed to delete branch: {}", stderr.trim()));
     }
 
     Ok(())

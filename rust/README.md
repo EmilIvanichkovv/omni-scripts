@@ -117,7 +117,9 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 When you launch the TUI, you'll see:
 - **Header** - Repository path, trunk branch, selection count, and force mode indicator
-- **Branch List** - All branches with status icons, checkboxes, and metadata
+- **Filter Tabs** - Filter branches by status (Safe Merged, Upstream Gone, Unmerged, All)
+- **Branch List** - Filtered branches with status icons, checkboxes, and metadata (70% width)
+- **Details Pane** - Detailed information about selected branch (30% width, right side)
 - **Action Log** - Deletion results (appears after deletions)
 - **Footer** - Status legend and keyboard shortcuts
 
@@ -128,6 +130,18 @@ When you launch the TUI, you'll see:
 | `↑` / `k` | Move cursor up |
 | `↓` / `j` | Move cursor down |
 | `q` / `Esc` | Quit application |
+
+### Filters
+
+| Key | Action |
+|-----|--------|
+| `1` / `F1` | Show only safe merged branches |
+| `2` / `F2` | Show only upstream gone branches |
+| `3` / `F3` | Show only unmerged branches |
+| `4` / `F4` | Show all branches |
+| `Tab` | Cycle through filters |
+
+The active filter tab is highlighted in cyan, and each tab shows the branch count for that category.
 
 ### Branch Selection
 
@@ -177,6 +191,17 @@ After deleting branches, the action log appears at the bottom showing:
 - Success/failure counts
 
 The branch list automatically refreshes after deletion.
+
+### Details Pane
+
+The details pane (right side, 30% of screen) shows comprehensive information about the currently selected branch:
+- **Branch name** - Full branch name
+- **Status** - Status explanation (e.g., "Merged into main")
+- **Upstream** - Remote tracking branch (if any), or "None"
+- **Ahead/Behind** - Commit count differences with upstream (if applicable)
+- **Last Commit** - SHA, author, and commit message
+
+The details pane updates automatically as you navigate through the branch list.
 
 ### Example Workflow
 

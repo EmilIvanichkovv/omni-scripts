@@ -1,6 +1,6 @@
 // TUI rendering module
 
-use crate::app::App;
+use crate::app::{App, FilterMode};
 use crate::git::BranchStatus;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -21,7 +21,7 @@ const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for s
 
 /// Render the TUI
 pub fn render(frame: &mut Frame, app: &App) {
-    // Create main layout: Header, Content, Action Log, Footer
+    // Create main layout: Header, Filters, Content, Action Log, Footer
     let has_log = !app.action_log.is_empty();
     
     let chunks = if has_log {
@@ -29,7 +29,8 @@ pub fn render(frame: &mut Frame, app: &App) {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),  // Header
-                Constraint::Min(5),     // Branch list
+                Constraint::Length(3),  // Filter tabs
+                Constraint::Min(5),     // Main content (branch list + details)
                 Constraint::Length(6),  // Action log
                 Constraint::Length(3),  // Footer
             ])
@@ -39,20 +40,33 @@ pub fn render(frame: &mut Frame, app: &App) {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),  // Header
-                Constraint::Min(5),     // Branch list
+                Constraint::Length(3),  // Filter tabs
+                Constraint::Min(5),     // Main content (branch list + details)
                 Constraint::Length(3),  // Footer
             ])
             .split(frame.area())
     };
 
     render_header(frame, app, chunks[0]);
-    render_branch_list(frame, app, chunks[1]);
+    render_filter_tabs(frame, app, chunks[1]);
+    
+    // Split main content area into branch list (70%) and details pane (30%)
+    let main_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(70),  // Branch list
+            Constraint::Percentage(30),  // Details pane
+        ])
+        .split(chunks[2]);
+    
+    render_branch_list(frame, app, main_chunks[0]);
+    render_details_pane(frame, app, main_chunks[1]);
     
     if has_log {
-        render_action_log(frame, app, chunks[2]);
-        render_footer(frame, app, chunks[3]);
+        render_action_log(frame, app, chunks[3]);
+        render_footer(frame, app, chunks[4]);
     } else {
-        render_footer(frame, app, chunks[2]);
+        render_footer(frame, app, chunks[3]);
     }
 
     // Render confirmation modal on top if shown
@@ -99,22 +113,75 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(header, area);
 }
 
+/// Render filter tabs
+fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
+    let filters = [
+        FilterMode::SafeMerged,
+        FilterMode::GoneUpstream,
+        FilterMode::Unmerged,
+        FilterMode::All,
+    ];
+
+    let mut spans = vec![Span::styled("  ", Style::default())];
+
+    for (i, filter) in filters.iter().enumerate() {
+        let count = app.filter_count(*filter);
+        let is_active = app.current_filter == *filter;
+        let key = i + 1;
+
+        // Add separator
+        if i > 0 {
+            spans.push(Span::styled(" ", Style::default()));
+        }
+
+        // Create tab label with key hint
+        let label = format!("{} {} ({}) ", key, filter.label(), count);
+
+        let style = if is_active {
+            Style::default()
+                .fg(Color::White)
+                .bg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(COLOR_MUTED)
+        };
+
+        spans.push(Span::styled(label, style));
+    }
+
+    let tabs = Paragraph::new(Line::from(spans))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_MUTED))
+                .title(" Filters (1-4 or Tab) ")
+                .title_style(Style::default().fg(COLOR_ACCENT)),
+        );
+
+    frame.render_widget(tabs, area);
+}
+
 /// Render the branch list as a table
 fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
+    // Get filtered branches
+    let filtered_branches = app.filtered_branches();
+    
     // Create table header
     let header_cells = ["", "☑", "Status", "Branch", "Last Commit", ""]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)));
     let header = Row::new(header_cells).height(1);
 
-    // Create table rows
-    let rows: Vec<Row> = app
-        .branches
+    // Create table rows from filtered branches
+    let rows: Vec<Row> = filtered_branches
         .iter()
         .enumerate()
-        .map(|(i, branch)| {
-            let is_cursor = i == app.selected_index;
-            let is_checked = app.is_branch_selected(i);
+        .map(|(filtered_idx, branch)| {
+            // Find original index in app.branches for selection state
+            let original_idx = app.branches.iter().position(|b| b.name == branch.name).unwrap();
+            let is_cursor = filtered_idx == app.selected_index;
+            let is_checked = app.is_branch_selected(original_idx);
             let status_style = get_status_style(&branch.status);
 
             // Checkbox display
@@ -175,15 +242,14 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
         Constraint::Length(2),   // Cursor indicator
         Constraint::Length(4),   // Checkbox
         Constraint::Length(3),   // Status icon
-        Constraint::Min(20),     // Branch name
+        Constraint::Min(15),     // Branch name
         Constraint::Length(15),  // Last commit
         Constraint::Length(12),  // Status label
     ];
 
     let title = format!(
-        " Branches ({} total, {} deletable, {} selected) ",
-        app.branches.len(),
-        app.deletable_count(),
+        " Branches ({} shown, {} selected) ",
+        filtered_branches.len(),
         app.selected_count()
     );
 
@@ -199,6 +265,135 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
     frame.render_widget(table, area);
+}
+
+/// Render the details pane for the selected branch
+fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
+    let mut lines = vec![];
+
+    if let Some(branch) = app.selected_branch() {
+        // Branch name (large)
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(&branch.name, Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(""));
+
+        // Status
+        lines.push(Line::from(vec![
+            Span::styled("  Status: ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(branch.status.icon(), Style::default().fg(get_status_color(&branch.status))),
+            Span::styled(" ", Style::default()),
+            Span::styled(branch.status.label(), Style::default().fg(get_status_color(&branch.status))),
+        ]));
+
+        // Status explanation
+        let explanation = match branch.status {
+            BranchStatus::SafeMerged => "Merged into trunk, safe to delete",
+            BranchStatus::GoneUpstream => "Remote branch deleted",
+            BranchStatus::Unmerged => "Has unmerged commits",
+            BranchStatus::Protected => "Protected branch",
+            BranchStatus::Current => "Currently checked out",
+        };
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(explanation, Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC)),
+        ]));
+        lines.push(Line::from(""));
+
+        // Upstream info
+        if let Some(upstream) = &branch.upstream {
+            lines.push(Line::from(vec![
+                Span::styled("  Upstream: ", Style::default().fg(COLOR_MUTED)),
+                Span::styled(upstream, Style::default().fg(COLOR_SUCCESS)),
+            ]));
+
+            // Ahead/behind
+            if let (Some(ahead), Some(behind)) = (branch.ahead, branch.behind) {
+                if ahead > 0 || behind > 0 {
+                    let mut parts = vec![Span::styled("  Divergence: ", Style::default().fg(COLOR_MUTED))];
+                    
+                    if ahead > 0 {
+                        parts.push(Span::styled(format!("↑{}", ahead), Style::default().fg(COLOR_SUCCESS)));
+                    }
+                    if ahead > 0 && behind > 0 {
+                        parts.push(Span::styled(" ", Style::default()));
+                    }
+                    if behind > 0 {
+                        parts.push(Span::styled(format!("↓{}", behind), Style::default().fg(COLOR_WARNING)));
+                    }
+                    
+                    lines.push(Line::from(parts));
+                }
+            }
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("  Upstream: ", Style::default().fg(COLOR_MUTED)),
+                Span::styled("none", Style::default().fg(COLOR_WARNING)),
+            ]));
+        }
+        lines.push(Line::from(""));
+
+        // Last commit info
+        lines.push(Line::from(vec![
+            Span::styled("  Last Commit:", Style::default().fg(COLOR_MUTED).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(&branch.last_commit_sha, Style::default().fg(COLOR_WARNING)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(&branch.last_commit_author, Style::default().fg(COLOR_MUTED)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(&branch.last_commit_relative, Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC)),
+        ]));
+        lines.push(Line::from(""));
+
+        // Commit message (word wrap)
+        lines.push(Line::from(vec![
+            Span::styled("  Message:", Style::default().fg(COLOR_MUTED).add_modifier(Modifier::BOLD)),
+        ]));
+        
+        // Wrap long commit messages
+        let max_width = area.width.saturating_sub(4) as usize;
+        let words: Vec<&str> = branch.last_commit_message.split_whitespace().collect();
+        let mut current_line = String::from("  ");
+        
+        for word in words {
+            if current_line.len() + word.len() + 1 > max_width {
+                lines.push(Line::from(Span::styled(current_line.clone(), Style::default().fg(Color::White))));
+                current_line = String::from("  ");
+            }
+            if !current_line.ends_with("  ") {
+                current_line.push(' ');
+            }
+            current_line.push_str(word);
+        }
+        if current_line.len() > 2 {
+            lines.push(Line::from(Span::styled(current_line, Style::default().fg(Color::White))));
+        }
+    } else {
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("  No branch selected", Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC)),
+        ]));
+    }
+
+    let details = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_MUTED))
+                .title(" Details ")
+                .title_style(Style::default().fg(COLOR_ACCENT)),
+        )
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(details, area);
 }
 
 /// Render the action log panel
@@ -268,6 +463,8 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(vec![
             Span::styled("↑↓/jk", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("1-4/Tab", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" filter  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Space", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("a", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),

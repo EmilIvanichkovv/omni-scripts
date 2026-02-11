@@ -116,8 +116,8 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.select_prev();
                             }
                             KeyCode::Char(' ') => {
-                                // Toggle selection of current branch
-                                app.toggle_selection(app.selected_index);
+                                // Toggle selection of current branch (using filtered index)
+                                app.toggle_selection_at_cursor();
                             }
                             KeyCode::Char('a') => {
                                 // Select all safe branches
@@ -132,6 +132,26 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.force_mode = !app.force_mode;
                                 // Clear selection when toggling force mode
                                 app.clear_selection();
+                            }
+                            KeyCode::Tab => {
+                                // Cycle to next filter
+                                app.next_filter();
+                            }
+                            KeyCode::Char('1') | KeyCode::F(1) => {
+                                // Safe merged filter
+                                app.set_filter(app::FilterMode::SafeMerged);
+                            }
+                            KeyCode::Char('2') | KeyCode::F(2) => {
+                                // Gone upstream filter
+                                app.set_filter(app::FilterMode::GoneUpstream);
+                            }
+                            KeyCode::Char('3') | KeyCode::F(3) => {
+                                // Unmerged filter
+                                app.set_filter(app::FilterMode::Unmerged);
+                            }
+                            KeyCode::Char('4') | KeyCode::F(4) => {
+                                // All branches filter
+                                app.set_filter(app::FilterMode::All);
                             }
                             KeyCode::Enter => {
                                 // Show confirmation if branches are selected

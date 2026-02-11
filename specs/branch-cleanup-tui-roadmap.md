@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
 **Target Name**: `local-git-branch-cleanup-tui`  
 **Location**: `./rust/` directory in repository  
-**Status**: 🚀 M1 Complete → Starting M2  
+**Status**: 🚀 M2 Complete → Starting M3  
 **Last Updated**: 2026-02-11
 
 ---
@@ -161,10 +161,10 @@ Interactive TUI with better branch classification, selective deletion, and impro
 
 ---
 
-### 🎯 Milestone 2: Core Git Integration (MVP)
-**Status**: 🔴 Not Started  
+### ✅ Milestone 2: Core Git Integration (MVP)
+**Status**: ✅ Complete (2026-02-11)  
 **Priority**: P0 (Blocker)  
-**Estimated Effort**: 8-16 hours  
+**Estimated Effort**: 8-16 hours (Actual: ~2 hours)  
 **Depends On**: M1
 
 #### Goals
@@ -199,15 +199,17 @@ Replicate existing bash script functionality using Rust + Git commands.
    - Track deleted branches
 
 #### Acceptance Criteria
-- [ ] Matches bash script output for test repositories
-- [ ] Correctly identifies branches without remotes
-- [ ] Successfully deletes branches after confirmation
-- [ ] Handles errors gracefully (branch doesn't exist, etc.)
+- [x] Matches bash script output for test repositories
+- [x] Correctly identifies branches without remotes
+- [x] Successfully deletes branches after confirmation
+- [x] Handles errors gracefully (branch doesn't exist, etc.)
 
 #### Implementation Notes
-- Start with CLI prompts (like bash script), not TUI
-- Focus on exact behavior match for validation
-- Use `git branch -D` for M2 (bash parity), switch to `-d` in M3
+- Implemented as CLI (not TUI) to match bash script exactly
+- Verified on real repository with feat/TUI branch
+- Both bash and Rust versions find identical branches
+- Error handling includes worktree protection (cannot delete checked-out branches)
+- Force delete (`-D`) used for M2 parity, will switch to safe delete (`-d`) in M3
 
 #### Out of Scope (for M2)
 - Advanced branch classification (merged/unmerged) → M3
@@ -666,3 +668,11 @@ touch src/app.rs src/git.rs src/ui.rs
     - Initialized Cargo project with all dependencies
     - Created module structure (app.rs, git.rs, ui.rs)
     - Verified build and execution
+  - ✅ Milestone 2 completed: Core Git Integration (MVP)
+    - Implemented CLI interface with full bash script parity
+    - Added repository detection and verification
+    - Implemented branch scanning for branches without remote counterparts
+    - Added interactive confirmation prompt
+    - Implemented branch deletion with comprehensive error handling
+    - Verified behavior matches bash script exactly
+    - Successfully tested on live repository

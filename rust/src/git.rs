@@ -218,11 +218,8 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             None
         };
 
-        // Skip branches that have a valid remote (unless they're "gone")
+        // Determine if upstream is "gone"
         let is_gone = gone_branches.contains(&branch.to_string());
-        if has_upstream && !is_gone {
-            continue;
-        }
 
         // Get last commit time
         let last_commit = Command::new("git")

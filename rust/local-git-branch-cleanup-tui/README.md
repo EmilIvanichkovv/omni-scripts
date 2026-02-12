@@ -20,21 +20,24 @@ An interactive terminal user interface (TUI) for cleaning up local Git branches 
 ### Using Nix (Recommended)
 
 ```bash
-# Enter the development shell
-nix develop .#rust-tui
+# Run directly (no build needed)
+nix run github:EmilIvanichkovv/omni-scripts#local-git-branch-cleanup-tui
 
-# Build the project
-cd rust
-cargo build --release
-
-# The binary is at ./target/release/local-git-branch-cleanup-tui
+# Or from local checkout
+nix run .#local-git-branch-cleanup-tui
 ```
 
 ### Using Cargo
 
 ```bash
+# Enter development shell (from repo root)
+nix develop
+
+# Build from workspace
 cd rust
-cargo build --release
+cargo build -p local-git-branch-cleanup-tui --release
+
+# Binary is at ./target/release/local-git-branch-cleanup-tui
 ```
 
 ## Usage
@@ -44,11 +47,11 @@ cargo build --release
 Run the tool in any Git repository:
 
 ```bash
-# From the rust/ directory after building
-./target/release/local-git-branch-cleanup-tui
+# Using Nix (recommended)
+nix run .#local-git-branch-cleanup-tui
 
-# Or using cargo
-cargo run --release
+# Or using cargo from rust/ directory
+cargo run -p local-git-branch-cleanup-tui --release
 ```
 
 This opens an interactive interface where you can:
@@ -61,10 +64,10 @@ This opens an interactive interface where you can:
 For scripting or if you prefer the classic interface:
 
 ```bash
-./target/release/local-git-branch-cleanup-tui --cli
+nix run .#local-git-branch-cleanup-tui -- --cli
 
 # Or using cargo
-cargo run --release -- --cli
+cargo run -p local-git-branch-cleanup-tui --release -- --cli
 ```
 
 ### Command Line Options

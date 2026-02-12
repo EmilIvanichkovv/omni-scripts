@@ -49,11 +49,17 @@
         };
 
         packages = {
-          local-git-branch-cleanup = pkgs.callPackage ./pkgs/local-git-branch-cleanup {
+          # Bash script version (original)
+          local-git-branch-cleanup = pkgs.callPackage ./pkgs/local-git-branch-cleanup {};
+          
+          # Rust TUI version (interactive)
+          local-git-branch-cleanup-tui = pkgs.callPackage ./pkgs/local-git-branch-cleanup/tui.nix {
             inherit (pkgs) lib git;
             inherit (pkgs) rustPlatform;
           };
-          default = self'.packages.local-git-branch-cleanup;
+          
+          # Default to TUI version
+          default = self'.packages.local-git-branch-cleanup-tui;
         };
       };
     };

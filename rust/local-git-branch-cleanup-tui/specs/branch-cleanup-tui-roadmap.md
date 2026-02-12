@@ -2,10 +2,10 @@
 
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
 **Target Name**: `local-git-branch-cleanup-tui`  
-**Location**: `./rust/` directory in repository  
+**Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace member)  
 **Status**: 🎉 COMPLETE - All 9 Milestones Done! Production Ready! 🎉  
 **Version**: 0.2.0  
-**Last Updated**: 2026-02-11
+**Last Updated**: 2026-02-12
 
 ---
 

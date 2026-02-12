@@ -4,18 +4,28 @@ rustPlatform.buildRustPackage rec {
   pname = "local-git-branch-cleanup-tui";
   version = "0.2.0";
 
-  # Use lib.fileset to explicitly include only needed files
+  # Use lib.fileset to explicitly include only needed files from workspace
   src = lib.fileset.toSource {
     root = ../../rust;
     fileset = lib.fileset.unions [
+      # Workspace manifest
       ../../rust/Cargo.toml
       ../../rust/Cargo.lock
-      ../../rust/src
-      ../../rust/tests
+      # App crate
+      ../../rust/local-git-branch-cleanup-tui/Cargo.toml
+      ../../rust/local-git-branch-cleanup-tui/src
+      ../../rust/local-git-branch-cleanup-tui/tests
+      # Library crate (dependency)
+      ../../rust/omni-lib/Cargo.toml
+      ../../rust/omni-lib/src
     ];
   };
 
-  cargoHash = "sha256-lfwV+92/EhxvprDIGAmk4SgU5/ZCbueOaBgEGJ5f9e8=";
+  # Build only the specific package from workspace
+  cargoBuildFlags = [ "-p" "local-git-branch-cleanup-tui" ];
+  cargoTestFlags = [ "-p" "local-git-branch-cleanup-tui" ];
+
+  cargoHash = "sha256-6ZA8OdA0kpu/b3OtxINq+rYc0QGxWbt7rQIzwsy1eHA=";
 
   nativeBuildInputs = [ git ];
 

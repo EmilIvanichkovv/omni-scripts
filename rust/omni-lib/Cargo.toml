@@ -1,0 +1,11 @@
+[package]
+name = "omni-lib"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Shared utilities for omni-scripts Rust tools"
+
+[dependencies]
+# Add shared dependencies here as needed
+# color-eyre.workspace = true

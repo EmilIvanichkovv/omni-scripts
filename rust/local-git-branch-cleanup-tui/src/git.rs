@@ -36,11 +36,11 @@ impl BranchStatus {
     /// Get an icon for the status
     pub fn icon(&self) -> &'static str {
         match self {
-            BranchStatus::SafeMerged => "●",
-            BranchStatus::GoneUpstream => "◆",
-            BranchStatus::Unmerged => "▲",
-            BranchStatus::Protected => "⛔",
-            BranchStatus::Current => "★",
+            BranchStatus::SafeMerged => "✓",
+            BranchStatus::GoneUpstream => "↗",
+            BranchStatus::Unmerged => "!",
+            BranchStatus::Protected => "⊘",
+            BranchStatus::Current => "◉",
         }
     }
 
@@ -385,11 +385,11 @@ mod tests {
 
     #[test]
     fn test_branch_status_icon() {
-        assert_eq!(BranchStatus::SafeMerged.icon(), "●");
-        assert_eq!(BranchStatus::GoneUpstream.icon(), "◆");
-        assert_eq!(BranchStatus::Unmerged.icon(), "▲");
-        assert_eq!(BranchStatus::Protected.icon(), "⛔");
-        assert_eq!(BranchStatus::Current.icon(), "★");
+        assert_eq!(BranchStatus::SafeMerged.icon(), "✓");
+        assert_eq!(BranchStatus::GoneUpstream.icon(), "↗");
+        assert_eq!(BranchStatus::Unmerged.icon(), "!");
+        assert_eq!(BranchStatus::Protected.icon(), "⊘");
+        assert_eq!(BranchStatus::Current.icon(), "◉");
     }
 
     #[test]

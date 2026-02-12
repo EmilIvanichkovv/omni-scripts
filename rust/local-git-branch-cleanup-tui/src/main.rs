@@ -251,7 +251,7 @@ fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run:
     println!();
 
     // Print legend
-    print_boxed_line("   Legend: ● merged  ◆ gone  ▲ unmerged  ⛔ protected  ★ current");
+    print_boxed_line("   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current");
     print_separator();
 
     for branch in branches {

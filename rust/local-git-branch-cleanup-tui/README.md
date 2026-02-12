@@ -22,11 +22,11 @@ Or embed a video:
 
 - **Interactive TUI** - Navigate and select branches with keyboard controls
 - **Smart Classification** - Automatically categorizes branches:
-  - ● **Merged** - Safely merged into trunk (safe to delete)
-  - ◆ **Gone** - Remote tracking branch was deleted
-  - ▲ **Unmerged** - Has commits not in trunk (requires `--force`)
-  - ⛔ **Protected** - main/master/develop (cannot be deleted)
-  - ★ **Current** - Currently checked out branch
+  - ✓ **Merged** - Safely merged into trunk (safe to delete)
+  - ↗ **Gone** - Remote tracking branch was deleted
+  - ! **Unmerged** - Has commits not in trunk (requires `--force`)
+  - ⊘ **Protected** - main/master/develop (cannot be deleted)
+  - ◉ **Current** - Currently checked out branch
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -287,7 +287,7 @@ The details pane updates automatically as you navigate through the branch list.
 
 - **Start without force mode** - Review merged/gone branches first
 - **Use `a` for bulk cleanup** - Quickly select all safe branches
-- **Check the status icons** - ● merged and ◆ gone are always safe to delete
+- **Check the status icons** - ✓ merged and ↗ gone are always safe to delete
 - **Read the confirmation modal** - It shows exactly which branches will be deleted
 - **Watch the action log** - Verify deletions succeeded
 
@@ -295,11 +295,11 @@ The details pane updates automatically as you navigate through the branch list.
 
 | Icon | Status | Description | Deletable |
 |------|--------|-------------|-----------|
-| ● | merged | Fully merged into trunk | ✅ Safe (`-d`) |
-| ◆ | gone | Remote was deleted | ✅ Safe (`-d`) |
-| ▲ | unmerged | Has unmerged commits | ⚠️ Requires `--force` |
-| ⛔ | protected | main/master/develop | ❌ Never |
-| ★ | current | Currently checked out | ❌ Never |
+| ✓ | merged | Fully merged into trunk | ✅ Safe (`-d`) |
+| ↗ | gone | Remote was deleted | ✅ Safe (`-d`) |
+| ! | unmerged | Has unmerged commits | ⚠️ Requires `--force` |
+| ⊘ | protected | main/master/develop | ❌ Never |
+| ◉ | current | Currently checked out | ❌ Never |
 
 ## Safety Features
 

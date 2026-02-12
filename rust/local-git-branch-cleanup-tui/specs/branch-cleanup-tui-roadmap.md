@@ -329,7 +329,7 @@ Display branch information in terminal UI, read-only initially.
 
 3. **Branch List Table**
    - Columns:
-     - Status Icon (●/◆/▲/⏺/⛔)
+     - Status Icon (✓/↗/!/⊘/◉)
      - Branch Name
      - Last Commit Age
      - Status Label

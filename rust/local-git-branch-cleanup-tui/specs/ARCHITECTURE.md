@@ -234,9 +234,9 @@ fn render_help_modal(frame: &mut Frame)
 ├──────────────────────────┬───────────────────────────────┤
 │ BRANCH LIST (70%)        │ DETAILS PANE (30%)            │
 │                          │                               │
-│ [✓] ● branch-name        │ Branch: feature/xyz           │
-│ [ ] ◆ old-feature        │ Status: Merged into main      │
-│  -  ▲ wip-branch         │ Upstream: origin/feature/xyz  │
+│ [✓] ✓ branch-name        │ Branch: feature/xyz           │
+│ [ ] ↗ old-feature        │ Status: Merged into main      │
+│  -  ! wip-branch         │ Upstream: origin/feature/xyz  │
 │                          │ Last Commit: abc123           │
 │                          │ ...                           │
 ├──────────────────────────┴───────────────────────────────┤

@@ -454,15 +454,15 @@ fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
 /// Render the footer with key hints
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let legend = Line::from(vec![
-        Span::styled("● ", Style::default().fg(COLOR_SUCCESS)),
+        Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
         Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("◆ ", Style::default().fg(COLOR_WARNING)),
+        Span::styled("↗ ", Style::default().fg(COLOR_WARNING)),
         Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("▲ ", Style::default().fg(COLOR_WARNING)),
+        Span::styled("! ", Style::default().fg(COLOR_WARNING)),
         Span::styled("unmerged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("⛔ ", Style::default().fg(COLOR_DANGER)),
+        Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("★ ", Style::default().fg(COLOR_CURRENT)),
+        Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
     ]);
 

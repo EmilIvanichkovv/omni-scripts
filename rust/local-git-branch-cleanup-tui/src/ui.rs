@@ -21,11 +21,12 @@ const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for s
 
 /// Render the TUI
 pub fn render(frame: &mut Frame, app: &App) {
-    // Create main layout: Header, Filters, Content, Action Log, Footer
+    // Create main layout: Header, [Filters], Content, Action Log, Footer
     let has_log = !app.action_log.is_empty();
+    let show_filter = app.show_filter;
     
-    let chunks = if has_log {
-        Layout::default()
+    let chunks = match (has_log, show_filter) {
+        (true, true) => Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),  // Header
@@ -34,9 +35,17 @@ pub fn render(frame: &mut Frame, app: &App) {
                 Constraint::Length(6),  // Action log
                 Constraint::Length(3),  // Footer (key hints only)
             ])
-            .split(frame.area())
-    } else {
-        Layout::default()
+            .split(frame.area()),
+        (true, false) => Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),  // Header
+                Constraint::Min(5),     // Main content (branch list + details)
+                Constraint::Length(6),  // Action log
+                Constraint::Length(3),  // Footer (key hints only)
+            ])
+            .split(frame.area()),
+        (false, true) => Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),  // Header
@@ -44,11 +53,30 @@ pub fn render(frame: &mut Frame, app: &App) {
                 Constraint::Min(5),     // Main content (branch list + details)
                 Constraint::Length(3),  // Footer (key hints only)
             ])
-            .split(frame.area())
+            .split(frame.area()),
+        (false, false) => Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),  // Header
+                Constraint::Min(5),     // Main content (branch list + details)
+                Constraint::Length(3),  // Footer (key hints only)
+            ])
+            .split(frame.area()),
     };
 
     render_header(frame, app, chunks[0]);
-    render_filter_tabs(frame, app, chunks[1]);
+    
+    // Calculate content and footer indices based on layout
+    let (content_idx, log_idx, footer_idx) = match (has_log, show_filter) {
+        (true, true) => (2, Some(3), 4),
+        (true, false) => (1, Some(2), 3),
+        (false, true) => (2, None, 3),
+        (false, false) => (1, None, 2),
+    };
+    
+    if show_filter {
+        render_filter_tabs(frame, app, chunks[1]);
+    }
     
     // Split main content area into branch list (70%) and details pane (30%)
     let main_chunks = Layout::default()
@@ -57,17 +85,15 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Percentage(70),  // Branch list
             Constraint::Percentage(30),  // Details pane
         ])
-        .split(chunks[2]);
+        .split(chunks[content_idx]);
     
     render_branch_list(frame, app, main_chunks[0]);
     render_details_pane(frame, app, main_chunks[1]);
     
-    if has_log {
-        render_action_log(frame, app, chunks[3]);
-        render_footer(frame, app, chunks[4]);
-    } else {
-        render_footer(frame, app, chunks[3]);
+    if let Some(log_i) = log_idx {
+        render_action_log(frame, app, chunks[log_i]);
     }
+    render_footer(frame, app, chunks[footer_idx]);
 
     // Render confirmation modal on top if shown
     if app.show_confirmation {
@@ -498,7 +524,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("↑↓/jk", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("1-4/Tab", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("/", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" filter  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Space", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
@@ -657,7 +683,7 @@ fn render_help_modal(frame: &mut Frame) {
     
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 28.min(area.height - 4);
+    let modal_height = 30.min(area.height - 4);
     
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -685,6 +711,10 @@ fn render_help_modal(frame: &mut Frame) {
         Line::from(""),
         Line::from(vec![
             Span::styled("  Filters", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    /", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Toggle filter bar visibility", Style::default().fg(COLOR_MUTED)),
         ]),
         Line::from(vec![
             Span::styled("    1 / F1", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),

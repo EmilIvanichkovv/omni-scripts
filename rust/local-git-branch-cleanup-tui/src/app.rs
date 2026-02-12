@@ -80,6 +80,8 @@ pub struct App {
     pub show_help: bool,
     /// Dry run mode - preview actions without executing
     pub dry_run: bool,
+    /// Whether to show filter tabs (hidden by default)
+    pub show_filter: bool,
 }
 
 impl App {
@@ -97,6 +99,7 @@ impl App {
             current_filter: FilterMode::All,
             show_help: false,
             dry_run: false,
+            show_filter: false,
         }
     }
 

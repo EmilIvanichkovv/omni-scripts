@@ -1,6 +1,22 @@
 # 🧹 Local Git Branch Cleanup TUI
 
-An interactive terminal user interface (TUI) for cleaning up local Git branches that no longer have remote counterparts.
+> **Modern Rust-based replacement for the bash script** – An interactive terminal user interface (TUI) for cleaning up local Git branches that no longer have remote counterparts.
+
+Over time, local Git branches accumulate – feature branches get merged, remote branches get deleted, but the local copies remain. This tool helps you **safely identify and remove** these stale branches with an intuitive, keyboard-driven interface.
+
+## Demo
+
+<!-- TODO: Add video/GIF demo here -->
+<!-- 
+![Demo](./assets/demo.gif)
+
+Or embed a video:
+[![Demo Video](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
+-->
+
+*Coming soon: Video demonstration of the TUI in action*
+
+---
 
 ## Features
 

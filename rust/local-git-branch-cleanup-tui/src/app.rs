@@ -82,6 +82,10 @@ pub struct App {
     pub dry_run: bool,
     /// Whether to show filter tabs (hidden by default)
     pub show_filter: bool,
+    /// Whether search mode is active (input focused)
+    pub search_active: bool,
+    /// Current search query string
+    pub search_query: String,
 }
 
 impl App {
@@ -100,6 +104,8 @@ impl App {
             show_help: false,
             dry_run: false,
             show_filter: false,
+            search_active: false,
+            search_query: String::new(),
         }
     }
 
@@ -131,9 +137,9 @@ impl App {
         filtered.get(self.selected_index).copied()
     }
 
-    /// Get filtered branches based on current filter mode
+    /// Get filtered branches based on current filter mode and search query
     pub fn filtered_branches(&self) -> Vec<&BranchInfo> {
-        match self.current_filter {
+        let status_filtered: Vec<&BranchInfo> = match self.current_filter {
             FilterMode::All => self.branches.iter().collect(),
             FilterMode::SafeMerged => self.branches
                 .iter()
@@ -147,6 +153,17 @@ impl App {
                 .iter()
                 .filter(|b| b.status == BranchStatus::Unmerged)
                 .collect(),
+        };
+        
+        // Apply search filter if query is not empty
+        if self.search_query.is_empty() {
+            status_filtered
+        } else {
+            let query = self.search_query.to_lowercase();
+            status_filtered
+                .into_iter()
+                .filter(|b| b.name.to_lowercase().contains(&query))
+                .collect()
         }
     }
 

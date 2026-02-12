@@ -200,20 +200,74 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(tabs, area);
 }
 
+/// Render the search input bar
+fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
+    let match_count = app.filtered_branches().len();
+    
+    let cursor = if app.search_active { "▏" } else { "" };
+    
+    let search_text = Line::from(vec![
+        Span::styled("🔍 ", Style::default()),
+        Span::styled(&app.search_query, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        Span::styled(cursor, Style::default().fg(COLOR_ACCENT)),
+        Span::styled(
+            format!("  ({} matches)", match_count),
+            Style::default().fg(COLOR_MUTED),
+        ),
+        if app.search_active {
+            Span::styled("  [Enter] keep  [Esc] clear", Style::default().fg(COLOR_MUTED))
+        } else {
+            Span::styled("  [/] edit  [Esc] clear", Style::default().fg(COLOR_MUTED))
+        },
+    ]);
+
+    let style = if app.search_active {
+        Style::default().fg(COLOR_ACCENT)
+    } else {
+        Style::default().fg(COLOR_MUTED)
+    };
+
+    let search_bar = Paragraph::new(search_text).style(style);
+    frame.render_widget(search_bar, area);
+}
+
 /// Render the branch list as a table
 fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
-    // Split area inside the block: branch table + legend line at bottom
+    // Split area inside the block: [search bar] + branch table + legend line at bottom
     let inner_area = area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
-    let branch_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),     // Branch table rows
-            Constraint::Length(1),  // Legend line (no border)
-        ])
-        .split(inner_area);
     
-    let table_inner_area = branch_chunks[0];
-    let legend_area = branch_chunks[1];
+    // Determine if we need to show the search bar
+    let show_search = app.search_active || !app.search_query.is_empty();
+    
+    let branch_chunks = if show_search {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),  // Search bar
+                Constraint::Min(1),     // Branch table rows
+                Constraint::Length(1),  // Legend line (no border)
+            ])
+            .split(inner_area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),     // Branch table rows
+                Constraint::Length(1),  // Legend line (no border)
+            ])
+            .split(inner_area)
+    };
+    
+    // Render search bar if active or has query
+    if show_search {
+        render_search_bar(frame, app, branch_chunks[0]);
+    }
+    
+    let (table_inner_area, legend_area) = if show_search {
+        (branch_chunks[1], branch_chunks[2])
+    } else {
+        (branch_chunks[0], branch_chunks[1])
+    };
 
     // Get filtered branches
     let filtered_branches = app.filtered_branches();
@@ -522,10 +576,10 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" ", Style::default()),
             Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("↑↓/jk", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("/", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(" filter  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("↑↓", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Space", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("a", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -535,7 +589,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled("f", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
             Span::styled(" force  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("d", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
-            Span::styled(" dry-run  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" dry  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
             Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -683,7 +737,7 @@ fn render_help_modal(frame: &mut Frame) {
     
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 30.min(area.height - 4);
+    let modal_height = 36.min(area.height - 4);
     
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -710,10 +764,26 @@ fn render_help_modal(frame: &mut Frame) {
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  Filters", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("  Search", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
             Span::styled("    /", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Start search (type to filter by name)", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Esc", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("           Exit search and clear query", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Enter", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("         Exit search and keep filter", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Filters", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("    F", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
             Span::styled("             Toggle filter bar visibility", Style::default().fg(COLOR_MUTED)),
         ]),
         Line::from(vec![

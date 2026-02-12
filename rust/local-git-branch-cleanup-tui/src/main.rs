@@ -167,6 +167,10 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 // Toggle help modal
                                 app.show_help = !app.show_help;
                             }
+                            KeyCode::Char('/') => {
+                                // Toggle filter bar visibility
+                                app.show_filter = !app.show_filter;
+                            }
                             KeyCode::Tab => {
                                 // Cycle to next filter
                                 app.next_filter();

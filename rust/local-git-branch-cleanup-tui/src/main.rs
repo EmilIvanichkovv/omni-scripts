@@ -129,11 +129,53 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                             }
                             _ => {}
                         }
+                    } else if app.search_active {
+                        // Handle search mode input
+                        match key.code {
+                            KeyCode::Esc => {
+                                // Exit search and clear query
+                                app.search_active = false;
+                                app.search_query.clear();
+                                app.selected_index = 0;
+                            }
+                            KeyCode::Enter => {
+                                // Exit search but keep the query filter active
+                                app.search_active = false;
+                            }
+                            KeyCode::Backspace => {
+                                // Remove last character
+                                app.search_query.pop();
+                                app.selected_index = 0;
+                            }
+                            KeyCode::Char(c) => {
+                                // Add character to search query
+                                app.search_query.push(c);
+                                app.selected_index = 0;
+                            }
+                            KeyCode::Down | KeyCode::Up => {
+                                // Allow navigation while searching
+                                if key.code == KeyCode::Down {
+                                    app.select_next();
+                                } else {
+                                    app.select_prev();
+                                }
+                            }
+                            _ => {}
+                        }
                     } else {
                         // Normal mode
                         match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => {
+                            KeyCode::Char('q') => {
                                 app.quit();
+                            }
+                            KeyCode::Esc => {
+                                // If search query is active, clear it first
+                                if !app.search_query.is_empty() {
+                                    app.search_query.clear();
+                                    app.selected_index = 0;
+                                } else {
+                                    app.quit();
+                                }
                             }
                             KeyCode::Down | KeyCode::Char('j') => {
                                 app.select_next();
@@ -168,7 +210,11 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.show_help = !app.show_help;
                             }
                             KeyCode::Char('/') => {
-                                // Toggle filter bar visibility
+                                // Enter search mode
+                                app.search_active = true;
+                            }
+                            KeyCode::Char('F') => {
+                                // Toggle filter bar visibility (Shift+F)
                                 app.show_filter = !app.show_filter;
                             }
                             KeyCode::Tab => {

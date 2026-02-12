@@ -1,0 +1,20 @@
+[package]
+name = "local-git-branch-cleanup-tui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Interactive TUI for cleaning up local git branches"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+color-eyre.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
+# omni-lib.workspace = true  # Uncomment when extracting shared code
+
+[dev-dependencies]
+tempfile.workspace = true
+assert_cmd.workspace = true
+predicates.workspace = true

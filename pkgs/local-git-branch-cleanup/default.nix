@@ -1,41 +1,41 @@
-{ lib, rustPlatform, git }:
+{ lib, stdenvNoCC, makeWrapper, git, bash }:
 
-rustPlatform.buildRustPackage rec {
-  pname = "local-git-branch-cleanup-tui";
-  version = "0.2.0";
+stdenvNoCC.mkDerivation rec {
+  pname = "local-git-branch-cleanup";
+  version = "0.1.0";
 
-  # Use lib.fileset to explicitly include only needed files from workspace
   src = lib.fileset.toSource {
-    root = ../../rust;
+    root = ../../bash;
     fileset = lib.fileset.unions [
-      # Workspace manifest
-      ../../rust/Cargo.toml
-      ../../rust/Cargo.lock
-      # App crate
-      ../../rust/local-git-branch-cleanup-tui/Cargo.toml
-      ../../rust/local-git-branch-cleanup-tui/src
-      ../../rust/local-git-branch-cleanup-tui/tests
-      # Library crate (dependency)
-      ../../rust/omni-lib/Cargo.toml
-      ../../rust/omni-lib/src
+      ../../bash/local-git-branch-cleanup.sh
+      ../../bash/utils
     ];
   };
 
-  # Build only the specific package from workspace
-  cargoBuildFlags = [ "-p" "local-git-branch-cleanup-tui" ];
-  cargoTestFlags = [ "-p" "local-git-branch-cleanup-tui" ];
+  nativeBuildInputs = [ makeWrapper ];
 
-  cargoHash = "sha256-6ZA8OdA0kpu/b3OtxINq+rYc0QGxWbt7rQIzwsy1eHA=";
+  installPhase = ''
+    runHook preInstall
 
-  nativeBuildInputs = [ git ];
+    # Install the script and utils
+    mkdir -p $out/libexec/local-git-branch-cleanup
+    cp -r . $out/libexec/local-git-branch-cleanup/
 
-  doCheck = false; # Skip tests in Nix build (they require git repos)
+    # Create wrapper script in bin
+    mkdir -p $out/bin
+    makeWrapper $out/libexec/local-git-branch-cleanup/local-git-branch-cleanup.sh \
+      $out/bin/local-git-branch-cleanup \
+      --prefix PATH : ${lib.makeBinPath [ git bash ]}
+
+    runHook postInstall
+  '';
 
   meta = with lib; {
-    description = "Interactive TUI for cleaning up local Git branches";
+    description = "Bash script for cleaning up local Git branches without remote counterparts";
     homepage = "https://github.com/EmilIvanichkovv/omni-scripts";
     license = licenses.mit;
     maintainers = [ ];
-    mainProgram = "local-git-branch-cleanup-tui";
+    mainProgram = "local-git-branch-cleanup";
+    platforms = platforms.unix;
   };
 }

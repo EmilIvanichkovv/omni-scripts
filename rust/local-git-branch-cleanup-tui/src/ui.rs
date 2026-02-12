@@ -21,62 +21,49 @@ const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for s
 
 /// Render the TUI
 pub fn render(frame: &mut Frame, app: &App) {
-    // Create main layout: Header, [Filters], Content, Action Log, Footer
+    // Create main layout: Header, [Search], [Filters], Content, Action Log, Footer
     let has_log = !app.action_log.is_empty();
     let show_filter = app.show_filter;
+    let show_search = app.search_active || !app.search_query.is_empty();
     
-    let chunks = match (has_log, show_filter) {
-        (true, true) => Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Length(3),  // Filter tabs
-                Constraint::Min(5),     // Main content (branch list + details)
-                Constraint::Length(6),  // Action log
-                Constraint::Length(3),  // Footer (key hints only)
-            ])
-            .split(frame.area()),
-        (true, false) => Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Min(5),     // Main content (branch list + details)
-                Constraint::Length(6),  // Action log
-                Constraint::Length(3),  // Footer (key hints only)
-            ])
-            .split(frame.area()),
-        (false, true) => Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Length(3),  // Filter tabs
-                Constraint::Min(5),     // Main content (branch list + details)
-                Constraint::Length(3),  // Footer (key hints only)
-            ])
-            .split(frame.area()),
-        (false, false) => Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Min(5),     // Main content (branch list + details)
-                Constraint::Length(3),  // Footer (key hints only)
-            ])
-            .split(frame.area()),
-    };
+    // Build constraints dynamically based on visible components
+    let mut constraints = vec![Constraint::Length(3)]; // Header always present
+    
+    if show_search {
+        constraints.push(Constraint::Length(3)); // Search bar
+    }
+    if show_filter {
+        constraints.push(Constraint::Length(3)); // Filter tabs
+    }
+    constraints.push(Constraint::Min(5)); // Main content
+    if has_log {
+        constraints.push(Constraint::Length(6)); // Action log
+    }
+    constraints.push(Constraint::Length(3)); // Footer
+    
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(frame.area());
 
-    render_header(frame, app, chunks[0]);
+    // Track current chunk index
+    let mut idx = 0;
     
-    // Calculate content and footer indices based on layout
-    let (content_idx, log_idx, footer_idx) = match (has_log, show_filter) {
-        (true, true) => (2, Some(3), 4),
-        (true, false) => (1, Some(2), 3),
-        (false, true) => (2, None, 3),
-        (false, false) => (1, None, 2),
-    };
+    render_header(frame, app, chunks[idx]);
+    idx += 1;
+    
+    if show_search {
+        render_search_box(frame, app, chunks[idx]);
+        idx += 1;
+    }
     
     if show_filter {
-        render_filter_tabs(frame, app, chunks[1]);
+        render_filter_tabs(frame, app, chunks[idx]);
+        idx += 1;
     }
+    
+    let content_idx = idx;
+    idx += 1;
     
     // Split main content area into branch list (70%) and details pane (30%)
     let main_chunks = Layout::default()
@@ -90,10 +77,11 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_branch_list(frame, app, main_chunks[0]);
     render_details_pane(frame, app, main_chunks[1]);
     
-    if let Some(log_i) = log_idx {
-        render_action_log(frame, app, chunks[log_i]);
+    if has_log {
+        render_action_log(frame, app, chunks[idx]);
+        idx += 1;
     }
-    render_footer(frame, app, chunks[footer_idx]);
+    render_footer(frame, app, chunks[idx]);
 
     // Render confirmation modal on top if shown
     if app.show_confirmation {
@@ -200,74 +188,67 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(tabs, area);
 }
 
-/// Render the search input bar
-fn render_search_bar(frame: &mut Frame, app: &App, area: Rect) {
+/// Render the search input box with border
+fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     let match_count = app.filtered_branches().len();
     
     let cursor = if app.search_active { "▏" } else { "" };
     
-    let search_text = Line::from(vec![
-        Span::styled("🔍 ", Style::default()),
-        Span::styled(&app.search_query, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-        Span::styled(cursor, Style::default().fg(COLOR_ACCENT)),
-        Span::styled(
-            format!("  ({} matches)", match_count),
-            Style::default().fg(COLOR_MUTED),
-        ),
-        if app.search_active {
-            Span::styled("  [Enter] keep  [Esc] clear", Style::default().fg(COLOR_MUTED))
-        } else {
-            Span::styled("  [/] edit  [Esc] clear", Style::default().fg(COLOR_MUTED))
-        },
-    ]);
-
-    let style = if app.search_active {
-        Style::default().fg(COLOR_ACCENT)
+    let search_text = if app.search_query.is_empty() && !app.search_active {
+        Line::from(vec![
+            Span::styled("  Type to search branches...", Style::default().fg(COLOR_MUTED)),
+        ])
     } else {
-        Style::default().fg(COLOR_MUTED)
+        Line::from(vec![
+            Span::styled("  ", Style::default()),
+            Span::styled(&app.search_query, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(cursor, Style::default().fg(COLOR_ACCENT)),
+            Span::styled(
+                format!("  ({} matches)", match_count),
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ])
     };
 
-    let search_bar = Paragraph::new(search_text).style(style);
-    frame.render_widget(search_bar, area);
+    let border_color = if app.search_active {
+        COLOR_ACCENT
+    } else {
+        COLOR_MUTED
+    };
+    
+    let title = if app.search_active {
+        " 🔍 Search (Enter to keep, Esc to clear) "
+    } else {
+        " 🔍 Search (/ to edit, Esc to clear) "
+    };
+
+    let search_box = Paragraph::new(search_text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(border_color))
+                .title(title)
+                .title_style(Style::default().fg(border_color)),
+        );
+
+    frame.render_widget(search_box, area);
 }
 
 /// Render the branch list as a table
 fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
-    // Split area inside the block: [search bar] + branch table + legend line at bottom
+    // Split area inside the block: branch table + legend line at bottom
     let inner_area = area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
     
-    // Determine if we need to show the search bar
-    let show_search = app.search_active || !app.search_query.is_empty();
+    let branch_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),     // Branch table rows
+            Constraint::Length(1),  // Legend line (no border)
+        ])
+        .split(inner_area);
     
-    let branch_chunks = if show_search {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),  // Search bar
-                Constraint::Min(1),     // Branch table rows
-                Constraint::Length(1),  // Legend line (no border)
-            ])
-            .split(inner_area)
-    } else {
-        Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(1),     // Branch table rows
-                Constraint::Length(1),  // Legend line (no border)
-            ])
-            .split(inner_area)
-    };
-    
-    // Render search bar if active or has query
-    if show_search {
-        render_search_bar(frame, app, branch_chunks[0]);
-    }
-    
-    let (table_inner_area, legend_area) = if show_search {
-        (branch_chunks[1], branch_chunks[2])
-    } else {
-        (branch_chunks[0], branch_chunks[1])
-    };
+    let table_inner_area = branch_chunks[0];
+    let legend_area = branch_chunks[1];
 
     // Get filtered branches
     let filtered_branches = app.filtered_branches();

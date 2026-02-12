@@ -32,7 +32,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 Constraint::Length(3),  // Filter tabs
                 Constraint::Min(5),     // Main content (branch list + details)
                 Constraint::Length(6),  // Action log
-                Constraint::Length(3),  // Footer
+                Constraint::Length(3),  // Footer (key hints only)
             ])
             .split(frame.area())
     } else {
@@ -42,7 +42,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 Constraint::Length(3),  // Header
                 Constraint::Length(3),  // Filter tabs
                 Constraint::Min(5),     // Main content (branch list + details)
-                Constraint::Length(3),  // Footer
+                Constraint::Length(3),  // Footer (key hints only)
             ])
             .split(frame.area())
     };
@@ -176,11 +176,24 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Render the branch list as a table
 fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
+    // Split area inside the block: branch table + legend line at bottom
+    let inner_area = area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
+    let branch_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),     // Branch table rows
+            Constraint::Length(1),  // Legend line (no border)
+        ])
+        .split(inner_area);
+    
+    let table_inner_area = branch_chunks[0];
+    let legend_area = branch_chunks[1];
+
     // Get filtered branches
     let filtered_branches = app.filtered_branches();
     
     // Create table header
-    let header_cells = ["", "☑", "Status", "Branch", "Last Commit", ""]
+    let header_cells = ["", "☑", "Branch", "Last Commit", "Status"]
         .iter()
         .map(|h| Cell::from(*h).style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)));
     let header = Row::new(header_cells).height(1);
@@ -221,8 +234,6 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
                     .style(Style::default().fg(COLOR_ACCENT)),
                 // Checkbox
                 Cell::from(checkbox).style(checkbox_style),
-                // Status icon
-                Cell::from(branch.status.icon()).style(status_style),
                 // Branch name
                 Cell::from(branch.name.as_str()).style(if is_cursor {
                     Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
@@ -234,8 +245,8 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
                 // Last commit time
                 Cell::from(branch.last_commit_relative.as_str())
                     .style(Style::default().fg(COLOR_MUTED)),
-                // Status label
-                Cell::from(branch.status.label()).style(status_style),
+                // Status (icon + label combined)
+                Cell::from(format!("{} {}", branch.status.icon(), branch.status.label())).style(status_style),
             ];
 
             let row = Row::new(cells);
@@ -253,10 +264,9 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
     let widths = [
         Constraint::Length(2),   // Cursor indicator
         Constraint::Length(4),   // Checkbox
-        Constraint::Length(3),   // Status icon
         Constraint::Min(15),     // Branch name
         Constraint::Length(15),  // Last commit
-        Constraint::Length(12),  // Status label
+        Constraint::Length(12),  // Status (icon + label)
     ];
 
     let title = format!(
@@ -265,18 +275,38 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
         app.selected_count()
     );
 
+    // Render the outer block (border)
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(COLOR_MUTED))
+        .title(title)
+        .title_style(Style::default().fg(COLOR_ACCENT));
+    frame.render_widget(block, area);
+
+    // Render table without its own block (inside the outer block)
     let table = Table::new(rows, widths)
         .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_MUTED))
-                .title(title)
-                .title_style(Style::default().fg(COLOR_ACCENT)),
-        )
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
-    frame.render_widget(table, area);
+    frame.render_widget(table, table_inner_area);
+
+    // Render legend line (no border, just text)
+    let legend = Line::from(vec![
+        Span::styled("Legend: ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
+        Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("↗ ", Style::default().fg(COLOR_WARNING)),
+        Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("! ", Style::default().fg(COLOR_WARNING)),
+        Span::styled("unmerged  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
+        Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
+        Span::styled("current", Style::default().fg(COLOR_MUTED)),
+    ]);
+
+    let legend_widget = Paragraph::new(legend);
+    frame.render_widget(legend_widget, legend_area);
 }
 
 /// Render the details pane for the selected branch
@@ -453,28 +483,17 @@ fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
 
 /// Render the footer with key hints
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    let legend = Line::from(vec![
-        Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
-        Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("↗ ", Style::default().fg(COLOR_WARNING)),
-        Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("! ", Style::default().fg(COLOR_WARNING)),
-        Span::styled("unmerged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
-        Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
-        Span::styled("current", Style::default().fg(COLOR_MUTED)),
-    ]);
-
     let key_hints = if app.branches.is_empty() {
         Line::from(vec![
+            Span::styled(" ", Style::default()),
             Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("q/Esc", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     } else {
         Line::from(vec![
+            Span::styled(" ", Style::default()),
             Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("↑↓/jk", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -485,18 +504,20 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("a", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" all  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
-            Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("c", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" clear  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("f", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
+            Span::styled(" force  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("d", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
             Span::styled(" dry-run  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
+            Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     };
 
-    let footer_text = vec![legend, key_hints];
-
-    let footer = Paragraph::new(footer_text)
+    let footer = Paragraph::new(key_hints)
         .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(COLOR_MUTED)));
 
     frame.render_widget(footer, area);

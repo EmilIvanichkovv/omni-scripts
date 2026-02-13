@@ -105,7 +105,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                     } else if app.show_confirmation {
                         // Handle confirmation modal
                         match key.code {
-                            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
                                 // Confirm deletion
                                 if !app.dry_run {
                                     app.delete_selected_branches();

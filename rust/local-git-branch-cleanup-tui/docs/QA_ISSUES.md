@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 17:28
+**Last Updated:** 2026-02-13 17:40
 
 ---
 
@@ -94,25 +94,18 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #5: Confirmation modal Y/N not visible with many branches selected
 
-- **Status:** 🔴 Open
+- **Status:** � Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Type:** Bug + Enhancement
 - **Description:**
   - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
   - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
-- **Steps to Reproduce:**
-  1. Select a large number of branches (e.g., 100)
-  2. Press Enter to delete
-  3. Observe the confirmation modal - Y/N question is not visible
-- **Expected Behavior:** 
-  - Y/N prompt should always be visible
-  - Enter should confirm, Esc should cancel
-  - Y/N (or confirmation) hints should be centered/prominent in the modal
-- **Actual Behavior:** Y/N prompt is cut off when branch list is long
-- **Notes:**
-  - Modal height may need to be dynamic or scrollable
-  - Branch list in modal should have a max display count
-  - Confirmation hints should be visually centered and prominent
+- **Fix:**
+  - Dynamic modal height based on content (branches + warnings)
+  - Added Enter key to confirm deletion (in addition to y/Y)
+  - Esc already supported for cancel
+  - Confirmation hints now centered: `y/Enter confirm    n/Esc cancel`
 
 ### Issue #6: Improve search focus behavior
 

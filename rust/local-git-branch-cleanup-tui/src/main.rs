@@ -141,9 +141,18 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.search_query.clear();
                                 app.selected_index = 0;
                             }
-                            KeyCode::Enter => {
+                            KeyCode::Enter | KeyCode::Down => {
                                 // Exit search but keep the query filter active
+                                // Move focus to branch list for navigation/selection
                                 app.search_active = false;
+                                if key.code == KeyCode::Down {
+                                    app.select_next();
+                                }
+                            }
+                            KeyCode::Up => {
+                                // Exit search and navigate up
+                                app.search_active = false;
+                                app.select_prev();
                             }
                             KeyCode::Backspace => {
                                 // Remove last character
@@ -154,14 +163,6 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 // Add character to search query
                                 app.search_query.push(c);
                                 app.selected_index = 0;
-                            }
-                            KeyCode::Down | KeyCode::Up => {
-                                // Allow navigation while searching
-                                if key.code == KeyCode::Down {
-                                    app.select_next();
-                                } else {
-                                    app.select_prev();
-                                }
                             }
                             _ => {}
                         }

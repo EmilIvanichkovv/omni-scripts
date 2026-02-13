@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 17:40
+**Last Updated:** 2026-02-13 17:50
 
 ---
 
@@ -94,7 +94,7 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #5: Confirmation modal Y/N not visible with many branches selected
 
-- **Status:** � Resolved
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
 - **Type:** Bug + Enhancement
@@ -109,8 +109,9 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #6: Improve search focus behavior
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Type:** Enhancement
 - **Description:**
   - Improve the search workflow to allow seamless switching between search input and branch selection
@@ -119,10 +120,10 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but query remains)
   3. User can navigate and select branches with arrow keys and Space
   4. User presses `/` again to return focus to search bar and continue editing the query
-- **Actual Behavior:** Current behavior needs verification - may already partially work
-- **Notes:**
-  - Search query should persist when focus moves to branch list
-  - This creates a smooth workflow: search → navigate → select → search more
+- **Fix:**
+  - Arrow down/up in search mode now exits search but keeps query
+  - Pressing `/` re-enters search mode to continue editing
+  - Esc clears query and exits search
 
 ---
 
@@ -160,4 +161,4 @@ _Move resolved issues here for tracking purposes._
 
 | Date       | Changes          |
 | ---------- | ---------------- |
-| 2026-02-13 | Document created |
+| 2026-02-13 | Document created, Issues #1-6 resolved |

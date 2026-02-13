@@ -555,6 +555,20 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     } else {
+        // Style for force mode - highlighted when active
+        let force_style = if app.force_mode {
+            Style::default().fg(Color::Black).bg(COLOR_DANGER).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)
+        };
+
+        // Style for dry run mode - highlighted when active
+        let dry_style = if app.dry_run {
+            Style::default().fg(Color::Black).bg(COLOR_WARNING).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)
+        };
+
         Line::from(vec![
             Span::styled(" ", Style::default()),
             Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -569,10 +583,10 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" all  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("c", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" clear  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("f", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
-            Span::styled(" force  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("d", Style::default().fg(COLOR_WARNING).add_modifier(Modifier::BOLD)),
-            Span::styled(" dry  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("f force", force_style),
+            Span::styled("  ", Style::default()),
+            Span::styled("d dry", dry_style),
+            Span::styled("  ", Style::default()),
             Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
             Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),

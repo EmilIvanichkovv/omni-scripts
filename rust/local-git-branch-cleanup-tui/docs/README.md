@@ -24,6 +24,10 @@ Testing documentation and reports:
 - **[Testing Checklist](testing/TESTING.md)** — Manual testing checklist for QA
 - **[Test Summary](testing/TEST_SUMMARY.md)** — Automated test coverage and results
 
+## 🐛 Issues & Features
+
+- **[Issues and Features](ISSUES_AND_FEATURES.md)** — Bug tracking and feature requests
+
 ---
 
 ## Quick Links

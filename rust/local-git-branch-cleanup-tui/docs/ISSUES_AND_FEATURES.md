@@ -1,12 +1,12 @@
-# QA Issues & Bug Tracking
+# Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-02-13 17:55
+**Last Updated:** 2026-02-13 18:55
 
 ---
 
 ## Overview
 
-This document tracks bugs, issues, and problems discovered during QA testing of the local-git-branch-cleanup-tui application.
+This document tracks bugs, issues, and feature requests for the local-git-branch-cleanup-tui application.
 
 ---
 

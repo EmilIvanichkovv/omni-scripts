@@ -28,9 +28,9 @@ Testing documentation and reports:
 
 ## Quick Links
 
-| What you want | Where to go |
-|---------------|-------------|
-| Learn how to use the TUI | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md) |
-| Coming from the bash script? | [Migration Guide](guides/MIGRATION.md) |
-| Understand the codebase | [Architecture](specs/ARCHITECTURE.md) |
-| Run or write tests | [Testing Checklist](testing/TESTING.md) |
+| What you want                | Where to go                                  |
+| ---------------------------- | -------------------------------------------- |
+| Learn how to use the TUI     | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md) |
+| Coming from the bash script? | [Migration Guide](guides/MIGRATION.md)       |
+| Understand the codebase      | [Architecture](specs/ARCHITECTURE.md)        |
+| Run or write tests           | [Testing Checklist](testing/TESTING.md)      |

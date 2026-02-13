@@ -7,14 +7,14 @@ Over time, local Git branches accumulate – feature branches get merged, remote
 ## Demo
 
 <!-- TODO: Add video/GIF demo here -->
-<!-- 
+<!--
 ![Demo](./assets/demo.gif)
 
 Or embed a video:
 [![Demo Video](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)
 -->
 
-*Coming soon: Video demonstration of the TUI in action*
+_Coming soon: Video demonstration of the TUI in action_
 
 ---
 
@@ -71,6 +71,7 @@ cargo run -p local-git-branch-cleanup-tui --release
 ```
 
 This opens an interactive interface where you can:
+
 - Browse all local branches without remote counterparts
 - See branch status and last commit time
 - Navigate with keyboard controls
@@ -140,28 +141,28 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 ### Quick Reference
 
-| Key | Action |
-|-----|--------|
-| `↑`/`↓` or `j`/`k` | Navigate branches |
-| `Space` | Toggle selection |
-| `a` | Select all safe branches |
-| `c` | Clear selections |
-| `1`-`4` or `Tab` | Switch filter tabs |
-| `f` | Toggle force mode |
-| `d` | Toggle dry run mode |
-| `Enter` | Delete selected (with confirmation) |
-| `?` | Show help |
-| `q` / `Esc` | Quit |
+| Key                | Action                              |
+| ------------------ | ----------------------------------- |
+| `↑`/`↓` or `j`/`k` | Navigate branches                   |
+| `Space`            | Toggle selection                    |
+| `a`                | Select all safe branches            |
+| `c`                | Clear selections                    |
+| `1`-`4` or `Tab`   | Switch filter tabs                  |
+| `f`                | Toggle force mode                   |
+| `d`                | Toggle dry run mode                 |
+| `Enter`            | Delete selected (with confirmation) |
+| `?`                | Show help                           |
+| `q` / `Esc`        | Quit                                |
 
 ## Branch Status Legend
 
-| Icon | Status | Description | Deletable |
-|------|--------|-------------|-----------|
-| ✓ | merged | Fully merged into trunk | ✅ Safe (`-d`) |
-| ↗ | gone | Remote was deleted | ✅ Safe (`-d`) |
-| ! | unmerged | Has unmerged commits | ⚠️ Requires `--force` |
-| ⊘ | protected | main/master/develop | ❌ Never |
-| ◉ | current | Currently checked out | ❌ Never |
+| Icon | Status    | Description             | Deletable             |
+| ---- | --------- | ----------------------- | --------------------- |
+| ✓    | merged    | Fully merged into trunk | ✅ Safe (`-d`)        |
+| ↗    | gone      | Remote was deleted      | ✅ Safe (`-d`)        |
+| !    | unmerged  | Has unmerged commits    | ⚠️ Requires `--force` |
+| ⊘    | protected | main/master/develop     | ❌ Never              |
+| ◉    | current   | Currently checked out   | ❌ Never              |
 
 ## Safety Features
 
@@ -224,25 +225,25 @@ local-git-branch-cleanup-tui/
 
 📚 **[Full Documentation](docs/README.md)** — Index of all documentation.
 
-| Document | Description |
-|----------|-------------|
+| Document                                          | Description                                 |
+| ------------------------------------------------- | ------------------------------------------- |
 | [TUI Usage Guide](docs/guides/TUI_USAGE_GUIDE.md) | Complete guide to the interactive interface |
-| [Migration Guide](docs/guides/MIGRATION.md) | Migrate from the bash script |
-| [Architecture](docs/specs/ARCHITECTURE.md) | System design and module responsibilities |
-| [Roadmap](docs/specs/ROADMAP.md) | Project milestones and history |
+| [Migration Guide](docs/guides/MIGRATION.md)       | Migrate from the bash script                |
+| [Architecture](docs/specs/ARCHITECTURE.md)        | System design and module responsibilities   |
+| [Roadmap](docs/specs/ROADMAP.md)                  | Project milestones and history              |
 
 ## Comparison with Bash Script
 
 This tool replaces `bash/local-git-branch-cleanup.sh` with improvements:
 
-| Feature | Bash Script | Rust TUI |
-|---------|-------------|----------|
-| Interface | Static list | Interactive TUI |
-| Selection | All-or-nothing | Per-branch selection |
-| Delete mode | Force (`-D`) only | Safe (`-d`) by default |
-| Branch info | Last commit time | + Status classification |
-| Protection | None | main/master/develop/current |
-| Unmerged warning | No | Yes, requires `--force` |
+| Feature          | Bash Script       | Rust TUI                    |
+| ---------------- | ----------------- | --------------------------- |
+| Interface        | Static list       | Interactive TUI             |
+| Selection        | All-or-nothing    | Per-branch selection        |
+| Delete mode      | Force (`-D`) only | Safe (`-d`) by default      |
+| Branch info      | Last commit time  | + Status classification     |
+| Protection       | None              | main/master/develop/current |
+| Unmerged warning | No                | Yes, requires `--force`     |
 
 See the **[Migration Guide](docs/guides/MIGRATION.md)** for detailed comparison and migration steps.
 

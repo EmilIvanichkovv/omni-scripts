@@ -86,11 +86,7 @@ impl TestRepo {
         // Set up a fake remote tracking
         Self::run_git(
             &self.path,
-            &[
-                "config",
-                &format!("branch.{}.remote", name),
-                "origin",
-            ],
+            &["config", &format!("branch.{}.remote", name), "origin"],
         );
         Self::run_git(
             &self.path,
@@ -245,17 +241,15 @@ fn test_force_flag() {
     // Without --force, should show force mode disabled
     let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
-    
+
     let output = cmd.output().expect("Failed to execute command");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("FORCE MODE"));
 
     // With --force, should indicate force mode
     let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
-    cmd.current_dir(repo.path())
-        .arg("--cli")
-        .arg("--force");
-    
+    cmd.current_dir(repo.path()).arg("--cli").arg("--force");
+
     let output = cmd.output().expect("Failed to execute command");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("FORCE MODE"));
@@ -267,13 +261,11 @@ fn test_dry_run_flag() {
     repo.create_branch("feature/test", "Test feature");
 
     let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
-    cmd.current_dir(repo.path())
-        .arg("--cli")
-        .arg("--dry-run");
-    
+    cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
+
     let output = cmd.output().expect("Failed to execute command");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Should indicate dry run mode
     assert!(stdout.contains("DRY RUN") || stdout.contains("Preview"));
 }

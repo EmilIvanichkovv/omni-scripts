@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 17:12
+**Last Updated:** 2026-02-13 17:28
 
 ---
 
@@ -91,6 +91,45 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - Added 'i' key handler in main.rs
   - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
   - Added `i info` hint in footer
+
+### Issue #5: Confirmation modal Y/N not visible with many branches selected
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Type:** Bug + Enhancement
+- **Description:**
+  - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
+  - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
+- **Steps to Reproduce:**
+  1. Select a large number of branches (e.g., 100)
+  2. Press Enter to delete
+  3. Observe the confirmation modal - Y/N question is not visible
+- **Expected Behavior:** 
+  - Y/N prompt should always be visible
+  - Enter should confirm, Esc should cancel
+  - Y/N (or confirmation) hints should be centered/prominent in the modal
+- **Actual Behavior:** Y/N prompt is cut off when branch list is long
+- **Notes:**
+  - Modal height may need to be dynamic or scrollable
+  - Branch list in modal should have a max display count
+  - Confirmation hints should be visually centered and prominent
+
+### Issue #6: Improve search focus behavior
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Type:** Enhancement
+- **Description:**
+  - Improve the search workflow to allow seamless switching between search input and branch selection
+- **Expected Behavior:**
+  1. User presses `/` to activate search and types a query
+  2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but query remains)
+  3. User can navigate and select branches with arrow keys and Space
+  4. User presses `/` again to return focus to search bar and continue editing the query
+- **Actual Behavior:** Current behavior needs verification - may already partially work
+- **Notes:**
+  - Search query should persist when focus moves to branch list
+  - This creates a smooth workflow: search → navigate → select → search more
 
 ---
 

@@ -613,9 +613,25 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     let area = frame.area();
 
-    // Calculate modal size
+    // Build modal content first to calculate needed height
+    let selected_branches = app.get_selected_branches();
+    let unmerged_count = selected_branches.iter()
+        .filter(|b| b.status == BranchStatus::Unmerged)
+        .count();
+    let gone_count = selected_branches.iter()
+        .filter(|b| b.status == BranchStatus::GoneUpstream)
+        .count();
+
+    // Calculate how many lines we need:
+    // 1 empty + 1 title + 1 empty + min(3, branches) + (1 if more) + (2 if unmerged/gone warning) + 1 empty + 3 confirmation = ~12 base
+    let branch_lines = selected_branches.len().min(3);
+    let more_line = if selected_branches.len() > 3 { 1 } else { 0 };
+    let warning_lines = if unmerged_count > 0 || gone_count > 0 { 2 } else { 0 };
+    let needed_height = 3 + branch_lines + more_line + warning_lines + 5; // header + branches + warnings + footer with hints
+
+    // Calculate modal size - ensure it fits and has reasonable bounds
     let modal_width = 60.min(area.width - 4);
-    let modal_height = 12.min(area.height - 4);
+    let modal_height = (needed_height as u16).min(area.height - 4).max(12);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -626,12 +642,6 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
 
     // Clear the area behind the modal
     frame.render_widget(Clear, modal_area);
-
-    // Build modal content
-    let selected_branches = app.get_selected_branches();
-    let unmerged_count = selected_branches.iter()
-        .filter(|b| b.status == BranchStatus::Unmerged)
-        .count();
 
     let mut lines = vec![
         Line::from(""),
@@ -694,12 +704,11 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("  ", Style::default()),
-        Span::styled("y", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
-        Span::styled(" confirm   ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("n", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
+        Span::styled("y / Enter", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+        Span::styled(" confirm    ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("n / Esc", Style::default().fg(COLOR_DANGER).add_modifier(Modifier::BOLD)),
         Span::styled(" cancel", Style::default().fg(COLOR_MUTED)),
-    ]));
+    ]).alignment(Alignment::Center));
 
     let (modal_border_color, modal_title) = if app.dry_run {
         (COLOR_WARNING, " 🔍 Preview (Dry Run) ")

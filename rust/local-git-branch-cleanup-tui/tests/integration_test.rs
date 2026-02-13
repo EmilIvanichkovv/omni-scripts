@@ -1,10 +1,11 @@
 // Integration tests for local-git-branch-cleanup-tui
 
+#![allow(deprecated)] // Command::cargo_bin is deprecated but still functional
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command as StdCommand;
 use tempfile::TempDir;
 
 /// Helper struct to manage a temporary Git repository for testing
@@ -37,7 +38,7 @@ impl TestRepo {
 
     /// Run a git command in the test repository
     fn run_git(path: &PathBuf, args: &[&str]) -> std::process::Output {
-        StdCommand::new("git")
+        Command::new("git")
             .current_dir(path)
             .args(args)
             .output()
@@ -70,6 +71,7 @@ impl TestRepo {
 
     /// Delete a remote tracking branch to create a "gone" scenario
     /// This simulates the scenario where a remote branch was deleted
+    #[allow(dead_code)]
     fn create_gone_branch(&self, name: &str) {
         // Create a branch with upstream tracking
         Self::run_git(&self.path, &["checkout", "-b", name]);

@@ -99,6 +99,9 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                     if app.show_help {
                         // Any key closes help modal
                         app.show_help = false;
+                    } else if app.show_info {
+                        // Any key closes info modal
+                        app.show_info = false;
                     } else if app.show_confirmation {
                         // Handle confirmation modal
                         match key.code {
@@ -208,6 +211,10 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                             KeyCode::Char('?') => {
                                 // Toggle help modal
                                 app.show_help = !app.show_help;
+                            }
+                            KeyCode::Char('i') => {
+                                // Toggle info modal
+                                app.show_info = !app.show_info;
                             }
                             KeyCode::Char('/') => {
                                 // Enter search mode

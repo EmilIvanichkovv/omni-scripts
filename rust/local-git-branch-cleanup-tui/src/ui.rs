@@ -25,10 +25,10 @@ pub fn render(frame: &mut Frame, app: &App) {
     let has_log = !app.action_log.is_empty();
     let show_filter = app.show_filter;
     let show_search = app.search_active || !app.search_query.is_empty();
-    
+
     // Build constraints dynamically based on visible components
     let mut constraints = vec![Constraint::Length(3)]; // Header always present
-    
+
     if show_search {
         constraints.push(Constraint::Length(3)); // Search bar
     }
@@ -40,7 +40,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         constraints.push(Constraint::Length(6)); // Action log
     }
     constraints.push(Constraint::Length(3)); // Footer
-    
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
@@ -48,23 +48,23 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Track current chunk index
     let mut idx = 0;
-    
+
     render_header(frame, app, chunks[idx]);
     idx += 1;
-    
+
     if show_search {
         render_search_box(frame, app, chunks[idx]);
         idx += 1;
     }
-    
+
     if show_filter {
         render_filter_tabs(frame, app, chunks[idx]);
         idx += 1;
     }
-    
+
     let content_idx = idx;
     idx += 1;
-    
+
     // Split main content area into branch list (70%) and details pane (30%)
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -73,10 +73,10 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Percentage(30),  // Details pane
         ])
         .split(chunks[content_idx]);
-    
+
     render_branch_list(frame, app, main_chunks[0]);
     render_details_pane(frame, app, main_chunks[1]);
-    
+
     if has_log {
         render_action_log(frame, app, chunks[idx]);
         idx += 1;
@@ -87,10 +87,15 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_confirmation {
         render_confirmation_modal(frame, app);
     }
-    
+
     // Render help modal on top if shown
     if app.show_help {
         render_help_modal(frame);
+    }
+
+    // Render info modal on top if shown
+    if app.show_info {
+        render_info_modal(frame);
     }
 }
 
@@ -107,7 +112,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         ""
     };
-    
+
     let dry_run_indicator = if app.dry_run {
         " │ 🔍 DRY RUN"
     } else {
@@ -191,9 +196,9 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
 /// Render the search input box with border
 fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     let match_count = app.filtered_branches().len();
-    
+
     let cursor = if app.search_active { "▏" } else { "" };
-    
+
     let search_text = if app.search_query.is_empty() && !app.search_active {
         Line::from(vec![
             Span::styled("  Type to search branches...", Style::default().fg(COLOR_MUTED)),
@@ -215,7 +220,7 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         COLOR_MUTED
     };
-    
+
     let title = if app.search_active {
         " 🔍 Search (Enter to keep, Esc to clear) "
     } else {
@@ -238,7 +243,7 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
 fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
     // Split area inside the block: branch table + legend line at bottom
     let inner_area = area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
-    
+
     let branch_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -246,13 +251,13 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(1),  // Legend line (no border)
         ])
         .split(inner_area);
-    
+
     let table_inner_area = branch_chunks[0];
     let legend_area = branch_chunks[1];
 
     // Get filtered branches
     let filtered_branches = app.filtered_branches();
-    
+
     // Create table header
     let header_cells = ["", "☑", "Branch", "Last Commit", "Status"]
         .iter()
@@ -418,7 +423,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
             if let (Some(ahead), Some(behind)) = (branch.ahead, branch.behind) {
                 if ahead > 0 || behind > 0 {
                     let mut parts = vec![Span::styled("  Divergence: ", Style::default().fg(COLOR_MUTED))];
-                    
+
                     if ahead > 0 {
                         parts.push(Span::styled(format!("↑{}", ahead), Style::default().fg(COLOR_SUCCESS)));
                     }
@@ -428,7 +433,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                     if behind > 0 {
                         parts.push(Span::styled(format!("↓{}", behind), Style::default().fg(COLOR_WARNING)));
                     }
-                    
+
                     lines.push(Line::from(parts));
                 }
             }
@@ -462,12 +467,12 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(Line::from(vec![
             Span::styled("  Message:", Style::default().fg(COLOR_MUTED).add_modifier(Modifier::BOLD)),
         ]));
-        
+
         // Wrap long commit messages
         let max_width = area.width.saturating_sub(4) as usize;
         let words: Vec<&str> = branch.last_commit_message.split_whitespace().collect();
         let mut current_line = String::from("  ");
-        
+
         for word in words {
             if current_line.len() + word.len() + 1 > max_width {
                 lines.push(Line::from(Span::styled(current_line.clone(), Style::default().fg(Color::White))));
@@ -551,7 +556,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" ", Style::default()),
             Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("q/Esc", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("q / Esc", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     } else {
@@ -571,10 +576,6 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 
         Line::from(vec![
             Span::styled(" ", Style::default()),
-            Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("/", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("↑↓", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Space", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
@@ -589,7 +590,15 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled("  ", Style::default()),
             Span::styled("Enter", Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)),
             Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("q", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("/", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("F", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" filters  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("i", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" info  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("q / Esc", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
     };
@@ -603,11 +612,11 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 /// Render the confirmation modal
 fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    
+
     // Calculate modal size
     let modal_width = 60.min(area.width - 4);
     let modal_height = 12.min(area.height - 4);
-    
+
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
         y: (area.height - modal_height) / 2,
@@ -627,7 +636,7 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     let mut lines = vec![
         Line::from(""),
     ];
-    
+
     if app.dry_run {
         lines.push(Line::from(vec![
             Span::styled("  Preview ", Style::default().fg(COLOR_MUTED)),
@@ -731,11 +740,11 @@ fn get_status_color(status: &BranchStatus) -> Color {
 /// Render the help modal
 fn render_help_modal(frame: &mut Frame) {
     let area = frame.area();
-    
+
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
     let modal_height = 36.min(area.height - 4);
-    
+
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
         y: (area.height - modal_height) / 2,
@@ -840,6 +849,10 @@ fn render_help_modal(frame: &mut Frame) {
             Span::styled("  Other", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
+            Span::styled("    i", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("             Show info about the tool", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
             Span::styled("    ?", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
             Span::styled("             Show this help", Style::default().fg(COLOR_MUTED)),
         ]),
@@ -856,6 +869,88 @@ fn render_help_modal(frame: &mut Frame) {
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(COLOR_ACCENT))
                 .title(" 📖 Help - Keyboard Shortcuts ")
+                .title_style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        )
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left);
+
+    frame.render_widget(modal, modal_area);
+}
+
+/// Render the info modal
+fn render_info_modal(frame: &mut Frame) {
+    let area = frame.area();
+
+    // Calculate modal size
+    let modal_width = 65.min(area.width - 4);
+    let modal_height = 22.min(area.height - 4);
+
+    let modal_area = Rect {
+        x: (area.width - modal_width) / 2,
+        y: (area.height - modal_height) / 2,
+        width: modal_width,
+        height: modal_height,
+    };
+
+    // Clear the area behind the modal
+    frame.render_widget(Clear, modal_area);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Local Git Branch Cleanup TUI", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  A terminal interface to help you clean up local Git branches", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("  that are no longer needed.", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Branch Status Types:", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("    ✓ merged    ", Style::default().fg(COLOR_SUCCESS)),
+            Span::styled("Branch has been merged into trunk", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ↗ gone      ", Style::default().fg(COLOR_WARNING)),
+            Span::styled("Remote tracking branch was deleted", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ! unmerged  ", Style::default().fg(COLOR_WARNING)),
+            Span::styled("Has commits not in trunk (requires force)", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ⊘ protected ", Style::default().fg(COLOR_DANGER)),
+            Span::styled("Protected branch (main/master/develop)", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    ◉ current   ", Style::default().fg(COLOR_CURRENT)),
+            Span::styled("Currently checked out branch", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("?", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" for keyboard shortcuts", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Press any key to close", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(""),
+    ];
+
+    let modal = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_ACCENT))
+                .title(" ℹ️  About ")
                 .title_style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
         )
         .wrap(Wrap { trim: false })

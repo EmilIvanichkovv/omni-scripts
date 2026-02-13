@@ -78,6 +78,8 @@ pub struct App {
     pub current_filter: FilterMode,
     /// Whether to show help modal
     pub show_help: bool,
+    /// Whether to show info modal
+    pub show_info: bool,
     /// Dry run mode - preview actions without executing
     pub dry_run: bool,
     /// Whether to show filter tabs (hidden by default)
@@ -102,6 +104,7 @@ impl App {
             force_mode: false,
             current_filter: FilterMode::All,
             show_help: false,
+            show_info: false,
             dry_run: false,
             show_filter: false,
             search_active: false,

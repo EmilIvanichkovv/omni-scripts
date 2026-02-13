@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 16:55
+**Last Updated:** 2026-02-13 17:12
 
 ---
 
@@ -79,15 +79,18 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #4: Add info modal (shortcut: i)
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Type:** Enhancement
 - **Description:**
   - Add an info modal accessible via the 'i' shortcut that provides users with brief information about what the tool does
 - **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose and functionality
-- **Notes:**
-  - Should explain the tool helps clean up local git branches
-  - Could include info about merged/gone branches detection
+- **Fix:**
+  - Added `show_info` state to App
+  - Added 'i' key handler in main.rs
+  - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
+  - Added `i info` hint in footer
 
 ---
 

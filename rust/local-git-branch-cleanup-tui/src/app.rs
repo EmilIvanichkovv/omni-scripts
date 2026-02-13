@@ -88,6 +88,10 @@ pub struct App {
     pub search_active: bool,
     /// Current search query string
     pub search_query: String,
+    /// Scroll offset for the branch list viewport
+    pub scroll_offset: usize,
+    /// Visible height of the branch list (set during render)
+    pub visible_height: usize,
 }
 
 impl App {
@@ -109,6 +113,8 @@ impl App {
             show_filter: false,
             search_active: false,
             search_query: String::new(),
+            scroll_offset: 0,
+            visible_height: 0,
         }
     }
 
@@ -118,19 +124,38 @@ impl App {
 
     pub fn select_next(&mut self) {
         let filtered = self.filtered_branches();
-        if !filtered.is_empty() {
-            self.selected_index = (self.selected_index + 1) % filtered.len();
+        if !filtered.is_empty() && self.selected_index < filtered.len() - 1 {
+            self.selected_index += 1;
+            // Adjust scroll offset if cursor goes below visible area
+            self.adjust_scroll_for_selection();
         }
     }
 
     pub fn select_prev(&mut self) {
-        let filtered = self.filtered_branches();
-        if !filtered.is_empty() {
-            if self.selected_index == 0 {
-                self.selected_index = filtered.len() - 1;
-            } else {
-                self.selected_index -= 1;
-            }
+        if self.selected_index > 0 {
+            self.selected_index -= 1;
+            // Adjust scroll offset if cursor goes above visible area
+            self.adjust_scroll_for_selection();
+        }
+    }
+
+    /// Adjust scroll offset to keep the selected item visible
+    /// Only scrolls when cursor would go outside the visible bounds
+    pub fn adjust_scroll_for_selection(&mut self) {
+        if self.visible_height == 0 {
+            return;
+        }
+        
+        // If cursor is above the visible area, scroll up
+        if self.selected_index < self.scroll_offset {
+            self.scroll_offset = self.selected_index;
+        }
+        
+        // If cursor is below the visible area, scroll down
+        // visible_height - 1 because we need to account for header row
+        let visible_rows = self.visible_height.saturating_sub(1);
+        if visible_rows > 0 && self.selected_index >= self.scroll_offset + visible_rows {
+            self.scroll_offset = self.selected_index - visible_rows + 1;
         }
     }
 
@@ -192,14 +217,16 @@ impl App {
     /// Set the current filter mode
     pub fn set_filter(&mut self, filter: FilterMode) {
         self.current_filter = filter;
-        // Reset selection when filter changes
+        // Reset selection and scroll when filter changes
         self.selected_index = 0;
+        self.scroll_offset = 0;
     }
 
     /// Cycle to next filter
     pub fn next_filter(&mut self) {
         self.current_filter = self.current_filter.next();
         self.selected_index = 0;
+        self.scroll_offset = 0;
     }
 
     /// Count of deletable branches
@@ -456,15 +483,15 @@ mod tests {
         app.select_prev();
         assert_eq!(app.selected_index, 1);
         
-        // Wrap around at end
+        // Stop at end (no wrap)
         app.selected_index = 4;
         app.select_next();
-        assert_eq!(app.selected_index, 0);
+        assert_eq!(app.selected_index, 4); // Should stay at 4
         
-        // Wrap around at beginning
+        // Stop at beginning (no wrap)
         app.selected_index = 0;
         app.select_prev();
-        assert_eq!(app.selected_index, 4);
+        assert_eq!(app.selected_index, 0); // Should stay at 0
     }
 
     #[test]

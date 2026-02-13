@@ -62,7 +62,7 @@ Compare behavior with the original bash script:
 #### 3.1 Navigation
 - [ ] `j` / Down arrow - move selection down
 - [ ] `k` / Up arrow - move selection up
-- [ ] Selection wraps around at top/bottom
+- [ ] Selection stops at top/bottom (no wrap)
 - [ ] Selection indicator (highlight) visible
 
 #### 3.2 Selection

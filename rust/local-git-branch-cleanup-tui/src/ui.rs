@@ -20,7 +20,7 @@ const COLOR_CURRENT: Color = Color::Rgb(189, 147, 249);  // #BD93F9 - purple
 const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for selected
 
 /// Render the TUI
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     // Create main layout: Header, [Search], [Filters], Content, Action Log, Footer
     let has_log = !app.action_log.is_empty();
     let show_filter = app.show_filter;
@@ -240,7 +240,7 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the branch list as a table
-fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     // Split area inside the block: branch table + legend line at bottom
     let inner_area = area.inner(ratatui::layout::Margin { horizontal: 1, vertical: 1 });
 
@@ -254,6 +254,10 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
 
     let table_inner_area = branch_chunks[0];
     let legend_area = branch_chunks[1];
+
+    // Update visible height in app for scroll calculations
+    // Subtract 1 for the header row
+    app.visible_height = table_inner_area.height as usize;
 
     // Get filtered branches
     let filtered_branches = app.filtered_branches();
@@ -354,8 +358,10 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
         .header(header)
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
-    // Use TableState for automatic scrolling to keep selected row visible
-    let mut table_state = TableState::default().with_selected(Some(app.selected_index));
+    // Use TableState with manual scroll offset for "edge-only" scrolling
+    let mut table_state = TableState::default()
+        .with_selected(Some(app.selected_index))
+        .with_offset(app.scroll_offset);
     frame.render_stateful_widget(table, table_inner_area, &mut table_state);
 
     // Render legend line (no border, just text)

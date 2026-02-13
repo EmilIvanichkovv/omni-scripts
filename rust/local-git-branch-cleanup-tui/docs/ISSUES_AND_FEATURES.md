@@ -32,8 +32,9 @@ _No open critical issues._
 ### Issue #7: Scrolling behavior causes unnecessary viewport movement
 
 - **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
-- **Status:** 🔴 Open
+- **Status:** � Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Category:** UI/UX / Bug
 - **Description:**
   - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even when there's room for the cursor to move within the current view
@@ -48,9 +49,11 @@ _No open critical issues._
   - Only then should the viewport scroll to reveal more items above
 - **Actual Behavior:**
   - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top of visible area
-- **Suggested Fix:**
-  - Implement "follow cursor at edges only" scrolling logic
-  - Viewport should only adjust when cursor would move outside the visible bounds
+- **Fix:**
+  - Added `scroll_offset` and `visible_height` fields to App state
+  - Implemented `adjust_scroll_for_selection()` method for "edge-only" scrolling
+  - Viewport only adjusts when cursor would move outside visible bounds
+  - Used `TableState::with_offset()` to control scroll position manually
 
 ---
 
@@ -338,3 +341,4 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 18:40 | #9    | Reported: Add ability to sort branches by creation date                |
 | 2026-02-13 | 18:45 | #10   | Reported: Add filter by branch creator/author                          |
 | 2026-02-13 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |
+| 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |

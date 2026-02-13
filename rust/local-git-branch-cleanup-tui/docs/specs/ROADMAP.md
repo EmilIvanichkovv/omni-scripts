@@ -677,7 +677,7 @@ Add filtering and detailed branch information view.
 2. **Unit Tests (app.rs)**:
    - FilterMode label, next, from_number
    - App creation and initialization
-   - Navigation (select_next, select_prev, wrapping)
+   - Navigation (select_next, select_prev, stops at edges)
    - Filtered branches for all filter modes
    - Filter counts
    - Selection toggling (respecting protection rules)

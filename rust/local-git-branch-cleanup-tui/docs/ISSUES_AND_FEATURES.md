@@ -31,6 +31,7 @@ _No open critical issues._
 
 ### Issue #7: Scrolling behavior causes unnecessary viewport movement
 
+- **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
 - **Status:** 🔴 Open
 - **Reported:** 2026-02-13
 - **Category:** UI/UX / Bug
@@ -55,6 +56,7 @@ _No open critical issues._
 
 ### Issue #8: Missing keyboard shortcuts for list navigation
 
+- **GitHub:** [#20](https://github.com/EmilIvanichkovv/omni-scripts/issues/20)
 - **Status:** 🔴 Open
 - **Reported:** 2026-02-13
 - **Category:** UI/UX / Enhancement
@@ -87,6 +89,7 @@ _No open critical issues._
 
 ### Issue #9: Add ability to sort branches by creation date
 
+- **GitHub:** [#21](https://github.com/EmilIvanichkovv/omni-scripts/issues/21)
 - **Status:** 🔴 Open
 - **Reported:** 2026-02-13
 - **Category:** UI/UX / Enhancement
@@ -114,6 +117,7 @@ _No open critical issues._
 
 ### Issue #10: Add filter by branch creator/author
 
+- **GitHub:** [#22](https://github.com/EmilIvanichkovv/omni-scripts/issues/22)
 - **Status:** 🔴 Open
 - **Reported:** 2026-02-13
 - **Category:** UI/UX / Enhancement
@@ -141,6 +145,7 @@ _No open critical issues._
 
 ### Issue #11: Show GitHub PR association for branches
 
+- **GitHub:** [#23](https://github.com/EmilIvanichkovv/omni-scripts/issues/23)
 - **Status:** 🔴 Open
 - **Reported:** 2026-02-13
 - **Category:** UI/UX / Enhancement
@@ -189,6 +194,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #1: Force delete mode not using `git branch -D`
 
+- **GitHub:** [#11](https://github.com/EmilIvanichkovv/omni-scripts/issues/11)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
@@ -213,6 +219,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #2: Branch list scrolling not working with many branches
 
+- **GitHub:** [#12](https://github.com/EmilIvanichkovv/omni-scripts/issues/12)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
@@ -233,6 +240,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #3: Highlight active mode options in footer
 
+- **GitHub:** [#13](https://github.com/EmilIvanichkovv/omni-scripts/issues/13)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
@@ -250,6 +258,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #4: Add info modal (shortcut: i)
 
+- **GitHub:** [#14](https://github.com/EmilIvanichkovv/omni-scripts/issues/14)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
@@ -268,6 +277,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #5: Confirmation modal Y/N not visible with many branches selected
 
+- **GitHub:** [#15](https://github.com/EmilIvanichkovv/omni-scripts/issues/15)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
@@ -286,6 +296,7 @@ _No open minor/cosmetic issues._
 
 ### Issue #6: Improve search focus behavior
 
+- **GitHub:** [#16](https://github.com/EmilIvanichkovv/omni-scripts/issues/16)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13

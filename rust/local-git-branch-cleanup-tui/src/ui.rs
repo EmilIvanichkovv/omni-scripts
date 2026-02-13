@@ -6,7 +6,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
 
@@ -349,7 +349,9 @@ fn render_branch_list(frame: &mut Frame, app: &App, area: Rect) {
         .header(header)
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
-    frame.render_widget(table, table_inner_area);
+    // Use TableState for automatic scrolling to keep selected row visible
+    let mut table_state = TableState::default().with_selected(Some(app.selected_index));
+    frame.render_stateful_widget(table, table_inner_area, &mut table_state);
 
     // Render legend line (no border, just text)
     let legend = Line::from(vec![

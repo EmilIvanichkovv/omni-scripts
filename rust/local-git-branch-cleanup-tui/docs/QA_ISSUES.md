@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 16:00
+**Last Updated:** 2026-02-13 16:10
 
 ---
 
@@ -49,8 +49,9 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #2: Branch list scrolling not working with many branches
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Description:**
   - When there are many branches in the repository, the branch list box does not scroll properly
 - **Steps to Reproduce:**
@@ -58,7 +59,9 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   2. Attempt to scroll through the branch list
 - **Expected Behavior:** Branch list should scroll to show all branches
 - **Actual Behavior:** Scrolling does not work
-- **Notes:**
+- **Fix:**
+  - Used `TableState` with `render_stateful_widget` instead of `render_widget`
+  - `TableState::default().with_selected(Some(app.selected_index))` enables automatic scrolling to keep cursor visible
 
 ### Issue #3: Highlight active mode options in footer
 

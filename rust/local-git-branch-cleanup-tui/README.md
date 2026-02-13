@@ -136,160 +136,22 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 ## TUI Guide
 
-### Getting Started
+📖 **[Full TUI Usage Guide](TUI_USAGE_GUIDE.md)** — Complete documentation for the interactive interface.
 
-When you launch the TUI, you'll see:
-- **Header** - Repository path, trunk branch, selection count, and force mode indicator
-- **Filter Tabs** - Filter branches by status (Safe Merged, Upstream Gone, Unmerged, All)
-- **Branch List** - Filtered branches with status icons, checkboxes, and metadata (70% width)
-- **Details Pane** - Detailed information about selected branch (30% width, right side)
-- **Action Log** - Deletion results (appears after deletions)
-- **Footer** - Status legend and keyboard shortcuts
-
-### Navigation
+### Quick Reference
 
 | Key | Action |
 |-----|--------|
-| `↑` / `k` | Move cursor up |
-| `↓` / `j` | Move cursor down |
-| `q` / `Esc` | Quit application |
-
-### Filters
-
-| Key | Action |
-|-----|--------|
-| `1` / `F1` | Show only safe merged branches |
-| `2` / `F2` | Show only upstream gone branches |
-| `3` / `F3` | Show only unmerged branches |
-| `4` / `F4` | Show all branches |
-| `Tab` | Cycle through filters |
-
-The active filter tab is highlighted in cyan, and each tab shows the branch count for that category.
-
-### Branch Selection
-
-| Key | Action |
-|-----|--------|
-| `Space` | Toggle selection for current branch |
-| `a` | Select/deselect all safe branches |
-| `c` | Clear all selections |
-| `f` | Toggle force mode (enables unmerged branches) |
-
-**Understanding Checkboxes:**
-- `[✓]` - Selected for deletion
-- `[ ]` - Not selected (can be toggled)
-- ` - ` - Disabled (unmerged branch without force mode)
-- No checkbox - Protected/current branch (cannot be deleted)
-
-### Deleting Branches
-
-1. **Select branches** - Use `Space` to select individual branches, or `a` to select all safe branches
-2. **Review selection** - The header shows how many branches are selected
-3. **Confirm deletion** - Press `Enter` to open the confirmation modal
-4. **Approve or cancel** - Press `y` to delete, `n` to cancel
-
-The confirmation modal shows:
-- Number of branches to be deleted
-- Names of selected branches (up to 3, with "and X more" if needed)
-- Warning if any branches are unmerged
-- The delete command that will be used (`-d` or `-D`)
-
-### Force Mode
-
-By default, unmerged branches show a `-` checkbox and cannot be selected. This protects you from accidentally losing work.
-
-To delete unmerged branches:
-1. Press `f` to toggle force mode
-2. Header shows "⚠️ FORCE" indicator
-3. Unmerged branches now show `[ ]` checkboxes
-4. Selected unmerged branches will be deleted with `git branch -D` (force delete)
-
-**⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. Use with caution!
-
-### Dry Run Mode
-
-Dry run mode lets you preview what would be deleted without actually executing the deletions:
-1. Press `d` to toggle dry run mode
-2. Header shows "🔍 DRY RUN" indicator
-3. Select branches and press `Enter` to preview
-4. Confirmation modal shows "Preview (Dry Run)" title
-5. Press `y` to see preview in action log
-6. Action log shows "[DRY RUN] Would delete: branch-name"
-7. No branches are actually deleted
-
-This is useful for testing your selection before committing to deletions.
-
-### Help Modal
-
-Press `?` at any time to show the comprehensive help modal with all keyboard shortcuts organized by category:
-- **Navigation** - Arrow keys, j/k
-- **Filters** - 1-4, F1-F4, Tab
-- **Selection** - Space, a (all), c (clear)
-- **Actions** - Enter (delete), f (force), d (dry run)
-- **Other** - ? (help), q (quit)
-
-Press any key to close the help modal.
-
-### Action Log
-
-After deleting branches, the action log appears at the bottom showing:
-- ✓ Successfully deleted branches
-- ✗ Failed deletions with error messages
-- Success/failure counts
-
-The branch list automatically refreshes after deletion.
-
-### Details Pane
-
-The details pane (right side, 30% of screen) shows comprehensive information about the currently selected branch:
-- **Branch name** - Full branch name
-- **Status** - Status explanation (e.g., "Merged into main")
-- **Upstream** - Remote tracking branch (if any), or "None"
-- **Ahead/Behind** - Commit count differences with upstream (if applicable)
-- **Last Commit** - SHA, author, and commit message
-
-The details pane updates automatically as you navigate through the branch list.
-
-### Example Workflow
-
-```
-1. Launch TUI
-   $ ./target/release/local-git-branch-cleanup-tui
-
-2. Navigate to an unmerged branch you want to delete
-   → Press ↓ or j to move down
-
-3. Enable force mode (if needed)
-   → Press f
-   → Header shows "⚠️ FORCE"
-
-4. Select the branch
-   → Press Space
-   → Checkbox shows [✓]
-
-5. Review your selection
-   → Header shows "📦 1 selected"
-
-6. Confirm deletion
-   → Press Enter
-   → Modal shows "Delete 1 branch(es)?"
-
-7. Approve
-   → Press y
-   → Action log shows "✓ branch-name - Deleted (-D)"
-   → Branch list refreshes
-
-8. Quit when done
-   → Press q
-```
-
-### Tips
-
-- **Start without force mode** - Review merged/gone branches first
-- **Use `a` for bulk cleanup** - Quickly select all safe branches
-- **Check the status icons** - ✓ merged and ↗ gone are always safe to delete
-- **Read the confirmation modal** - It shows exactly which branches will be deleted
-- **Watch the action log** - Verify deletions succeeded
+| `↑`/`↓` or `j`/`k` | Navigate branches |
+| `Space` | Toggle selection |
+| `a` | Select all safe branches |
+| `c` | Clear selections |
+| `1`-`4` or `Tab` | Switch filter tabs |
+| `f` | Toggle force mode |
+| `d` | Toggle dry run mode |
+| `Enter` | Delete selected (with confirmation) |
+| `?` | Show help |
+| `q` / `Esc` | Quit |
 
 ## Branch Status Legend
 

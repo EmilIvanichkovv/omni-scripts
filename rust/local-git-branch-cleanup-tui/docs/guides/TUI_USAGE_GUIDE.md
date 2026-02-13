@@ -61,6 +61,7 @@ The active filter tab is highlighted in cyan, and each tab displays the branch c
 | `Enter` | Delete selected branches (opens confirmation) |
 | `f` | Toggle force mode |
 | `d` | Toggle dry run mode |
+| `i` | Show info modal (about the tool) |
 | `?` | Show help modal |
 
 ---
@@ -197,9 +198,21 @@ Press `?` at any time to display a comprehensive help modal with all keyboard sh
 - **Filters** — 1-4, F1-F4, Tab
 - **Selection** — Space, a (all), c (clear)
 - **Actions** — Enter (delete), f (force), d (dry run)
-- **Other** — ? (help), q (quit)
+- **Other** — i (info), ? (help), q (quit)
 
 Press any key to close the help modal.
+
+---
+
+## Info Modal
+
+Press `i` at any time to display information about the tool:
+
+- Tool name and description
+- Explanation of all branch status types (merged, gone, unmerged, protected, current)
+- Hint to press `?` for keyboard shortcuts
+
+Press any key to close the info modal.
 
 ---
 

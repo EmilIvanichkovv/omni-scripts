@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 16:10
+**Last Updated:** 2026-02-13 16:55
 
 ---
 
@@ -65,14 +65,17 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #3: Highlight active mode options in footer
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Type:** Enhancement
 - **Description:**
   - When user toggles force mode (f) or dry run mode (d), the selected option should be visually highlighted in the footer
 - **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer to provide clear visual feedback
-- **Actual Behavior:** No visual distinction when modes are active
-- **Notes:**
+- **Fix:**
+  - When active, `f force` gets black text on red background
+  - When active, `d dry` gets black text on amber background
+  - Entire label is highlighted, not just the key
 
 ### Issue #4: Add info modal (shortcut: i)
 

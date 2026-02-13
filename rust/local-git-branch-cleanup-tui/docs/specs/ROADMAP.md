@@ -1,10 +1,10 @@
 # Branch Cleanup TUI - Project Roadmap & Status
 
-**Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`  
-**Target Name**: `local-git-branch-cleanup-tui`  
-**Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace member)  
-**Status**: 🎉 COMPLETE - All 9 Milestones Done! Production Ready! 🎉  
-**Version**: 0.2.0  
+**Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh`
+**Target Name**: `local-git-branch-cleanup-tui`
+**Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace member)
+**Status**: 🎉 COMPLETE - All 9 Milestones Done! Production Ready! 🎉
+**Version**: 0.2.0
 **Last Updated**: 2026-02-12
 
 ---
@@ -45,7 +45,7 @@
 ## Project Milestones
 
 ### ✅ Milestone 0: Analysis & Planning
-**Status**: ✅ Complete (2026-02-11)  
+**Status**: ✅ Complete (2026-02-11)
 **Goal**: Validate requirements and finalize roadmap
 
 - [x] Review existing bash script implementation
@@ -137,8 +137,8 @@
 ---
 
 ### ✅ Milestone 1: Development Environment Setup
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P0 (Blocker)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P0 (Blocker)
 **Estimated Effort**: 2-4 hours (Actual: ~2 hours)
 
 #### Tasks
@@ -180,9 +180,9 @@
 ---
 
 ### ✅ Milestone 2: Core Git Integration (MVP)
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P0 (Blocker)  
-**Estimated Effort**: 8-16 hours (Actual: ~2 hours)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P0 (Blocker)
+**Estimated Effort**: 8-16 hours (Actual: ~2 hours)
 **Depends On**: M1
 
 #### Goals
@@ -238,9 +238,9 @@ Replicate existing bash script functionality using Rust + Git commands.
 ---
 
 ### ✅ Milestone 3: Enhanced Branch Classification
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P1 (High Value)  
-**Estimated Effort**: 12-20 hours (Actual: ~2 hours)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P1 (High Value)
+**Estimated Effort**: 12-20 hours (Actual: ~2 hours)
 **Depends On**: M2
 
 #### Goals
@@ -301,9 +301,9 @@ Improve branch analysis beyond "has remote" / "no remote".
 ---
 
 ### ✅ Milestone 4: Basic TUI (Non-Interactive List)
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P1  
-**Estimated Effort**: 16-24 hours (Actual: ~2 hours)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P1
+**Estimated Effort**: 16-24 hours (Actual: ~2 hours)
 **Depends On**: M3
 
 #### Goals
@@ -370,9 +370,9 @@ Display branch information in terminal UI, read-only initially.
 ---
 
 ### ✅ Milestone 5: Interactive Selection & Deletion
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P0 (Core Functionality)  
-**Actual Effort**: 8 hours (3 commits)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P0 (Core Functionality)
+**Actual Effort**: 8 hours (3 commits)
 **Depends On**: M4
 
 #### Goals
@@ -459,9 +459,9 @@ Enable branch selection and deletion within TUI.
 ---
 
 ### ✅ Milestone 6: Filters & Details Pane
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P2 (Nice to Have)  
-**Actual Effort**: 4 hours  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P2 (Nice to Have)
+**Actual Effort**: 4 hours
 **Depends On**: M5
 
 > **Note**: This is beyond MVP. M1-M5 deliver complete functional replacement.
@@ -528,9 +528,9 @@ Add filtering and detailed branch information view.
 ---
 
 ### ✅ Milestone 7: Advanced Features & Polish
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P3 (Optional)  
-**Actual Effort**: 3 hours  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P3 (Optional)
+**Actual Effort**: 3 hours
 **Depends On**: M6
 
 #### Tasks
@@ -603,9 +603,9 @@ Add filtering and detailed branch information view.
 ---
 
 ### ✅ Milestone 8: Testing & Validation
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P1  
-**Estimated Effort**: 8-12 hours (Actual: ~4 hours)  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P1
+**Estimated Effort**: 8-12 hours (Actual: ~4 hours)
 **Depends On**: M5
 
 #### Tasks
@@ -707,9 +707,9 @@ Add filtering and detailed branch information view.
 ---
 
 ### ✅ Milestone 9: Documentation & Deployment
-**Status**: ✅ Complete (2026-02-11)  
-**Priority**: P1  
-**Actual Effort**: 2 hours  
+**Status**: ✅ Complete (2026-02-11)
+**Priority**: P1
+**Actual Effort**: 2 hours
 **Depends On**: M8
 
 #### Tasks
@@ -860,7 +860,7 @@ touch src/app.rs src/git.rs src/ui.rs
 
 ## Changelog
 
-- **2026-02-11**: 
+- **2026-02-11**:
   - Initial roadmap created
   - ✅ Milestone 0 completed: Analysis & planning finalized
   - MVP scope defined (M1-M5)
@@ -903,7 +903,7 @@ touch src/app.rs src/git.rs src/ui.rs
     - Added header with app name, repo path, and trunk branch
     - Created branch list table with status icons, highlighting, and colors
     - Added footer with status legend and navigation key hints
-    - Implemented event loop with keyboard navigation (q/Esc, j/k, arrows)
+    - Implemented event loop with keyboard navigation (q / Esc, j/k, arrows)
     - TUI is now default mode, --cli flag for CLI mode
     - Color palette: cyan accent, amber warning, red danger, purple current
   - ✅ Milestone 6 completed: Filters & Details Pane

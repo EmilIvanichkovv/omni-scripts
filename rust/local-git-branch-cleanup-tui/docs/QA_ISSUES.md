@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 17:50
+**Last Updated:** 2026-02-13 17:55
 
 ---
 
@@ -23,11 +23,36 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ## Critical Issues
 
+_No open critical issues._
+
+---
+
+## UI/UX Issues
+
+_No open UI/UX issues._
+
+---
+
+## Performance Issues
+
+_No open performance issues._
+
+---
+
+## Minor/Cosmetic Issues
+
+_No open minor/cosmetic issues._
+
+---
+
+## Resolved Issues
+
 ### Issue #1: Force delete mode not using `git branch -D`
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
+- **Category:** Critical / Bug
 - **Description:**
   - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the deletion fails with an error suggesting the branch is not fully merged.
 - **Steps to Reproduce:**
@@ -42,16 +67,16 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - In `app.rs`, `delete_selected_branches()` now respects `self.force_mode`
   - Also auto-forces deletion for "gone" branches (handles squash/rebase merges)
   - Changed: `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
+- **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix force delete mode to properly use git branch -D`
 
 ---
-
-## UI/UX Issues
 
 ### Issue #2: Branch list scrolling not working with many branches
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
+- **Category:** UI/UX / Bug
 - **Description:**
   - When there are many branches in the repository, the branch list box does not scroll properly
 - **Steps to Reproduce:**
@@ -62,13 +87,16 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 - **Fix:**
   - Used `TableState` with `render_stateful_widget` instead of `render_widget`
   - `TableState::default().with_selected(Some(app.selected_index))` enables automatic scrolling to keep cursor visible
+- **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix branch list scrolling with TableState`
+
+---
 
 ### Issue #3: Highlight active mode options in footer
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Type:** Enhancement
+- **Category:** UI/UX / Enhancement
 - **Description:**
   - When user toggles force mode (f) or dry run mode (d), the selected option should be visually highlighted in the footer
 - **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer to provide clear visual feedback
@@ -76,13 +104,16 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - When active, `f force` gets black text on red background
   - When active, `d dry` gets black text on amber background
   - Entire label is highlighted, not just the key
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Highlight active mode options in footer`
+
+---
 
 ### Issue #4: Add info modal (shortcut: i)
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Type:** Enhancement
+- **Category:** UI/UX / Enhancement
 - **Description:**
   - Add an info modal accessible via the 'i' shortcut that provides users with brief information about what the tool does
 - **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose and functionality
@@ -91,13 +122,16 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - Added 'i' key handler in main.rs
   - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
   - Added `i info` hint in footer
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Add info modal with tool description`
+
+---
 
 ### Issue #5: Confirmation modal Y/N not visible with many branches selected
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Type:** Bug + Enhancement
+- **Category:** UI/UX / Bug + Enhancement
 - **Description:**
   - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
   - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
@@ -106,13 +140,16 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - Added Enter key to confirm deletion (in addition to y/Y)
   - Esc already supported for cancel
   - Confirmation hints now centered: `y/Enter confirm    n/Esc cancel`
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve confirmation modal UX`
+
+---
 
 ### Issue #6: Improve search focus behavior
 
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Type:** Enhancement
+- **Category:** UI/UX / Enhancement
 - **Description:**
   - Improve the search workflow to allow seamless switching between search input and branch selection
 - **Expected Behavior:**
@@ -124,41 +161,24 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
   - Arrow down/up in search mode now exits search but keeps query
   - Pressing `/` re-enters search mode to continue editing
   - Esc clears query and exits search
-
----
-
-## Performance Issues
-
-### Issue #: [Title]
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-02-13
-- **Description:**
-  - [Describe the issue]
-- **Notes:**
-
----
-
-## Minor/Cosmetic Issues
-
-### Issue #: [Title]
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-02-13
-- **Description:**
-  - [Describe the issue]
-- **Notes:**
-
----
-
-## Resolved Issues
-
-_Move resolved issues here for tracking purposes._
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve search focus behavior`
 
 ---
 
 ## Change Log
 
-| Date       | Changes          |
-| ---------- | ---------------- |
-| 2026-02-13 | Document created, Issues #1-6 resolved |
+| Date       | Time  | Issue | Change                                                                 |
+| ---------- | ----- | ----- | ---------------------------------------------------------------------- |
+| 2026-02-13 | 14:30 | -     | Document created                                                       |
+| 2026-02-13 | 14:45 | #1    | Reported: Force delete mode not using `git branch -D`                  |
+| 2026-02-13 | 15:00 | #1    | Resolved: Fixed force delete logic in `app.rs`                         |
+| 2026-02-13 | 15:15 | #2    | Reported: Branch list scrolling not working                            |
+| 2026-02-13 | 15:30 | #2    | Resolved: Implemented `TableState` for proper scrolling                |
+| 2026-02-13 | 15:45 | #3    | Reported: No visual feedback for active modes                          |
+| 2026-02-13 | 16:00 | #3    | Resolved: Added background highlighting for force/dry modes            |
+| 2026-02-13 | 16:15 | #4    | Reported: Missing info modal                                           |
+| 2026-02-13 | 16:30 | #4    | Resolved: Added info modal with 'i' shortcut                           |
+| 2026-02-13 | 16:45 | #5    | Reported: Confirmation modal issues                                    |
+| 2026-02-13 | 17:00 | #5    | Resolved: Dynamic modal height, Enter/Esc support, centered hints      |
+| 2026-02-13 | 17:15 | #6    | Reported: Search focus behavior needs improvement                      |
+| 2026-02-13 | 17:50 | #6    | Resolved: Arrow keys exit search but keep query, `/` re-enters search  |

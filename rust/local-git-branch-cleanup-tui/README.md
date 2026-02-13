@@ -136,7 +136,7 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 ## TUI Guide
 
-📖 **[Full TUI Usage Guide](TUI_USAGE_GUIDE.md)** — Complete documentation for the interactive interface.
+📖 **[Full TUI Usage Guide](docs/guides/TUI_USAGE_GUIDE.md)** — Complete documentation for the interactive interface.
 
 ### Quick Reference
 
@@ -196,15 +196,40 @@ cargo run -- --cli --trunk main
 ### Project Structure
 
 ```
-rust/
+local-git-branch-cleanup-tui/
 ├── Cargo.toml          # Dependencies and project config
 ├── README.md           # This file
-└── src/
-    ├── main.rs         # Entry point, CLI parsing, event loop
-    ├── app.rs          # Application state management
-    ├── git.rs          # Git integration and branch classification
-    └── ui.rs           # TUI rendering with Ratatui
+├── docs/               # Documentation
+│   ├── README.md       # Documentation index
+│   ├── guides/         # User guides
+│   │   ├── TUI_USAGE_GUIDE.md
+│   │   └── MIGRATION.md
+│   ├── specs/          # Technical specifications
+│   │   ├── ARCHITECTURE.md
+│   │   ├── ROADMAP.md
+│   │   └── SEARCH_FEATURE.md
+│   └── testing/        # Testing docs
+│       ├── TESTING.md
+│       └── TEST_SUMMARY.md
+├── src/
+│   ├── main.rs         # Entry point, CLI parsing, event loop
+│   ├── app.rs          # Application state management
+│   ├── git.rs          # Git integration and branch classification
+│   └── ui.rs           # TUI rendering with Ratatui
+└── tests/
+    └── integration_test.rs
 ```
+
+## Documentation
+
+📚 **[Full Documentation](docs/README.md)** — Index of all documentation.
+
+| Document | Description |
+|----------|-------------|
+| [TUI Usage Guide](docs/guides/TUI_USAGE_GUIDE.md) | Complete guide to the interactive interface |
+| [Migration Guide](docs/guides/MIGRATION.md) | Migrate from the bash script |
+| [Architecture](docs/specs/ARCHITECTURE.md) | System design and module responsibilities |
+| [Roadmap](docs/specs/ROADMAP.md) | Project milestones and history |
 
 ## Comparison with Bash Script
 
@@ -213,11 +238,13 @@ This tool replaces `bash/local-git-branch-cleanup.sh` with improvements:
 | Feature | Bash Script | Rust TUI |
 |---------|-------------|----------|
 | Interface | Static list | Interactive TUI |
-| Selection | All-or-nothing | Per-branch (M5) |
+| Selection | All-or-nothing | Per-branch selection |
 | Delete mode | Force (`-D`) only | Safe (`-d`) by default |
 | Branch info | Last commit time | + Status classification |
 | Protection | None | main/master/develop/current |
 | Unmerged warning | No | Yes, requires `--force` |
+
+See the **[Migration Guide](docs/guides/MIGRATION.md)** for detailed comparison and migration steps.
 
 ## License
 

@@ -89,7 +89,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
     // Main loop
     loop {
         // Draw UI
-        terminal.draw(|frame| ui::render(frame, &app))?;
+        terminal.draw(|frame| ui::render(frame, &mut app))?;
 
         // Handle events
         if event::poll(std::time::Duration::from_millis(100))? {
@@ -140,6 +140,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.search_active = false;
                                 app.search_query.clear();
                                 app.selected_index = 0;
+                                app.scroll_offset = 0;
                             }
                             KeyCode::Enter | KeyCode::Down => {
                                 // Exit search but keep the query filter active
@@ -158,11 +159,13 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 // Remove last character
                                 app.search_query.pop();
                                 app.selected_index = 0;
+                                app.scroll_offset = 0;
                             }
                             KeyCode::Char(c) => {
                                 // Add character to search query
                                 app.search_query.push(c);
                                 app.selected_index = 0;
+                                app.scroll_offset = 0;
                             }
                             _ => {}
                         }
@@ -177,6 +180,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 if !app.search_query.is_empty() {
                                     app.search_query.clear();
                                     app.selected_index = 0;
+                                    app.scroll_offset = 0;
                                 } else {
                                     app.quit();
                                 }

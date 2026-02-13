@@ -19,7 +19,7 @@
 - **app.rs**: 19 tests
   - FilterMode functionality
   - App state management
-  - Navigation (next/prev with wrapping)
+  - Navigation (next/prev, stops at edges)
   - Selection toggling (respecting protection rules)
   - Filter operations
   - Action logging

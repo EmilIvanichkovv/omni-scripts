@@ -315,7 +315,11 @@ impl App {
             .collect();
 
         for (_, branch_name, status) in &selected {
-            let use_force = *status == BranchStatus::Unmerged;
+            // Auto-force for "gone" branches (squash/rebase merges) and "unmerged" branches
+            // Also respect user's force_mode setting
+            let use_force = self.force_mode 
+                || *status == BranchStatus::Unmerged 
+                || *status == BranchStatus::GoneUpstream;
             
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {

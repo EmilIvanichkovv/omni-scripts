@@ -1,6 +1,6 @@
 # QA Issues & Bug Tracking
 
-**Last Updated:** 2026-02-13 15:50
+**Last Updated:** 2026-02-13 16:00
 
 ---
 
@@ -12,12 +12,12 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ## Status Legend
 
-| Status | Description |
-|--------|-------------|
-| 🔴 Open | Issue identified, not yet addressed |
-| 🟡 In Progress | Currently being worked on |
-| 🟢 Resolved | Fix implemented and verified |
-| ⚪ Won't Fix | Decided not to address |
+| Status         | Description                         |
+| -------------- | ----------------------------------- |
+| 🔴 Open        | Issue identified, not yet addressed |
+| 🟡 In Progress | Currently being worked on           |
+| 🟢 Resolved    | Fix implemented and verified        |
+| ⚪ Won't Fix   | Decided not to address              |
 
 ---
 
@@ -25,8 +25,9 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 
 ### Issue #1: Force delete mode not using `git branch -D`
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Description:**
   - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the deletion fails with an error suggesting the branch is not fully merged.
 - **Steps to Reproduce:**
@@ -37,9 +38,10 @@ This document tracks bugs, issues, and problems discovered during QA testing of 
 - **Actual Behavior:**
   - Shows error: `✗ feat/TUI - Failed to delete branch: error: the branch 'feat/TUI' is not fully merged`
   - Hint suggests running `git branch -D feat/TUI`
-- **Notes:**
-  - The force mode appears to still be using `git branch -d` instead of `git branch -D`
-  - Need to check the delete logic in `git.rs`
+- **Fix:**
+  - In `app.rs`, `delete_selected_branches()` now respects `self.force_mode`
+  - Also auto-forces deletion for "gone" branches (handles squash/rebase merges)
+  - Changed: `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
 
 ---
 
@@ -115,6 +117,6 @@ _Move resolved issues here for tracking purposes._
 
 ## Change Log
 
-| Date | Changes |
-|------|---------|
+| Date       | Changes          |
+| ---------- | ---------------- |
 | 2026-02-13 | Document created |

@@ -29,7 +29,147 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #7: Scrolling behavior causes unnecessary viewport movement
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Category:** UI/UX / Bug
+- **Description:**
+  - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even when there's room for the cursor to move within the current view
+  - The viewport should remain stable while the cursor moves within the visible area
+- **Steps to Reproduce:**
+  1. Open the TUI in a repository with enough branches to require scrolling
+  2. Scroll down to the bottom of the list
+  3. Press up arrow to move selection upward
+- **Expected Behavior:**
+  - The cursor/selection moves up within the visible area
+  - The viewport stays in place until the cursor reaches the top edge of the visible area
+  - Only then should the viewport scroll to reveal more items above
+- **Actual Behavior:**
+  - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top of visible area
+- **Suggested Fix:**
+  - Implement "follow cursor at edges only" scrolling logic
+  - Viewport should only adjust when cursor would move outside the visible bounds
+
+---
+
+### Issue #8: Missing keyboard shortcuts for list navigation
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - The TUI is missing common keyboard shortcuts for efficient list navigation
+  - Users expect vim-like and standard terminal navigation keys to work
+- **Expected Behavior:**
+  - **Go to top of list:**
+    - `Home` key
+    - `Ctrl+U`
+    - `g` (vim-style)
+  - **Go to bottom of list:**
+    - `End` key
+    - `Ctrl+D`
+    - `G` (vim-style, Shift+g)
+  - **Page navigation:**
+    - `Page Up` - move up by one page/viewport height
+    - `Page Down` - move down by one page/viewport height
+- **Actual Behavior:**
+  - These keyboard shortcuts are not implemented
+  - Users can only navigate one item at a time with arrow keys
+- **Suggested Fix:**
+  - Add key handlers in `main.rs` for:
+    - `KeyCode::Home`, `Ctrl+U`, `g` → `app.selected_index = 0`
+    - `KeyCode::End`, `Ctrl+D`, `G` → `app.selected_index = app.branches.len() - 1`
+    - `KeyCode::PageUp` → move up by visible area height
+    - `KeyCode::PageDown` → move down by visible area height
+
+---
+
+### Issue #9: Add ability to sort branches by creation date
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Users should be able to sort branches by their creation date/time
+  - This helps identify old branches that may need cleanup
+- **Expected Behavior:**
+  - Add a keyboard shortcut (e.g., `s` or `o` for sort/order) to toggle sorting mode
+  - Sorting options:
+    - By name (alphabetical) - current default
+    - By creation date (newest first)
+    - By creation date (oldest first)
+  - Visual indicator in the UI showing current sort order
+- **Actual Behavior:**
+  - Branches are only displayed in default order (alphabetical or git's default)
+  - No sorting options available
+- **Suggested Fix:**
+  - Add `sort_mode` field to App state (enum: Name, NewestFirst, OldestFirst)
+  - Fetch branch creation date using `git log -1 --format=%ci <branch>`
+  - Add key handler to cycle through sort modes
+  - Display current sort mode in footer or header
+  - Re-sort branch list when mode changes
+
+---
+
+### Issue #10: Add filter by branch creator/author
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Users should be able to filter branches by their creator (the author of the first commit on the branch)
+  - Useful in team environments to quickly find and manage your own branches
+- **Expected Behavior:**
+  - Add a keyboard shortcut (e.g., `a` for author) to open author filter
+  - Display a list of unique branch authors to select from, or allow typing author name
+  - Option to filter by "my branches" (current git user)
+  - Show filtered results with indicator of active filter
+  - Clear filter option (e.g., press shortcut again or `Esc`)
+- **Actual Behavior:**
+  - No filtering by author/creator available
+  - Users must manually scan through all branches
+- **Suggested Fix:**
+  - Fetch branch author using `git log -1 --format=%an <branch>` or `git log -1 --format=%ae <branch>` for email
+  - Add `author_filter` field to App state (Option<String>)
+  - Collect unique authors when loading branches
+  - Add key handler to open author selection or toggle "my branches" filter
+  - Filter displayed branches based on selected author
+  - Show active filter in header/footer (e.g., "Filtered by: john@example.com")
+
+---
+
+### Issue #11: Show GitHub PR association for branches
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Users should be able to see if a branch has an associated Pull Request on GitHub
+  - This helps identify branches that are part of active/merged/closed PRs
+- **Expected Behavior:**
+  - Display PR status next to branch name (e.g., PR #123, merged/open/closed)
+  - Show PR title on hover or in a details panel
+  - Optional: Link to open PR in browser (e.g., `o` key to open PR URL)
+  - Visual indicators:
+    - 🟢 PR merged
+    - 🟡 PR open
+    - 🔴 PR closed (not merged)
+    - ⚪ No PR associated
+- **Actual Behavior:**
+  - No GitHub integration
+  - Users must manually check GitHub for PR status
+- **Suggested Fix:**
+  - Use GitHub CLI (`gh pr list --head <branch>`) or GitHub API to fetch PR info
+  - Add optional `--github` flag to enable PR fetching (may slow startup)
+  - Cache PR data to avoid repeated API calls
+  - Add `pr_info` field to Branch struct: `Option<PrInfo>` with number, state, title, url
+  - Display PR indicator in branch list table
+  - Add key handler to open PR URL in default browser
+- **Notes:**
+  - Requires `gh` CLI or GitHub API token for authentication
+  - Consider rate limiting and error handling for API calls
+  - Could be optional feature enabled via flag or config
 
 ---
 
@@ -182,3 +322,8 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 17:00 | #5    | Resolved: Dynamic modal height, Enter/Esc support, centered hints      |
 | 2026-02-13 | 17:15 | #6    | Reported: Search focus behavior needs improvement                      |
 | 2026-02-13 | 17:50 | #6    | Resolved: Arrow keys exit search but keep query, `/` re-enters search  |
+| 2026-02-13 | 18:30 | #7    | Reported: Scrolling causes unnecessary viewport movement               |
+| 2026-02-13 | 18:35 | #8    | Reported: Missing keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D) |
+| 2026-02-13 | 18:40 | #9    | Reported: Add ability to sort branches by creation date                |
+| 2026-02-13 | 18:45 | #10   | Reported: Add filter by branch creator/author                          |
+| 2026-02-13 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |

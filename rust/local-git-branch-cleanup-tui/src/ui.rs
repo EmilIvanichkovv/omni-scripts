@@ -758,7 +758,7 @@ fn render_help_modal(frame: &mut Frame) {
 
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 36.min(area.height - 4);
+    let modal_height = 39.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -776,12 +776,24 @@ fn render_help_modal(frame: &mut Frame) {
             Span::styled("  Navigation", Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("    ↑/k", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
-            Span::styled("          Move cursor up", Style::default().fg(COLOR_MUTED)),
+            Span::styled("    ↑ / k          ", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("Move cursor up", Style::default().fg(COLOR_MUTED)),
         ]),
         Line::from(vec![
-            Span::styled("    ↓/j", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
-            Span::styled("          Move cursor down", Style::default().fg(COLOR_MUTED)),
+            Span::styled("    ↓ / j          ", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("Move cursor down", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    Home / g / ^U  ", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("Go to first item", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    End / G / ^D   ", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("Go to last item", Style::default().fg(COLOR_MUTED)),
+        ]),
+        Line::from(vec![
+            Span::styled("    PgUp / PgDn    ", Style::default().fg(COLOR_SUCCESS).add_modifier(Modifier::BOLD)),
+            Span::styled("Move by one page", Style::default().fg(COLOR_MUTED)),
         ]),
         Line::from(""),
         Line::from(vec![

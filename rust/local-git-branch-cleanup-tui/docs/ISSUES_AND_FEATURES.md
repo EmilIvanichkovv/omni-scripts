@@ -32,7 +32,7 @@ _No open critical issues._
 ### Issue #7: Scrolling behavior causes unnecessary viewport movement
 
 - **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
-- **Status:** � Resolved
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Bug
@@ -60,8 +60,9 @@ _No open critical issues._
 ### Issue #8: Missing keyboard shortcuts for list navigation
 
 - **GitHub:** [#20](https://github.com/EmilIvanichkovv/omni-scripts/issues/20)
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - The TUI is missing common keyboard shortcuts for efficient list navigation
@@ -81,12 +82,10 @@ _No open critical issues._
 - **Actual Behavior:**
   - These keyboard shortcuts are not implemented
   - Users can only navigate one item at a time with arrow keys
-- **Suggested Fix:**
-  - Add key handlers in `main.rs` for:
-    - `KeyCode::Home`, `Ctrl+U`, `g` → `app.selected_index = 0`
-    - `KeyCode::End`, `Ctrl+D`, `G` → `app.selected_index = app.branches.len() - 1`
-    - `KeyCode::PageUp` → move up by visible area height
-    - `KeyCode::PageDown` → move down by visible area height
+- **Fix:**
+  - Added `go_to_top()`, `go_to_bottom()`, `page_up()`, `page_down()` methods to App
+  - Added key handlers for Home/g, End/G, Ctrl+U, Ctrl+D, PageUp, PageDown
+  - All navigation methods properly adjust scroll_offset
 
 ---
 
@@ -342,3 +341,4 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 18:45 | #10   | Reported: Add filter by branch creator/author                          |
 | 2026-02-13 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |
 | 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
+| 2026-02-13 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |

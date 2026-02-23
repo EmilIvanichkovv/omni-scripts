@@ -6,7 +6,7 @@ use app::App;
 use clap::Parser;
 use color_eyre::Result;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -171,6 +171,20 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                         }
                     } else {
                         // Normal mode
+                        // Check for Ctrl key combinations first
+                        if key.modifiers.contains(KeyModifiers::CONTROL) {
+                            match key.code {
+                                KeyCode::Char('u') => {
+                                    // Ctrl+U: Go to top (like vim)
+                                    app.go_to_top();
+                                }
+                                KeyCode::Char('d') => {
+                                    // Ctrl+D: Go to bottom (like vim)
+                                    app.go_to_bottom();
+                                }
+                                _ => {}
+                            }
+                        } else {
                         match key.code {
                             KeyCode::Char('q') => {
                                 app.quit();
@@ -190,6 +204,22 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                             }
                             KeyCode::Up | KeyCode::Char('k') => {
                                 app.select_prev();
+                            }
+                            KeyCode::Home | KeyCode::Char('g') => {
+                                // Go to top of list
+                                app.go_to_top();
+                            }
+                            KeyCode::End | KeyCode::Char('G') => {
+                                // Go to bottom of list
+                                app.go_to_bottom();
+                            }
+                            KeyCode::PageUp => {
+                                // Move up by one page
+                                app.page_up();
+                            }
+                            KeyCode::PageDown => {
+                                // Move down by one page
+                                app.page_down();
                             }
                             KeyCode::Char(' ') => {
                                 // Toggle selection of current branch (using filtered index)
@@ -256,6 +286,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 }
                             }
                             _ => {}
+                        }
                         }
                     }
                 }

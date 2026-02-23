@@ -64,6 +64,12 @@ Compare behavior with the original bash script:
 - [ ] `k` / Up arrow - move selection up
 - [ ] Selection stops at top/bottom (no wrap)
 - [ ] Selection indicator (highlight) visible
+- [ ] `g` / Home - go to first item
+- [ ] `G` / End - go to last item
+- [ ] `Ctrl+U` - go to first item
+- [ ] `Ctrl+D` - go to last item
+- [ ] `Page Up` - move up by one page
+- [ ] `Page Down` - move down by one page
 
 #### 3.2 Selection
 - [ ] `Space` - toggle selection of current branch

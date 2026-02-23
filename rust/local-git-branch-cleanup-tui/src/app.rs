@@ -139,6 +139,42 @@ impl App {
         }
     }
 
+    /// Go to the first item in the list
+    pub fn go_to_top(&mut self) {
+        self.selected_index = 0;
+        self.scroll_offset = 0;
+    }
+
+    /// Go to the last item in the list
+    pub fn go_to_bottom(&mut self) {
+        let filtered = self.filtered_branches();
+        if !filtered.is_empty() {
+            self.selected_index = filtered.len() - 1;
+            self.adjust_scroll_for_selection();
+        }
+    }
+
+    /// Move up by one page (viewport height)
+    pub fn page_up(&mut self) {
+        if self.visible_height == 0 {
+            return;
+        }
+        let page_size = self.visible_height.saturating_sub(1).max(1);
+        self.selected_index = self.selected_index.saturating_sub(page_size);
+        self.adjust_scroll_for_selection();
+    }
+
+    /// Move down by one page (viewport height)
+    pub fn page_down(&mut self) {
+        let filtered = self.filtered_branches();
+        if filtered.is_empty() || self.visible_height == 0 {
+            return;
+        }
+        let page_size = self.visible_height.saturating_sub(1).max(1);
+        self.selected_index = (self.selected_index + page_size).min(filtered.len() - 1);
+        self.adjust_scroll_for_selection();
+    }
+
     /// Adjust scroll offset to keep the selected item visible
     /// Only scrolls when cursor would go outside the visible bounds
     pub fn adjust_scroll_for_selection(&mut self) {

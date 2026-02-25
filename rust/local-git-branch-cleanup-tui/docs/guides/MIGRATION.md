@@ -1,6 +1,7 @@
 # Migration Guide: Bash Script → Rust TUI
 
-This guide helps you migrate from the legacy bash script (`bash/local-git-branch-cleanup.sh`) to the new Rust-based TUI (`rust/local-git-branch-cleanup-tui`).
+This guide helps you migrate from the legacy bash script (`bash/local-git-branch-cleanup.sh`) to the
+new Rust-based TUI (`rust/local-git-branch-cleanup-tui`).
 
 ## Quick Start
 
@@ -40,23 +41,23 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 
 ## Feature Comparison
 
-| Feature | Bash Script | Rust TUI | Notes |
-|---------|-------------|----------|-------|
-| **Interface** | Static list | Interactive TUI | TUI is default, use `--cli` for bash-like behavior |
-| **Branch Selection** | All-or-nothing | Individual selection | Select with Space, confirm with Enter |
-| **Delete Mode** | Force (`-D`) only | Safe (`-d`) by default | Use `--force` for unmerged branches |
-| **Branch Classification** | No remote only | 5 status types | Merged, gone, unmerged, protected, current |
-| **Safety** | No protection | Protected branches | Never deletes main/master/develop/current |
-| **Filtering** | None | 4 filter modes | Safe merged, upstream gone, unmerged, all |
-| **Details** | Last commit time | Full branch info | Commit SHA, author, message, ahead/behind |
-| **Confirmation** | Yes | Yes (with preview) | Shows which branches will be deleted |
-| **Dry Run** | No | Yes (`--dry-run`) | Preview deletions without executing |
-| **Trunk Override** | No | Yes (`--trunk`) | Override default branch detection |
-| **Action Log** | Summary only | Per-branch log | Shows success/failure for each branch |
-| **Help** | None | Press `?` | Comprehensive keyboard shortcuts |
-| **Navigation** | N/A | Vim-style or arrows | j/k or ↑/↓ |
-| **Performance** | Fast | Fast | Both handle <200 branches easily |
-| **Dependencies** | bash, git | git only | Statically linked binary |
+| Feature                   | Bash Script       | Rust TUI               | Notes                                              |
+| ------------------------- | ----------------- | ---------------------- | -------------------------------------------------- |
+| **Interface**             | Static list       | Interactive TUI        | TUI is default, use `--cli` for bash-like behavior |
+| **Branch Selection**      | All-or-nothing    | Individual selection   | Select with Space, confirm with Enter              |
+| **Delete Mode**           | Force (`-D`) only | Safe (`-d`) by default | Use `--force` for unmerged branches                |
+| **Branch Classification** | No remote only    | 5 status types         | Merged, gone, unmerged, protected, current         |
+| **Safety**                | No protection     | Protected branches     | Never deletes main/master/develop/current          |
+| **Filtering**             | None              | 4 filter modes         | Safe merged, upstream gone, unmerged, all          |
+| **Details**               | Last commit time  | Full branch info       | Commit SHA, author, message, ahead/behind          |
+| **Confirmation**          | Yes               | Yes (with preview)     | Shows which branches will be deleted               |
+| **Dry Run**               | No                | Yes (`--dry-run`)      | Preview deletions without executing                |
+| **Trunk Override**        | No                | Yes (`--trunk`)        | Override default branch detection                  |
+| **Action Log**            | Summary only      | Per-branch log         | Shows success/failure for each branch              |
+| **Help**                  | None              | Press `?`              | Comprehensive keyboard shortcuts                   |
+| **Navigation**            | N/A               | Vim-style or arrows    | j/k or ↑/↓                                         |
+| **Performance**           | Fast              | Fast                   | Both handle <200 branches easily                   |
+| **Dependencies**          | bash, git         | git only               | Statically linked binary                           |
 
 ## Command Equivalents
 
@@ -108,49 +109,59 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 ### 1. Delete Mode (IMPORTANT!)
 
 **Bash Script:**
+
 - Always uses `git branch -D` (force delete)
 - Can accidentally delete branches with unmerged commits
 
 **Rust TUI:**
+
 - Uses `git branch -d` (safe delete) by default
 - Requires `--force` flag to delete unmerged branches
 - Clearly indicates unmerged branches in UI
 
 **Migration Impact:**
+
 - ✅ **Safer**: Won't accidentally lose unmerged work
 - ⚠️ **Breaking Change**: Unmerged branches won't be deleted without `--force`
 
-**Action:** If you relied on force deleting unmerged branches, add `--force` flag or press `f` in TUI mode.
+**Action:** If you relied on force deleting unmerged branches, add `--force` flag or press `f` in
+TUI mode.
 
 ### 2. Branch Protection
 
 **Bash Script:**
+
 - No explicit protection
 - Relies on "no remote" check (which protects main/master indirectly)
 
 **Rust TUI:**
+
 - Explicitly protects: `main`, `master`, `develop`, and current branch
 - Cannot be selected for deletion in TUI mode
 - Won't appear in CLI mode output
 
 **Migration Impact:**
+
 - ✅ **Safer**: Prevents accidental deletion of critical branches
 - No breaking changes
 
 ### 3. Selection Method
 
 **Bash Script:**
+
 - Finds all branches without remotes
 - Requires confirmation to delete ALL found branches
 - All-or-nothing approach
 
 **Rust TUI:**
+
 - Shows all branches without remotes
 - Individual selection with checkboxes (Space key)
 - Bulk selection with `a` key
 - Delete only selected branches
 
 **Migration Impact:**
+
 - ✅ **More Control**: Delete specific branches instead of all
 - ⚠️ **Workflow Change**: Need to explicitly select branches (or press `a` for all)
 
@@ -159,15 +170,18 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 ### 4. Branch Classification
 
 **Bash Script:**
+
 - Only checks: "has remote" vs "no remote"
 - Shows last commit time
 
 **Rust TUI:**
+
 - Classifies: merged, gone, unmerged, protected, current
 - Shows status icon, last commit time, commit details
 - Filters by status type
 
 **Migration Impact:**
+
 - ✅ **Better Information**: Know why branches can/can't be deleted
 - No breaking changes
 
@@ -182,12 +196,14 @@ local-git-branch-cleanup-tui --cli --force
 ```
 
 This matches bash script behavior:
+
 - ✅ Lists branches without remotes
 - ✅ Asks for confirmation
 - ✅ Deletes all confirmed branches
 - ⚠️ Uses force delete (less safe)
 
 **Better alternative:** Use TUI mode and press `a` then `Enter`, which:
+
 - ✅ Lists branches without remotes
 - ✅ Pre-selects all safe branches
 - ✅ Shows detailed confirmation
@@ -210,7 +226,8 @@ This matches bash script behavior:
 ./bash/local-git-branch-cleanup.sh
 ```
 
-**Note:** The Rust TUI currently requires interactive confirmation. For full automation, continue using the bash script or add `--yes` flag to Rust TUI (future enhancement).
+**Note:** The Rust TUI currently requires interactive confirmation. For full automation, continue
+using the bash script or add `--yes` flag to Rust TUI (future enhancement).
 
 ### Scenario 3: "I want the best of both worlds"
 
@@ -245,6 +262,7 @@ If Rust TUI doesn't support your workflow, keep using the bash script and file a
 Before fully migrating, test these scenarios:
 
 ### Basic Functionality
+
 - [ ] Run in a test repository
 - [ ] Verify branches are listed correctly
 - [ ] Try selecting individual branches
@@ -252,6 +270,7 @@ Before fully migrating, test these scenarios:
 - [ ] Check action log shows results
 
 ### Edge Cases
+
 - [ ] Test with no branches to clean
 - [ ] Test with only protected branches
 - [ ] Test with current branch in list (should not be deletable)
@@ -259,6 +278,7 @@ Before fully migrating, test these scenarios:
 - [ ] Test trunk override: `--trunk develop`
 
 ### Safety Features
+
 - [ ] Verify main/master/develop cannot be selected
 - [ ] Verify current branch cannot be selected
 - [ ] Verify unmerged branches show warning
@@ -266,6 +286,7 @@ Before fully migrating, test these scenarios:
 - [ ] Cancel deletion and verify nothing deleted
 
 ### Filters & Navigation
+
 - [ ] Try filter tabs (1-4 or F1-F4)
 - [ ] Navigate with j/k and arrow keys
 - [ ] Select all safe branches with `a`
@@ -273,6 +294,7 @@ Before fully migrating, test these scenarios:
 - [ ] Toggle force mode with `f`
 
 ### CLI Mode
+
 - [ ] Run with `--cli` flag
 - [ ] Verify behavior matches bash script
 - [ ] Test with `--force` flag
@@ -315,16 +337,19 @@ rm ~/.local/bin/local-git-branch-cleanup-tui
 ## Performance Comparison
 
 ### Small Repos (<10 branches)
+
 - **Bash:** < 0.5s
 - **Rust TUI:** < 0.5s
 - **Winner:** Tie
 
 ### Medium Repos (10-50 branches)
+
 - **Bash:** < 1s
 - **Rust TUI:** < 1s
 - **Winner:** Tie
 
 ### Large Repos (50-200 branches)
+
 - **Bash:** 1-3s
 - **Rust TUI:** 1-3s
 - **Winner:** Tie
@@ -364,6 +389,7 @@ local-git-branch-cleanup-tui --cli
 ```
 
 Supported terminals:
+
 - ✅ gnome-terminal
 - ✅ kitty
 - ✅ alacritty
@@ -394,29 +420,35 @@ local-git-branch-cleanup-tui --cli --force
 ### Q: Which version is recommended?
 
 **A:** The Rust TUI is recommended for interactive use due to:
+
 - Better safety (protected branches, safe delete by default)
 - More control (individual selection)
 - Better information (branch classification, details pane)
 
 Use the bash script for:
+
 - CI/CD automation (until Rust TUI supports `--yes` flag)
 - Simple scripts without interactive prompts
 
 ### Q: Will the bash script be deprecated?
 
-**A:** Not immediately. The bash script will remain available for backward compatibility and automation use cases. Future updates will focus on the Rust TUI.
+**A:** Not immediately. The bash script will remain available for backward compatibility and
+automation use cases. Future updates will focus on the Rust TUI.
 
 ### Q: Can I customize the protected branch list?
 
-**A:** Not yet. Currently hardcoded: `main`, `master`, `develop`. File an issue if you need different protection rules.
+**A:** Not yet. Currently hardcoded: `main`, `master`, `develop`. File an issue if you need
+different protection rules.
 
 ### Q: Does Rust TUI support different remotes (not just origin)?
 
-**A:** Not yet. Currently assumes `origin` remote. Use `--trunk` to override the trunk branch. Full `--remote` flag support is planned.
+**A:** Not yet. Currently assumes `origin` remote. Use `--trunk` to override the trunk branch. Full
+`--remote` flag support is planned.
 
 ### Q: How do I use this in automated scripts?
 
-**A:** For full automation, continue using the bash script. The Rust TUI requires interactive confirmation (for safety). A `--yes` flag for automation is planned.
+**A:** For full automation, continue using the bash script. The Rust TUI requires interactive
+confirmation (for safety). A `--yes` flag for automation is planned.
 
 ## Getting Help
 
@@ -434,17 +466,20 @@ Use the bash script for:
 3. **Week 3:** If satisfied, replace bash script or keep both
 
 **Key Advantages of Rust TUI:**
+
 - ✅ Safer (protected branches, safe delete default)
 - ✅ More control (individual selection)
 - ✅ Better information (status classification, details pane)
 - ✅ Modern interface (interactive TUI, filters, help modal)
 
 **When to Keep Using Bash Script:**
+
 - CI/CD automation (until `--yes` flag added)
 - Custom modifications not supported by Rust TUI
 - Preference for simple, static output
 
 **Breaking Changes to Watch:**
+
 - Unmerged branches require `--force` flag
 - Protected branches cannot be deleted
 - Individual selection required (use `a` for all)

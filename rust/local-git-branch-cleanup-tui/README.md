@@ -1,8 +1,11 @@
 # 🧹 Local Git Branch Cleanup TUI
 
-> **Modern Rust-based replacement for the bash script** – An interactive terminal user interface (TUI) for cleaning up local Git branches that no longer have remote counterparts.
+> **Modern Rust-based replacement for the bash script** – An interactive terminal user interface
+> (TUI) for cleaning up local Git branches that no longer have remote counterparts.
 
-Over time, local Git branches accumulate – feature branches get merged, remote branches get deleted, but the local copies remain. This tool helps you **safely identify and remove** these stale branches with an intuitive, keyboard-driven interface.
+Over time, local Git branches accumulate – feature branches get merged, remote branches get deleted,
+but the local copies remain. This tool helps you **safely identify and remove** these stale branches
+with an intuitive, keyboard-driven interface.
 
 ## Demo
 
@@ -28,9 +31,11 @@ _Coming soon: Video demonstration of the TUI in action_
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
   - ◉ **Current** - Currently checked out branch
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
-- **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` / `@author:"Name With Spaces"`)
+- **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` /
+  `@author:"Name With Spaces"`)
 - **Smart Autocomplete** - Suggestions for `@author:` with scrollable dropdown and auto-quoting
-- **GitHub PR Integration** - See PR status for each branch with `--github` flag (requires GitHub CLI)
+- **GitHub PR Integration** - See PR status for each branch with `--github` flag (requires GitHub
+  CLI)
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -146,7 +151,8 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 ## TUI Guide
 
-📖 **[Full TUI Usage Guide](docs/guides/TUI_USAGE_GUIDE.md)** — Complete documentation for the interactive interface.
+📖 **[Full TUI Usage Guide](docs/guides/TUI_USAGE_GUIDE.md)** — Complete documentation for the
+interactive interface.
 
 ### Quick Reference
 
@@ -168,18 +174,18 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 
 ### Search Syntax
 
-| Syntax             | Description                         |
-| ------------------ | ----------------------------------- |
-| `feature`          | Filter by branch name               |
-| `@author:john`     | Filter by branch author             |
-| `@author:me`       | Filter by your branches             |
+| Syntax         | Description             |
+| -------------- | ----------------------- |
+| `feature`      | Filter by branch name   |
+| `@author:john` | Filter by branch author |
+| `@author:me`   | Filter by your branches |
 
 ## Branch Status Legend
 
 | Icon | Status    | Description             | Deletable             |
 | ---- | --------- | ----------------------- | --------------------- |
 | ✓    | merged    | Fully merged into trunk | ✅ Safe (`-d`)        |
-| ↗    | gone      | Remote was deleted      | ✅ Safe (`-d`)        |
+| ↗   | gone      | Remote was deleted      | ✅ Safe (`-d`)        |
 | !    | unmerged  | Has unmerged commits    | ⚠️ Requires `--force` |
 | ⊘    | protected | main/master/develop     | ❌ Never              |
 | ◉    | current   | Currently checked out   | ❌ Never              |

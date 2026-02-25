@@ -2,56 +2,66 @@
 
 ## Overview
 
-Add real-time branch name search functionality to filter the branch list as the user types. This enables quick navigation in repositories with many branches.
+Add real-time branch name search functionality to filter the branch list as the user types. This
+enables quick navigation in repositories with many branches.
 
 ## User Experience
 
 ### Activation
+
 - Press `/` to enter search mode (standard TUI search convention)
 - A search input field appears at the top of the branch list
 - The cursor is placed in the search field
 
 ### Search Behavior
+
 - **Real-time filtering**: Branch list filters as user types
 - **Case-insensitive**: Search matches regardless of case
 - **Substring match**: Matches anywhere in the branch name
 - **Combined with filters**: Search works alongside status filters (merged, gone, etc.)
 
 ### Deactivation
+
 - Press `Escape` to exit search mode and clear the search query
 - Press `Enter` to exit search mode but keep the filter active
 
 ### Visual Indicators
+
 - Search input field visible when search is active
 - Current search query displayed in the input
 - Match count shown (e.g., "3 matches")
 
 ## Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `/` | Enter search mode |
-| `Escape` | Exit search, clear query |
-| `Enter` | Exit search, keep query / Accept autocomplete |
-| `Tab` | Accept autocomplete suggestion |
-| `↑` / `↓` | Navigate autocomplete suggestions |
-| `Backspace` | Delete last character |
-| Any printable | Add to search query |
+| Key           | Action                                        |
+| ------------- | --------------------------------------------- |
+| `/`           | Enter search mode                             |
+| `Escape`      | Exit search, clear query                      |
+| `Enter`       | Exit search, keep query / Accept autocomplete |
+| `Tab`         | Accept autocomplete suggestion                |
+| `↑` / `↓`     | Navigate autocomplete suggestions             |
+| `Backspace`   | Delete last character                         |
+| Any printable | Add to search query                           |
 
 ## Author Filtering
 
 ### Syntax
+
 - `@author:john` - Filter by author name containing "john"
 - `@author:me` - Filter by current git user
 - `@author:"John Doe"` - Filter by author with spaces (quoted)
 
 ### Autocomplete
+
 Typing `@` triggers autocomplete with available commands. After `@author:`, suggestions show:
+
 - `me` - Your branches (based on git config user.name)
 - All unique branch authors in the repository
 
 ### Scrollable Dropdown
+
 When there are many authors, the dropdown becomes scrollable:
+
 - Shows `↑ X more above` indicator when scrolled down
 - Shows `↓ X more below` indicator when more items exist
 - Auto-scrolls to keep selected item visible
@@ -61,6 +71,7 @@ When there are many authors, the dropdown becomes scrollable:
 ### State Changes (`app.rs`)
 
 Add to `App` struct:
+
 ```rust
 /// Whether search mode is active (input focused)
 pub search_active: bool,
@@ -71,10 +82,11 @@ pub search_query: String,
 ### Filter Logic
 
 Modify `filtered_branches()` to apply search filter:
+
 ```rust
 pub fn filtered_branches(&self) -> Vec<&BranchInfo> {
     let status_filtered = // existing filter logic
-    
+
     if self.search_query.is_empty() {
         status_filtered
     } else {
@@ -109,6 +121,7 @@ pub fn filtered_branches(&self) -> Vec<&BranchInfo> {
 ## Migration Notes
 
 The `/` key was previously used for filter bar toggle. This needs to be reassigned:
+
 - Filter bar toggle moves to `F` key (mnemonic: **F**ilter)
 - `/` becomes search (standard convention in vim, less, etc.)
 

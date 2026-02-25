@@ -1,6 +1,7 @@
 # Rust Tools
 
-This directory contains Rust-based tools for the omni-scripts repository, organized as a [Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
+This directory contains Rust-based tools for the omni-scripts repository, organized as a
+[Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
 
 ## Structure
 
@@ -21,8 +22,8 @@ rust/
 
 ## Available Tools
 
-| Tool | Description | Status |
-|------|-------------|--------|
+| Tool                                                          | Description                                        | Status              |
+| ------------------------------------------------------------- | -------------------------------------------------- | ------------------- |
 | [local-git-branch-cleanup-tui](local-git-branch-cleanup-tui/) | Interactive TUI for cleaning up local git branches | ✅ Production Ready |
 
 ## Development
@@ -68,6 +69,7 @@ cargo run -p local-git-branch-cleanup-tui
 
 1. Create a new directory: `mkdir -p new-tool/src`
 2. Add `Cargo.toml` using workspace dependencies:
+
    ```toml
    [package]
    name = "new-tool"
@@ -78,7 +80,9 @@ cargo run -p local-git-branch-cleanup-tui
    omni-lib.workspace = true  # Use shared library
    clap.workspace = true      # Use workspace dependency
    ```
+
 3. Add to workspace `Cargo.toml`:
+
    ```toml
    [workspace]
    members = [
@@ -87,6 +91,7 @@ cargo run -p local-git-branch-cleanup-tui
        "new-tool",  # Add here
    ]
    ```
+
 4. Create `src/main.rs` and start coding!
 
 ## Shared Library (omni-lib)

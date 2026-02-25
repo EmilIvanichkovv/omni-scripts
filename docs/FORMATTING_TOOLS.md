@@ -1,31 +1,31 @@
 # Formatting Tools Specification
 
-This document outlines the tools and configuration for code formatting and linting in this
-project, including pre-commit hooks for automated checks.
+This document outlines the tools and configuration for code formatting and linting in this project,
+including pre-commit hooks for automated checks.
 
 All tools are provided via Nix devShell for reproducibility.
 
 ## Overview
 
-| Tool | Purpose | Target Files |
-|------|---------|--------------|
-| `rustfmt` | Rust code formatting | `*.rs` |
-| `clippy` | Rust linting | `*.rs`, `*.toml` |
-| `prettier` | Markdown formatting | `*.md` |
-| `markdownlint` | Markdown linting | `*.md` |
-| `pre-commit` | Git hook management | All configured |
+| Tool           | Purpose              | Target Files     |
+| -------------- | -------------------- | ---------------- |
+| `rustfmt`      | Rust code formatting | `*.rs`           |
+| `clippy`       | Rust linting         | `*.rs`, `*.toml` |
+| `prettier`     | Markdown formatting  | `*.md`           |
+| `markdownlint` | Markdown linting     | `*.md`           |
+| `pre-commit`   | Git hook management  | All configured   |
 
 ---
 
 ## Decisions
 
-| Question | Decision |
-|----------|----------|
-| **Scope** | Entire `omni-scripts` repository |
-| **Markdown linting** | Include `markdownlint` in addition to `prettier` |
-| **Nix integration** | Yes - all tools provided via `flake.nix` devShell |
-| **Strictness** | Pre-commit hooks will block commits on failure |
-| **Line width** | 100 characters for Markdown |
+| Question             | Decision                                          |
+| -------------------- | ------------------------------------------------- |
+| **Scope**            | Entire `omni-scripts` repository                  |
+| **Markdown linting** | Include `markdownlint` in addition to `prettier`  |
+| **Nix integration**  | Yes - all tools provided via `flake.nix` devShell |
+| **Strictness**       | Pre-commit hooks will block commits on failure    |
+| **Line width**       | 100 characters for Markdown                       |
 
 ---
 
@@ -169,8 +169,8 @@ repos:
       - id: rustfmt
         name: cargo fmt
         entry: >-
-          bash -lc 'cargo fmt --all -- --check || { echo "Rust formatting issues found. Run:
-          cargo fmt --all"; exit 1; }'
+          bash -lc 'cargo fmt --all -- --check || { echo "Rust formatting issues found. Run: cargo
+          fmt --all"; exit 1; }'
         language: system
         pass_filenames: false
         files: '\.rs$'
@@ -189,14 +189,14 @@ repos:
     hooks:
       - id: prettier
         types: [markdown]
-        args: ['--prose-wrap', 'always', '--print-width', '100']
+        args: ["--prose-wrap", "always", "--print-width", "100"]
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.39.0
     hooks:
       - id: markdownlint
-        args: ['--fix']
+        args: ["--fix"]
 ```
 
 ---

@@ -29,105 +29,110 @@ The TUI is divided into several sections:
 
 ### Navigation
 
-| Key | Action |
-|-----|--------|
-| `↑` / `k` | Move cursor up |
-| `↓` / `j` | Move cursor down |
-| `g` / `Home` | Go to first item |
-| `G` / `End` | Go to last item |
-| `Ctrl+U` | Go to first item |
-| `Ctrl+D` | Go to last item |
-| `Page Up` | Move up by one page |
-| `Page Down` | Move down by one page |
-| `q` / `Esc` | Quit application |
+| Key          | Action                |
+| ------------ | --------------------- |
+| `↑` / `k`    | Move cursor up        |
+| `↓` / `j`    | Move cursor down      |
+| `g` / `Home` | Go to first item      |
+| `G` / `End`  | Go to last item       |
+| `Ctrl+U`     | Go to first item      |
+| `Ctrl+D`     | Go to last item       |
+| `Page Up`    | Move up by one page   |
+| `Page Down`  | Move down by one page |
+| `q` / `Esc`  | Quit application      |
 
 ### Filtering Branches
 
-| Key | Action |
-|-----|--------|
-| `1` / `F1` | Show only safe merged branches |
+| Key        | Action                           |
+| ---------- | -------------------------------- |
+| `1` / `F1` | Show only safe merged branches   |
 | `2` / `F2` | Show only upstream gone branches |
-| `3` / `F3` | Show only unmerged branches |
-| `4` / `F4` | Show all branches |
-| `Tab` | Cycle through filters |
+| `3` / `F3` | Show only unmerged branches      |
+| `4` / `F4` | Show all branches                |
+| `Tab`      | Cycle through filters            |
 
-The active filter tab is highlighted in cyan, and each tab displays the branch count for that category.
+The active filter tab is highlighted in cyan, and each tab displays the branch count for that
+category.
 
 ### Search
 
-| Key | Action |
-|-----|--------|
-| `/` | Start search mode |
-| `Tab` / `Enter` | Accept autocomplete suggestion |
-| `↑` / `↓` | Navigate autocomplete suggestions |
-| `Esc` | Exit search and clear query |
-| `Enter` | Exit search and keep filter active (when no suggestions) |
+| Key             | Action                                                   |
+| --------------- | -------------------------------------------------------- |
+| `/`             | Start search mode                                        |
+| `Tab` / `Enter` | Accept autocomplete suggestion                           |
+| `↑` / `↓`       | Navigate autocomplete suggestions                        |
+| `Esc`           | Exit search and clear query                              |
+| `Enter`         | Exit search and keep filter active (when no suggestions) |
 
 **Search Syntax:**
 
-| Syntax | Description |
-|--------|-------------|
-| `feature` | Filter branches containing "feature" in name |
-| `@author:john` | Filter by branch author containing "john" |
-| `@author:me` | Filter by your branches (current git user) |
-| `@author:"John Doe"` | Filter by author with spaces (use quotes) |
-| `feature @author:john` | Combine name and author filters |
+| Syntax                 | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `feature`              | Filter branches containing "feature" in name |
+| `@author:john`         | Filter by branch author containing "john"    |
+| `@author:me`           | Filter by your branches (current git user)   |
+| `@author:"John Doe"`   | Filter by author with spaces (use quotes)    |
+| `feature @author:john` | Combine name and author filters              |
 
 **Autocomplete:**
 
 When you type `@`, the search box shows available commands:
+
 - `@author:` - Filter by branch author
 
 After typing `@author:`, you'll see suggestions for:
+
 - `me` - Your branches (based on git config user.name)
 - All unique branch authors in the repository
 
 **Autocomplete Features:**
+
 - Use `Tab` or `Enter` to accept a suggestion
 - Use `↑`/`↓` to navigate through suggestions
-- **Scrollable dropdown** - When many authors exist, the dropdown shows scroll indicators (`↑ X more above`, `↓ X more below`)
+- **Scrollable dropdown** - When many authors exist, the dropdown shows scroll indicators
+  (`↑ X more above`, `↓ X more below`)
 - **Auto-quoting** - Author names with spaces are automatically wrapped in quotes when selected
 
 When search is active, the search box appears below the filters. The search is case-insensitive.
 
 ### Sorting Branches
 
-| Key | Action |
-|-----|--------|
+| Key | Action                   |
+| --- | ------------------------ |
 | `s` | Cycle through sort modes |
 
 **Available Sort Modes:**
 
-| Mode | Label | Description |
-|------|-------|-------------|
-| Status | (default) | Groups by branch status (current, protected, merged, gone, unmerged) |
-| Name | Name | Alphabetical by branch name (case-insensitive) |
-| Activity ↓ | Active ↓ | Most recently active branches first (by last commit) |
-| Activity ↑ | Active ↑ | Least recently active branches first |
-| Created ↓ | Created ↓ | Most recently created branches first |
-| Created ↑ | Created ↑ | Oldest branches first (by creation date) |
+| Mode       | Label     | Description                                                          |
+| ---------- | --------- | -------------------------------------------------------------------- |
+| Status     | (default) | Groups by branch status (current, protected, merged, gone, unmerged) |
+| Name       | Name      | Alphabetical by branch name (case-insensitive)                       |
+| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                 |
+| Activity ↑ | Active ↑  | Least recently active branches first                                 |
+| Created ↓  | Created ↓ | Most recently created branches first                                 |
+| Created ↑  | Created ↑ | Oldest branches first (by creation date)                             |
 
 When a non-default sort mode is active, the header displays a sort indicator: `🔀 Active ↓`
 
 ### Selection
 
-| Key | Action |
-|-----|--------|
+| Key     | Action                              |
+| ------- | ----------------------------------- |
 | `Space` | Toggle selection for current branch |
-| `a` | Select/deselect all safe branches |
-| `c` | Clear all selections |
+| `a`     | Select/deselect all safe branches   |
+| `c`     | Clear all selections                |
 
 ### Actions
 
-| Key | Action |
-|-----|--------|
+| Key     | Action                                        |
+| ------- | --------------------------------------------- |
 | `Enter` | Delete selected branches (opens confirmation) |
-| `f` | Toggle force mode |
-| `d` | Toggle dry run mode |
-| `s` | Cycle sort mode |
-| `o` | Open PR in browser (when --github enabled) |
-| `i` | Show info modal (about the tool) |
-| `?` | Show help modal |
+| `f`     | Toggle force mode                             |
+| `d`     | Toggle dry run mode                           |
+| `s`     | Cycle sort mode                               |
+| `o`     | Open PR in browser (when --github enabled)    |
+| `i`     | Show info modal (about the tool)              |
+| `?`     | Show help modal                               |
 
 ---
 
@@ -152,22 +157,24 @@ cargo run -- --github
 
 ### PR Status Icons
 
-| Icon | Status | Description |
-|------|--------|-------------|
-| 🟢 | Merged | PR was merged |
-| 🟡 | Open | PR is still open |
-| 🔴 | Closed | PR was closed without merging |
-| ⚪ | None | No associated PR |
+| Icon | Status | Description                   |
+| ---- | ------ | ----------------------------- |
+| 🟢   | Merged | PR was merged                 |
+| 🟡   | Open   | PR is still open              |
+| 🔴   | Closed | PR was closed without merging |
+| ⚪   | None   | No associated PR              |
 
 ### PR Column
 
 When enabled, an additional "PR" column appears in the branch list showing:
+
 - PR state icon (🟢/🟡/🔴/⚪)
 - PR number (e.g., `#165`)
 
 ### Details Pane
 
 The details pane shows additional PR information:
+
 - **PR Title** - The pull request title
 - **PR Number** - The PR number (e.g., #165)
 - **PR State** - Open, Merged, or Closed
@@ -175,21 +182,23 @@ The details pane shows additional PR information:
 
 ### Opening PRs in Browser
 
-Press `o` when a branch with an associated PR is selected to open the PR URL in your default browser.
+Press `o` when a branch with an associated PR is selected to open the PR URL in your default
+browser.
 
-> **Note:** GitHub integration requires additional API calls at startup, which may slow down the initial load with many branches.
+> **Note:** GitHub integration requires additional API calls at startup, which may slow down the
+> initial load with many branches.
 
 ## Understanding Branch Status
 
 Each branch displays a status icon indicating its state:
 
-| Icon | Status | Description | Deletable? |
-|------|--------|-------------|------------|
-| ✓ | Merged | Fully merged into trunk | ✅ Safe (`-d`) |
-| ↗ | Gone | Remote tracking branch was deleted | ✅ Safe (`-d`) |
-| ! | Unmerged | Has commits not in trunk | ⚠️ Requires force mode |
-| ⊘ | Protected | main/master/develop branches | ❌ Never |
-| ◉ | Current | Currently checked out branch | ❌ Never |
+| Icon | Status    | Description                        | Deletable?             |
+| ---- | --------- | ---------------------------------- | ---------------------- |
+| ✓    | Merged    | Fully merged into trunk            | ✅ Safe (`-d`)         |
+| ↗   | Gone      | Remote tracking branch was deleted | ✅ Safe (`-d`)         |
+| !    | Unmerged  | Has commits not in trunk           | ⚠️ Requires force mode |
+| ⊘    | Protected | main/master/develop branches       | ❌ Never               |
+| ◉    | Current   | Currently checked out branch       | ❌ Never               |
 
 ---
 
@@ -197,12 +206,12 @@ Each branch displays a status icon indicating its state:
 
 The checkbox state indicates whether a branch can be selected:
 
-| Checkbox | Meaning |
-|----------|---------|
-| `[✓]` | Selected for deletion |
-| `[ ]` | Not selected (can be toggled with `Space`) |
-| ` - ` | Disabled (unmerged branch, enable force mode to select) |
-| *No checkbox* | Protected or current branch (cannot be deleted) |
+| Checkbox      | Meaning                                                 |
+| ------------- | ------------------------------------------------------- |
+| `[✓]`         | Selected for deletion                                   |
+| `[ ]`         | Not selected (can be toggled with `Space`)              |
+| `-`           | Disabled (unmerged branch, enable force mode to select) |
+| _No checkbox_ | Protected or current branch (cannot be deleted)         |
 
 ---
 
@@ -227,13 +236,14 @@ The checkbox state indicates whether a branch can be selected:
 
 ## Force Mode
 
-By default, unmerged branches cannot be selected. This protects you from accidentally deleting work that hasn't been merged.
+By default, unmerged branches cannot be selected. This protects you from accidentally deleting work
+that hasn't been merged.
 
 ### Enabling Force Mode
 
 1. Press `f` to toggle force mode
 2. Header displays "⚠️ FORCE" indicator
-3. Unmerged branches now show `[ ]` instead of ` - `
+3. Unmerged branches now show `[ ]` instead of `-`
 4. You can now select unmerged branches
 
 ### Force Mode Behavior
@@ -241,7 +251,8 @@ By default, unmerged branches cannot be selected. This protects you from acciden
 - Selected unmerged branches will be deleted with `git branch -D` (force delete)
 - Merged/gone branches still use safe delete `git branch -d`
 
-> **⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. These commits may be lost if not pushed or merged elsewhere. Use with caution!
+> **⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. These commits may be
+> lost if not pushed or merged elsewhere. Use with caution!
 
 ---
 
@@ -260,6 +271,7 @@ Preview deletions without actually executing them.
 7. Action log shows "[DRY RUN] Would delete: branch-name"
 
 No branches are actually deleted in dry run mode. This is useful for:
+
 - Testing your selection before committing
 - Understanding what the tool will do
 - Verifying filter behavior
@@ -305,7 +317,8 @@ The details pane updates as you navigate through the branch list.
 
 ## Help Modal
 
-Press `?` at any time to display a comprehensive help modal with all keyboard shortcuts organized by category:
+Press `?` at any time to display a comprehensive help modal with all keyboard shortcuts organized by
+category:
 
 - **Navigation** — Arrow keys, j/k
 - **Filters** — 1-4, F1-F4, Tab
@@ -388,7 +401,7 @@ Press any key to close the info modal.
 
 ### Can't select a branch
 
-- Unmerged branches show ` - ` checkbox — enable force mode with `f`
+- Unmerged branches show `-` checkbox — enable force mode with `f`
 - Protected and current branches have no checkbox — they cannot be deleted
 
 ### Deletion failed

@@ -941,7 +941,7 @@ fn render_help_modal(frame: &mut Frame) {
 
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 44.min(area.height - 4);
+    let modal_height = 48.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1022,6 +1022,30 @@ fn render_help_modal(frame: &mut Frame) {
             ),
             Span::styled(
                 "             Start search (type to filter by name)",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    @author:name",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "  Filter by branch author",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    @author:me",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "    Filter by your branches",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),

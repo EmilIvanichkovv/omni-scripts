@@ -138,10 +138,12 @@ pub struct App {
     pub visible_height: usize,
     /// Current sort mode
     pub sort_mode: SortMode,
+    /// Current git user name (for @author:me filter)
+    pub current_git_user: String,
 }
 
 impl App {
-    pub fn new(branches: Vec<BranchInfo>, repo_path: String, trunk: String) -> Self {
+    pub fn new(branches: Vec<BranchInfo>, repo_path: String, trunk: String, current_git_user: String) -> Self {
         Self {
             branches,
             selected_index: 0,
@@ -162,6 +164,7 @@ impl App {
             scroll_offset: 0,
             visible_height: 0,
             sort_mode: SortMode::Status,
+            current_git_user,
         }
     }
 
@@ -273,11 +276,70 @@ impl App {
         if self.search_query.is_empty() {
             status_filtered
         } else {
-            let query = self.search_query.to_lowercase();
+            // Parse search query for @author: prefix
+            let (name_query, author_query) = self.parse_search_query();
+            
             status_filtered
                 .into_iter()
-                .filter(|b| b.name.to_lowercase().contains(&query))
+                .filter(|b| {
+                    // Filter by branch name if name query exists
+                    let name_matches = name_query.is_empty() 
+                        || b.name.to_lowercase().contains(&name_query);
+                    
+                    // Filter by author if author query exists
+                    let author_matches = match &author_query {
+                        Some(author) => b.branch_author.to_lowercase().contains(&author.to_lowercase()),
+                        None => true,
+                    };
+                    
+                    name_matches && author_matches
+                })
                 .collect()
+        }
+    }
+
+    /// Parse search query into name filter and author filter
+    /// Returns (name_query, Option<author_query>)
+    fn parse_search_query(&self) -> (String, Option<String>) {
+        let query = self.search_query.to_lowercase();
+        
+        // Check for @author: prefix
+        if let Some(author_idx) = query.find("@author:") {
+            let before_author = query[..author_idx].trim().to_string();
+            let after_author = &query[author_idx + 8..]; // Skip "@author:"
+            
+            // Find the end of author query (next space or end of string)
+            let author_end = after_author.find(' ').unwrap_or(after_author.len());
+            let author_value = after_author[..author_end].trim().to_string();
+            
+            // Get any remaining name query after author
+            let remaining = if author_end < after_author.len() {
+                after_author[author_end..].trim().to_string()
+            } else {
+                String::new()
+            };
+            
+            // Combine name parts
+            let name_query = if !before_author.is_empty() && !remaining.is_empty() {
+                format!("{} {}", before_author, remaining)
+            } else if !before_author.is_empty() {
+                before_author
+            } else {
+                remaining
+            };
+            
+            // Handle @author:me special case
+            let author_filter = if author_value == "me" {
+                Some(self.current_git_user.clone())
+            } else if !author_value.is_empty() {
+                Some(author_value)
+            } else {
+                None
+            };
+            
+            (name_query, author_filter)
+        } else {
+            (query, None)
         }
     }
 
@@ -562,6 +624,9 @@ mod tests {
             last_commit_message: "Test commit".to_string(),
             ahead: None,
             behind: None,
+            last_activity_timestamp: 0,
+            branch_created_timestamp: 0,
+            branch_author: "Test Author".to_string(),
         }
     }
 
@@ -573,7 +638,7 @@ mod tests {
             create_test_branch("feature/unmerged", BranchStatus::Unmerged),
             create_test_branch("current-branch", BranchStatus::Current),
         ];
-        App::new(branches, "/test/repo".to_string(), "main".to_string())
+        App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test Author".to_string())
     }
 
     #[test]
@@ -893,5 +958,72 @@ mod tests {
 
         // Original index 1 should be selected
         assert!(app.is_branch_selected(1));
+    }
+
+    fn create_test_branch_with_author(name: &str, status: BranchStatus, author: &str) -> BranchInfo {
+        BranchInfo {
+            name: name.to_string(),
+            upstream: None,
+            last_commit_relative: "2 days ago".to_string(),
+            status,
+            last_commit_sha: "abc123".to_string(),
+            last_commit_author: author.to_string(),
+            last_commit_message: "Test commit".to_string(),
+            ahead: None,
+            behind: None,
+            last_activity_timestamp: 0,
+            branch_created_timestamp: 0,
+            branch_author: author.to_string(),
+        }
+    }
+
+    #[test]
+    fn test_author_filter() {
+        let branches = vec![
+            create_test_branch_with_author("alice-feature", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("bob-feature", BranchStatus::SafeMerged, "Bob"),
+            create_test_branch_with_author("alice-fix", BranchStatus::GoneUpstream, "Alice"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Alice".to_string());
+
+        // Test @author:alice filter
+        app.search_query = "@author:alice".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|b| b.branch_author.to_lowercase() == "alice"));
+
+        // Test @author:bob filter
+        app.search_query = "@author:bob".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].branch_author, "Bob");
+
+        // Test @author:me filter (should match current_git_user which is "Alice")
+        app.search_query = "@author:me".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|b| b.branch_author.to_lowercase() == "alice"));
+    }
+
+    #[test]
+    fn test_combined_name_and_author_filter() {
+        let branches = vec![
+            create_test_branch_with_author("alice-feature", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("alice-bugfix", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("bob-feature", BranchStatus::SafeMerged, "Bob"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Alice".to_string());
+
+        // Test combining name search with author filter
+        app.search_query = "feature @author:alice".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "alice-feature");
+
+        // Test author filter before name search
+        app.search_query = "@author:alice feature".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "alice-feature");
     }
 }

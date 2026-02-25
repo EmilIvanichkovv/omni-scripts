@@ -81,8 +81,11 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Get current git user for @author:me support
+    let current_git_user = git::get_current_git_user().unwrap_or_default();
+
     // Create app state
-    let mut app = App::new(branches, repo_path, trunk);
+    let mut app = App::new(branches, repo_path, trunk, current_git_user);
     app.force_mode = force_mode;
     app.dry_run = dry_run;
 

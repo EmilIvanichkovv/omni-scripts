@@ -77,6 +77,8 @@ pub struct BranchInfo {
     pub last_activity_timestamp: i64,
     /// Branch creation date as Unix timestamp (first unique commit on branch)
     pub branch_created_timestamp: i64,
+    /// Author who created the branch (author of first unique commit)
+    pub branch_author: String,
 }
 
 /// Verify we're inside a Git repository
@@ -96,6 +98,15 @@ pub fn verify_repo() -> Result<String> {
 pub fn get_current_branch() -> Result<String> {
     let output = Command::new("git")
         .args(["branch", "--show-current"])
+        .output()?;
+
+    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+}
+
+/// Get current git user name from config
+pub fn get_current_git_user() -> Result<String> {
+    let output = Command::new("git")
+        .args(["config", "user.name"])
         .output()?;
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
@@ -286,13 +297,19 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         // Get branch creation timestamp (first unique commit on branch, not on trunk)
         // This gives us when the branch was actually created/diverged from trunk
         let created_output = Command::new("git")
-            .args(["log", "--format=%ct", "--reverse", &format!("{}..{}", trunk, branch)])
+            .args(["log", "--format=%ct|%an", "--reverse", &format!("{}..{}", trunk, branch)])
             .output()?;
-        let branch_created_timestamp = String::from_utf8(created_output.stdout)?
-            .lines()
-            .next()
+        let created_info = String::from_utf8(created_output.stdout)?;
+        let first_line = created_info.lines().next().unwrap_or("");
+        let created_parts: Vec<&str> = first_line.split('|').collect();
+        let branch_created_timestamp = created_parts
+            .first()
             .and_then(|s| s.trim().parse::<i64>().ok())
             .unwrap_or(last_activity_timestamp);  // Fallback to last activity if no unique commits
+        let branch_author = created_parts
+            .get(1)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| last_commit_author.clone());  // Fallback to last commit author
 
         // Get ahead/behind counts if there's an upstream
         let (ahead, behind) = if has_upstream && !is_gone {
@@ -322,6 +339,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             behind,
             last_activity_timestamp,
             branch_created_timestamp,
+            branch_author,
         });
     }
 

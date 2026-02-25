@@ -2,7 +2,9 @@
 
 ## Overview
 
-`local-git-branch-cleanup-tui` is a Rust application that provides both CLI and TUI (Terminal User Interface) modes for managing local Git branches. The architecture follows a modular design with clear separation of concerns.
+`local-git-branch-cleanup-tui` is a Rust application that provides both CLI and TUI (Terminal User
+Interface) modes for managing local Git branches. The architecture follows a modular design with
+clear separation of concerns.
 
 ## Architecture Diagram
 
@@ -31,6 +33,7 @@
 ### 1. `main.rs` - Entry Point & Orchestration
 
 **Responsibilities:**
+
 - Parse command-line arguments using `clap`
 - Determine execution mode (CLI or TUI)
 - Initialize the application with appropriate configuration
@@ -39,12 +42,14 @@
 - Coordinate between App state and UI rendering
 
 **Key Components:**
+
 - `Args` struct: CLI argument definitions
 - `main()`: Application entry point
 - `run_cli_mode()`: Legacy CLI interface
 - `run_tui()`: TUI event loop and rendering
 
 **Event Handling Flow:**
+
 ```
 User Input → Crossterm Event → KeyCode Match → App State Update → UI Re-render
 ```
@@ -52,6 +57,7 @@ User Input → Crossterm Event → KeyCode Match → App State Update → UI Re-
 ### 2. `app.rs` - Application State Management
 
 **Responsibilities:**
+
 - Maintain application state (branches, selections, filters, logs)
 - Provide methods for state transitions (navigation, selection, filtering)
 - Implement business logic for user actions
@@ -81,19 +87,19 @@ pub struct App {
     branches: Vec<BranchInfo>,
     current_branch: String,
     trunk: String,
-    
+
     // UI state
     selected_index: usize,
     filter_mode: FilterMode,
     show_confirmation: bool,
     show_help: bool,
-    
+
     // Selection state
     selected_branches: HashSet<usize>,
-    
+
     // Action tracking
     action_log: Vec<ActionLogEntry>,
-    
+
     // Mode flags
     force_mode: bool,
     dry_run: bool,
@@ -101,6 +107,7 @@ pub struct App {
 ```
 
 **Key Methods:**
+
 - `new()`: Initialize with branch data
 - Navigation: `select_next()`, `select_prev()`
 - Filtering: `get_filtered_branches()`, `set_filter()`, `cycle_filter()`
@@ -109,6 +116,7 @@ pub struct App {
 - State queries: `get_selected_branches()`, `get_filter_counts()`, `has_unmerged_selected()`
 
 **State Transition Examples:**
+
 ```
 Space Key → toggle_selection() → Update selected_branches HashSet → Re-render
 Tab Key   → cycle_filter()     → Update filter_mode           → Re-render
@@ -119,6 +127,7 @@ y Key     → delete_branches()  → Update action_log            → Refresh br
 ### 3. `git.rs` - Git Integration & Branch Classification
 
 **Responsibilities:**
+
 - Execute Git commands via `std::process::Command`
 - Parse Git output into structured data
 - Classify branches by status
@@ -195,18 +204,19 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 
 **Git Command Usage:**
 
-| Purpose | Git Command |
-|---------|-------------|
-| Verify repo | `git rev-parse --show-toplevel` |
-| Current branch | `git branch --show-current` |
-| Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD` |
-| Branch list | `git for-each-ref refs/heads/` |
-| Merged check | `git branch --format='%(refname:short)' --merged <trunk>` |
-| Gone check | Parse `[gone]` from `git for-each-ref` |
-| Commit info | `git log -1 --format="%cr\|%h\|%an\|%s"` |
-| Ahead/behind | `git rev-list --left-right --count <branch>...<upstream>` |
-| Delete | `git branch -d/-D <branch>` || PR info (GitHub) | `gh pr list --head <branch> --json number,state,title,url` |
-| Open URL | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows) |
+| Purpose         | Git Command                                               |
+| --------------- | --------------------------------------------------------- | --- | ---------------- | ---------------------------------------------------------- |
+| Verify repo     | `git rev-parse --show-toplevel`                           |
+| Current branch  | `git branch --show-current`                               |
+| Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD`       |
+| Branch list     | `git for-each-ref refs/heads/`                            |
+| Merged check    | `git branch --format='%(refname:short)' --merged <trunk>` |
+| Gone check      | Parse `[gone]` from `git for-each-ref`                    |
+| Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                  |
+| Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>` |
+| Delete          | `git branch -d/-D <branch>`                               |     | PR info (GitHub) | `gh pr list --head <branch> --json number,state,title,url` |
+| Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)   |
+
 **Classification Logic:**
 
 ```
@@ -220,6 +230,7 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 ### 4. `ui.rs` - Terminal User Interface Rendering
 
 **Responsibilities:**
+
 - Render the TUI using Ratatui framework
 - Layout management (header, filters, list, details, log, footer)
 - Visual styling (colors, borders, highlights)
@@ -283,6 +294,7 @@ const GREEN: Color = Color::Rgb(80, 250, 123);     // #50FA7B - Success
 ```
 
 **Widgets Used:**
+
 - `Paragraph`: Header, footer, details pane
 - `Table`: Branch list with columns (checkbox, status, name, time, label)
 - `Tabs`: Filter tabs
@@ -359,6 +371,7 @@ Render only filtered branches in table
 5. Update color mapping in `ui.rs`
 
 Example:
+
 ```rust
 // git.rs
 pub enum BranchStatus {
@@ -378,13 +391,13 @@ impl BranchStatus {
 // Classify logic
 pub fn classify_branch(name: &str, current: &str, trunk: &str) -> Result<BranchStatus> {
     // ... existing checks
-    
+
     // Check if last commit is older than 6 months
     let last_commit = get_last_commit_date(name)?;
     if last_commit.elapsed() > Duration::from_secs(180 * 24 * 60 * 60) {
         return Ok(BranchStatus::Stale);
     }
-    
+
     // ... rest of logic
 }
 ```
@@ -397,6 +410,7 @@ pub fn classify_branch(name: &str, current: &str, trunk: &str) -> Result<BranchS
 4. Add keyboard shortcuts in `main.rs` event loop
 
 Example (adding a "Recently Deleted" section):
+
 ```rust
 // app.rs
 pub struct App {
@@ -410,10 +424,10 @@ fn render_recently_deleted(area: Rect, frame: &mut Frame, app: &App) {
         .iter()
         .map(|name| ListItem::new(format!("🗑️  {}", name)))
         .collect();
-    
+
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("Recently Deleted"));
-    
+
     frame.render_widget(list, area);
 }
 ```
@@ -425,12 +439,13 @@ fn render_recently_deleted(area: Rect, frame: &mut Frame, app: &App) {
 3. Update help text
 
 Example (adding `--remote` flag):
+
 ```rust
 // main.rs
 #[derive(Parser, Debug)]
 struct Args {
     // ... existing fields
-    
+
     /// Override the default remote name (default: origin)
     #[arg(long, default_value = "origin")]
     remote: String,
@@ -483,21 +498,21 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 
 ### Core Dependencies
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `ratatui` | 0.30.0 | TUI framework |
-| `crossterm` | 0.29.0 | Terminal backend (cross-platform) |
-| `clap` | 4.5.57 | CLI argument parsing |
-| `color-eyre` | 0.6.5 | Error handling and reporting |
-| `chrono` | 0.4.43 | Date/time formatting |
+| Crate        | Version | Purpose                           |
+| ------------ | ------- | --------------------------------- |
+| `ratatui`    | 0.30.0  | TUI framework                     |
+| `crossterm`  | 0.29.0  | Terminal backend (cross-platform) |
+| `clap`       | 4.5.57  | CLI argument parsing              |
+| `color-eyre` | 0.6.5   | Error handling and reporting      |
+| `chrono`     | 0.4.43  | Date/time formatting              |
 
 ### Development Dependencies
 
-| Crate | Purpose |
-|-------|---------|
-| `tempfile` | Temporary Git repos for testing |
-| `assert_cmd` | CLI testing |
-| `predicates` | Assertion helpers |
+| Crate        | Purpose                         |
+| ------------ | ------------------------------- |
+| `tempfile`   | Temporary Git repos for testing |
+| `assert_cmd` | CLI testing                     |
+| `predicates` | Assertion helpers               |
 
 ## Performance Considerations
 
@@ -515,17 +530,18 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 4. **Pagination**: Limit displayed branches to viewport + buffer
 
 Example parallel classification:
+
 ```rust
 use rayon::prelude::*;
 
 pub fn get_branches() -> Result<Vec<BranchInfo>> {
     let branch_names = get_all_branch_names()?;
-    
+
     let branches: Vec<BranchInfo> = branch_names
         .par_iter()  // Parallel iterator
         .map(|name| get_branch_info(name))
         .collect::<Result<Vec<_>>>()?;
-    
+
     Ok(branches)
 }
 ```

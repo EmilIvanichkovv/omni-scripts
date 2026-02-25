@@ -6,7 +6,8 @@
 
 ## Overview
 
-This document tracks bugs, issues, and feature requests for the local-git-branch-cleanup-tui application.
+This document tracks bugs, issues, and feature requests for the local-git-branch-cleanup-tui
+application.
 
 ---
 
@@ -108,7 +109,8 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-25
 - **Category:** UI/UX / Enhancement
 - **Description:**
-  - Users should be able to filter branches by their creator (the author of the first commit on the branch)
+  - Users should be able to filter branches by their creator (the author of the first commit on the
+    branch)
   - Useful in team environments to quickly find and manage your own branches
 - **Expected Behavior:**
   - Integrate author filtering into existing search functionality using `@author:` prefix
@@ -124,7 +126,8 @@ _No open minor/cosmetic issues._
   - Users must manually scan through all branches
 - **Fix:**
   - Added `branch_author` field to `BranchInfo` struct in `git.rs`
-  - Fetched branch author via `git log --format=%ct|%an --reverse trunk..branch` (first commit author)
+  - Fetched branch author via `git log --format=%ct|%an --reverse trunk..branch` (first commit
+    author)
   - Added `get_current_git_user()` function to get user from `git config user.name`
   - Added `current_git_user` field to App state for `@author:me` support
   - Implemented `parse_search_query()` method to extract `@author:` prefix from search
@@ -173,7 +176,8 @@ _No open minor/cosmetic issues._
     - `ActivityNewest` / `ActivityOldest` - sort by last commit date (Active ↓/↑)
     - `CreatedNewest` / `CreatedOldest` - sort by branch creation date (Created ↓/↑)
   - Added `last_activity_timestamp` field (last commit on branch)
-  - Added `branch_created_timestamp` field (first unique commit, fetched via `git log --format=%ct --reverse trunk..branch`)
+  - Added `branch_created_timestamp` field (first unique commit, fetched via
+    `git log --format=%ct --reverse trunk..branch`)
   - Added `sort_mode` field to App state
   - Added `cycle_sort_mode()` and `sort_branches()` methods to App
   - Added `s` key handler to cycle through sort modes
@@ -223,7 +227,8 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Bug
 - **Description:**
-  - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even when there's room for the cursor to move within the current view
+  - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even
+    when there's room for the cursor to move within the current view
   - The viewport should remain stable while the cursor moves within the visible area
 - **Steps to Reproduce:**
   1. Open the TUI in a repository with enough branches to require scrolling
@@ -234,7 +239,8 @@ _No open minor/cosmetic issues._
   - The viewport stays in place until the cursor reaches the top edge of the visible area
   - Only then should the viewport scroll to reveal more items above
 - **Actual Behavior:**
-  - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top of visible area
+  - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top
+    of visible area
 - **Fix:**
   - Added `scroll_offset` and `visible_height` fields to App state
   - Implemented `adjust_scroll_for_selection()` method for "edge-only" scrolling
@@ -251,10 +257,12 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Enhancement
 - **Description:**
-  - Improve the search workflow to allow seamless switching between search input and branch selection
+  - Improve the search workflow to allow seamless switching between search input and branch
+    selection
 - **Expected Behavior:**
   1. User presses `/` to activate search and types a query
-  2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but query remains)
+  2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but
+     query remains)
   3. User can navigate and select branches with arrow keys and Space
   4. User presses `/` again to return focus to search bar and continue editing the query
 - **Fix:**
@@ -273,7 +281,8 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Bug + Enhancement
 - **Description:**
-  - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
+  - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not
+    visible in the modal
   - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
 - **Fix:**
   - Dynamic modal height based on content (branches + warnings)
@@ -292,12 +301,15 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Enhancement
 - **Description:**
-  - Add an info modal accessible via the 'i' shortcut that provides users with brief information about what the tool does
-- **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose and functionality
+  - Add an info modal accessible via the 'i' shortcut that provides users with brief information
+    about what the tool does
+- **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose
+  and functionality
 - **Fix:**
   - Added `show_info` state to App
   - Added 'i' key handler in main.rs
-  - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
+  - Created `render_info_modal` function in ui.rs with tool description and branch status
+    explanations
   - Added `i info` hint in footer
 - **Commit:** `✨(rust/local-git-branch-cleanup-tui): Add info modal with tool description`
 
@@ -311,8 +323,10 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** UI/UX / Enhancement
 - **Description:**
-  - When user toggles force mode (f) or dry run mode (d), the selected option should be visually highlighted in the footer
-- **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer to provide clear visual feedback
+  - When user toggles force mode (f) or dry run mode (d), the selected option should be visually
+    highlighted in the footer
+- **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer
+  to provide clear visual feedback
 - **Fix:**
   - When active, `f force` gets black text on red background
   - When active, `d dry` gets black text on amber background
@@ -337,7 +351,8 @@ _No open minor/cosmetic issues._
 - **Actual Behavior:** Scrolling does not work
 - **Fix:**
   - Used `TableState` with `render_stateful_widget` instead of `render_widget`
-  - `TableState::default().with_selected(Some(app.selected_index))` enables automatic scrolling to keep cursor visible
+  - `TableState::default().with_selected(Some(app.selected_index))` enables automatic scrolling to
+    keep cursor visible
 - **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix branch list scrolling with TableState`
 
 ---
@@ -350,20 +365,24 @@ _No open minor/cosmetic issues._
 - **Resolved:** 2026-02-13
 - **Category:** Critical / Bug
 - **Description:**
-  - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the deletion fails with an error suggesting the branch is not fully merged.
+  - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the
+    deletion fails with an error suggesting the branch is not fully merged.
 - **Steps to Reproduce:**
   1. Have a branch marked as "gone" (remote deleted)
   2. Enable force delete mode
   3. Attempt to delete the branch
 - **Expected Behavior:** Branch should be force deleted using `git branch -D`
 - **Actual Behavior:**
-  - Shows error: `✗ feat/TUI - Failed to delete branch: error: the branch 'feat/TUI' is not fully merged`
+  - Shows error:
+    `✗ feat/TUI - Failed to delete branch: error: the branch 'feat/TUI' is not fully merged`
   - Hint suggests running `git branch -D feat/TUI`
 - **Fix:**
   - In `app.rs`, `delete_selected_branches()` now respects `self.force_mode`
   - Also auto-forces deletion for "gone" branches (handles squash/rebase merges)
-  - Changed: `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
-- **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix force delete mode to properly use git branch -D`
+  - Changed:
+    `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
+- **Commit:**
+  `🐛(rust/local-git-branch-cleanup-tui): Fix force delete mode to properly use git branch -D`
 
 ---
 

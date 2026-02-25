@@ -6,7 +6,8 @@ Welcome to the `local-git-branch-cleanup-tui` documentation.
 
 User-facing documentation for using the tool:
 
-- **[TUI Usage Guide](guides/TUI_USAGE_GUIDE.md)** — Complete guide to the interactive terminal interface
+- **[TUI Usage Guide](guides/TUI_USAGE_GUIDE.md)** — Complete guide to the interactive terminal
+  interface
 - **[Migration Guide](guides/MIGRATION.md)** — Migrate from the bash script to the Rust TUI
 
 ## 🔧 Technical Specs
@@ -32,10 +33,10 @@ Testing documentation and reports:
 
 ## Quick Links
 
-| What you want                | Where to go                                  |
-| ---------------------------- | -------------------------------------------- |
-| Learn how to use the TUI     | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md) |
-| Coming from the bash script? | [Migration Guide](guides/MIGRATION.md)       |
-| Understand the codebase      | [Architecture](specs/ARCHITECTURE.md)        |
-| Run or write tests           | [Testing Checklist](testing/TESTING.md)      |
+| What you want                | Where to go                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| Learn how to use the TUI     | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md)                                |
+| Coming from the bash script? | [Migration Guide](guides/MIGRATION.md)                                      |
+| Understand the codebase      | [Architecture](specs/ARCHITECTURE.md)                                       |
+| Run or write tests           | [Testing Checklist](testing/TESTING.md)                                     |
 | Enable GitHub PR integration | [TUI Usage Guide - GitHub](guides/TUI_USAGE_GUIDE.md#github-pr-integration) |

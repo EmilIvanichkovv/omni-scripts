@@ -1,7 +1,7 @@
 // TUI rendering module
 
 use crate::app::{App, FilterMode, SortMode};
-use crate::git::BranchStatus;
+use crate::git::{BranchStatus, PrState};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -18,6 +18,10 @@ const COLOR_MUTED: Color = Color::Rgb(169, 177, 214); // #A9B1D6 - muted text
 const COLOR_SUCCESS: Color = Color::Rgb(80, 250, 123); // #50FA7B - green
 const COLOR_CURRENT: Color = Color::Rgb(189, 147, 249); // #BD93F9 - purple
 const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for selected
+// PR state colors
+const COLOR_PR_OPEN: Color = Color::Rgb(255, 203, 107); // Yellow/amber for open PRs
+const COLOR_PR_MERGED: Color = Color::Rgb(80, 250, 123); // Green for merged PRs  
+const COLOR_PR_CLOSED: Color = Color::Rgb(255, 85, 85); // Red for closed PRs
 
 /// Render the TUI
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -515,8 +519,14 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     // Get filtered branches
     let filtered_branches = app.filtered_branches();
 
-    // Create table header
-    let header_cells = ["", "☑", "Branch", "Last Commit", "Status"]
+    // Create table header (conditionally include PR column)
+    let header_labels: Vec<&str> = if app.github_enabled {
+        vec!["", "☑", "Branch", "Last Commit", "Status", "PR"]
+    } else {
+        vec!["", "☑", "Branch", "Last Commit", "Status"]
+    };
+    
+    let header_cells = header_labels
         .iter()
         .map(|h| {
             Cell::from(*h).style(
@@ -563,7 +573,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(COLOR_ACCENT)
             };
 
-            let cells = vec![
+            let mut cells = vec![
                 // Cursor indicator
                 Cell::from(if is_cursor { "▶" } else { " " })
                     .style(Style::default().fg(COLOR_ACCENT)),
@@ -591,6 +601,18 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 .style(status_style),
             ];
 
+            // Add PR column if GitHub integration is enabled
+            if app.github_enabled {
+                let (pr_text, pr_style) = match &branch.pr_info {
+                    Some(pr) => {
+                        let color = get_pr_state_color(&pr.state);
+                        (format!("{} #{}", pr.state.icon(), pr.number), Style::default().fg(color))
+                    }
+                    None => ("⚪".to_string(), Style::default().fg(COLOR_MUTED)),
+                };
+                cells.push(Cell::from(pr_text).style(pr_style));
+            }
+
             let row = Row::new(cells);
             if is_cursor {
                 row.style(Style::default().bg(Color::Rgb(30, 35, 45)))
@@ -602,14 +624,25 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    // Column widths
-    let widths = [
-        Constraint::Length(2),  // Cursor indicator
-        Constraint::Length(4),  // Checkbox
-        Constraint::Min(15),    // Branch name
-        Constraint::Length(15), // Last commit
-        Constraint::Length(12), // Status (icon + label)
-    ];
+    // Column widths (conditionally include PR column)
+    let widths: Vec<Constraint> = if app.github_enabled {
+        vec![
+            Constraint::Length(2),  // Cursor indicator
+            Constraint::Length(4),  // Checkbox
+            Constraint::Min(15),    // Branch name
+            Constraint::Length(15), // Last commit
+            Constraint::Length(12), // Status (icon + label)
+            Constraint::Length(10), // PR status
+        ]
+    } else {
+        vec![
+            Constraint::Length(2),  // Cursor indicator
+            Constraint::Length(4),  // Checkbox
+            Constraint::Min(15),    // Branch name
+            Constraint::Length(15), // Last commit
+            Constraint::Length(12), // Status (icon + label)
+        ]
+    };
 
     let title = format!(
         " Branches ({} shown, {} selected) ",
@@ -637,7 +670,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     frame.render_stateful_widget(table, table_inner_area, &mut table_state);
 
     // Render legend line (no border, just text)
-    let legend = Line::from(vec![
+    let mut legend_spans = vec![
         Span::styled("Legend: ", Style::default().fg(COLOR_MUTED)),
         Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
         Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
@@ -649,7 +682,20 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
-    ]);
+    ];
+
+    // Add PR legend items when GitHub integration is enabled
+    if app.github_enabled {
+        legend_spans.push(Span::styled("  │  PR: ", Style::default().fg(COLOR_MUTED)));
+        legend_spans.push(Span::styled("🟢 ", Style::default().fg(COLOR_PR_MERGED)));
+        legend_spans.push(Span::styled("merged  ", Style::default().fg(COLOR_MUTED)));
+        legend_spans.push(Span::styled("🟡 ", Style::default().fg(COLOR_PR_OPEN)));
+        legend_spans.push(Span::styled("open  ", Style::default().fg(COLOR_MUTED)));
+        legend_spans.push(Span::styled("🔴 ", Style::default().fg(COLOR_PR_CLOSED)));
+        legend_spans.push(Span::styled("closed", Style::default().fg(COLOR_MUTED)));
+    }
+
+    let legend = Line::from(legend_spans);
 
     let legend_widget = Paragraph::new(legend);
     frame.render_widget(legend_widget, legend_area);
@@ -806,6 +852,86 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::White),
             )));
         }
+
+        // GitHub PR info (if available and GitHub integration enabled)
+        if app.github_enabled {
+            lines.push(Line::from(""));
+            if let Some(pr) = &branch.pr_info {
+                lines.push(Line::from(vec![Span::styled(
+                    "  Pull Request:",
+                    Style::default()
+                        .fg(COLOR_MUTED)
+                        .add_modifier(Modifier::BOLD),
+                )]));
+                
+                // PR number and state
+                lines.push(Line::from(vec![
+                    Span::styled("  ", Style::default()),
+                    Span::styled(
+                        pr.state.icon(),
+                        Style::default().fg(get_pr_state_color(&pr.state)),
+                    ),
+                    Span::styled(" PR #", Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        format!("{}", pr.number),
+                        Style::default().fg(COLOR_ACCENT),
+                    ),
+                    Span::styled(" (", Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        pr.state.label(),
+                        Style::default().fg(get_pr_state_color(&pr.state)),
+                    ),
+                    Span::styled(")", Style::default().fg(COLOR_MUTED)),
+                ]));
+
+                // PR title (word wrapped)
+                let pr_max_width = area.width.saturating_sub(4) as usize;
+                let pr_words: Vec<&str> = pr.title.split_whitespace().collect();
+                let mut pr_line = String::from("  ");
+                for word in pr_words {
+                    if pr_line.len() + word.len() + 1 > pr_max_width {
+                        lines.push(Line::from(Span::styled(
+                            pr_line.clone(),
+                            Style::default().fg(Color::White),
+                        )));
+                        pr_line = String::from("  ");
+                    }
+                    if !pr_line.ends_with("  ") {
+                        pr_line.push(' ');
+                    }
+                    pr_line.push_str(word);
+                }
+                if pr_line.len() > 2 {
+                    lines.push(Line::from(Span::styled(
+                        pr_line,
+                        Style::default().fg(Color::White),
+                    )));
+                }
+
+                // Hint to open PR
+                lines.push(Line::from(""));
+                lines.push(Line::from(vec![
+                    Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        "o",
+                        Style::default()
+                            .fg(COLOR_ACCENT)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" to open in browser", Style::default().fg(COLOR_MUTED)),
+                ]));
+            } else {
+                lines.push(Line::from(vec![
+                    Span::styled("  Pull Request: ", Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        "none",
+                        Style::default()
+                            .fg(COLOR_MUTED)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ]));
+            }
+        }
     } else {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![Span::styled(
@@ -932,7 +1058,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                     .fg(COLOR_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" sel  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
                 "a",
                 Style::default()
@@ -946,7 +1072,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                     .fg(COLOR_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" clear  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" clr  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("f force", force_style),
             Span::styled("  ", Style::default()),
             Span::styled("d dry", dry_style),
@@ -964,7 +1090,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                     .fg(COLOR_SELECTED)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" del  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
                 "/",
                 Style::default()
@@ -973,13 +1099,6 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             ),
             Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
-                "F",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" filters  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
                 "?",
                 Style::default()
                     .fg(COLOR_ACCENT)
@@ -987,20 +1106,30 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             ),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
-                "i",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" info  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "q / Esc",
+                "q",
                 Style::default()
                     .fg(COLOR_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ])
+    };
+
+    // Add GitHub PR shortcut if enabled
+    let key_hints = if app.github_enabled && !app.branches.is_empty() {
+        let mut spans = key_hints.spans;
+        // Insert "o pr" before the quit
+        let quit_idx = spans.len() - 2; // Position before "q" and " quit"
+        spans.insert(quit_idx, Span::styled(
+            "o",
+            Style::default()
+                .fg(COLOR_PR_MERGED)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.insert(quit_idx + 1, Span::styled(" pr  ", Style::default().fg(COLOR_MUTED)));
+        Line::from(spans)
+    } else {
+        key_hints
     };
 
     let footer = Paragraph::new(key_hints).block(
@@ -1172,6 +1301,15 @@ fn get_status_color(status: &BranchStatus) -> Color {
         BranchStatus::Unmerged => COLOR_WARNING,
         BranchStatus::Protected => COLOR_DANGER,
         BranchStatus::Current => COLOR_CURRENT,
+    }
+}
+
+/// Get the color for a PR state
+fn get_pr_state_color(state: &PrState) -> Color {
+    match state {
+        PrState::Open => COLOR_PR_OPEN,
+        PrState::Merged => COLOR_PR_MERGED,
+        PrState::Closed => COLOR_PR_CLOSED,
     }
 }
 
@@ -1513,6 +1651,29 @@ fn render_help_modal(frame: &mut Frame) {
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "  GitHub Integration (--github / -g)",
+            Style::default()
+                .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        )]),
+        Line::from(vec![
+            Span::styled(
+                "    o",
+                Style::default()
+                    .fg(COLOR_PR_MERGED)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "             Open PR in browser (if PR exists)",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![Span::styled(
+            "    PR Status: 🟢 merged  🟡 open  🔴 closed  ⚪ none",
+            Style::default().fg(COLOR_MUTED),
+        )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "  Other",

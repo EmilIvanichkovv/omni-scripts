@@ -30,6 +30,7 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
 - **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` / `@author:"Name With Spaces"`)
 - **Smart Autocomplete** - Suggestions for `@author:` with scrollable dropdown and auto-quoting
+- **GitHub PR Integration** - See PR status for each branch with `--github` flag (requires GitHub CLI)
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -100,6 +101,7 @@ Options:
   -f, --force          Force delete unmerged branches (use with caution!)
       --cli            Use CLI mode instead of TUI
       --dry-run        Dry run mode - preview actions without executing
+  -g, --github         Enable GitHub PR integration (requires gh CLI)
   -h, --help           Print help
 ```
 
@@ -121,9 +123,13 @@ Options:
 # Force delete unmerged branches (dangerous!)
 ./target/release/local-git-branch-cleanup-tui --force
 
+# Enable GitHub PR integration
+./target/release/local-git-branch-cleanup-tui --github
+
 # Using cargo run (from rust/ directory)
 cargo run --release -- --cli
 cargo run --release -- --trunk develop
+cargo run --release -- --github
 ```
 
 ### Adding to PATH (Optional)
@@ -156,6 +162,7 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 | `f`                | Toggle force mode                   |
 | `d`                | Toggle dry run mode                 |
 | `Enter`            | Delete selected (with confirmation) |
+| `o`                | Open PR in browser (with --github)  |
 | `?`                | Show help                           |
 | `q` / `Esc`        | Quit                                |
 

@@ -148,6 +148,8 @@ pub struct App {
     pub suggestion_index: Option<usize>,
     /// Whether to show suggestions dropdown
     pub show_suggestions: bool,
+    /// Whether GitHub PR integration is enabled
+    pub github_enabled: bool,
 }
 
 impl App {
@@ -187,6 +189,7 @@ impl App {
             suggestions: Vec::new(),
             suggestion_index: None,
             show_suggestions: false,
+            github_enabled: false,
         }
     }
 
@@ -763,6 +766,27 @@ impl App {
     pub fn deletion_failure_count(&self) -> usize {
         self.action_log.iter().filter(|e| !e.success).count()
     }
+
+    /// Open the PR URL for the currently selected branch in the default browser
+    /// Returns true if a PR URL was opened, false if no PR is associated
+    pub fn open_selected_pr(&self) -> bool {
+        if let Some(branch) = self.selected_branch() {
+            if let Some(pr_info) = &branch.pr_info {
+                if let Ok(_) = git::open_url_in_browser(&pr_info.url) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Check if the currently selected branch has a PR
+    #[allow(dead_code)]
+    pub fn selected_branch_has_pr(&self) -> bool {
+        self.selected_branch()
+            .map(|b| b.pr_info.is_some())
+            .unwrap_or(false)
+    }
 }
 
 #[cfg(test)]
@@ -783,6 +807,7 @@ mod tests {
             last_activity_timestamp: 0,
             branch_created_timestamp: 0,
             branch_author: "Test Author".to_string(),
+            pr_info: None,
         }
     }
 
@@ -1130,6 +1155,7 @@ mod tests {
             last_activity_timestamp: 0,
             branch_created_timestamp: 0,
             branch_author: author.to_string(),
+            pr_info: None,
         }
     }
 

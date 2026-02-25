@@ -73,6 +73,10 @@ pub struct BranchInfo {
     pub ahead: Option<usize>,
     /// Number of commits behind upstream (if tracked)
     pub behind: Option<usize>,
+    /// Last activity (last commit) timestamp for sorting
+    pub last_activity_timestamp: i64,
+    /// Branch creation date as Unix timestamp (first unique commit on branch)
+    pub branch_created_timestamp: i64,
 }
 
 /// Verify we're inside a Git repository
@@ -270,6 +274,26 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         let last_commit_author = details_parts.get(1).unwrap_or(&"").to_string();
         let last_commit_message = details_parts.get(2).unwrap_or(&"").to_string();
 
+        // Get last activity timestamp (last commit on branch)
+        let activity_output = Command::new("git")
+            .args(["log", "-1", "--format=%ct", branch])
+            .output()?;
+        let last_activity_timestamp = String::from_utf8(activity_output.stdout)?
+            .trim()
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        // Get branch creation timestamp (first unique commit on branch, not on trunk)
+        // This gives us when the branch was actually created/diverged from trunk
+        let created_output = Command::new("git")
+            .args(["log", "--format=%ct", "--reverse", &format!("{}..{}", trunk, branch)])
+            .output()?;
+        let branch_created_timestamp = String::from_utf8(created_output.stdout)?
+            .lines()
+            .next()
+            .and_then(|s| s.trim().parse::<i64>().ok())
+            .unwrap_or(last_activity_timestamp);  // Fallback to last activity if no unique commits
+
         // Get ahead/behind counts if there's an upstream
         let (ahead, behind) = if has_upstream && !is_gone {
             get_ahead_behind_counts(branch, upstream.as_ref().unwrap())?
@@ -296,6 +320,8 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             last_commit_message,
             ahead,
             behind,
+            last_activity_timestamp,
+            branch_created_timestamp,
         });
     }
 

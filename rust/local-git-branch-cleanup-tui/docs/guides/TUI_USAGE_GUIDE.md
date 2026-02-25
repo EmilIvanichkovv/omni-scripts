@@ -52,6 +52,25 @@ The TUI is divided into several sections:
 
 The active filter tab is highlighted in cyan, and each tab displays the branch count for that category.
 
+### Sorting Branches
+
+| Key | Action |
+|-----|--------|
+| `s` | Cycle through sort modes |
+
+**Available Sort Modes:**
+
+| Mode | Label | Description |
+|------|-------|-------------|
+| Status | (default) | Groups by branch status (current, protected, merged, gone, unmerged) |
+| Name | Name | Alphabetical by branch name (case-insensitive) |
+| Activity ↓ | Active ↓ | Most recently active branches first (by last commit) |
+| Activity ↑ | Active ↑ | Least recently active branches first |
+| Created ↓ | Created ↓ | Most recently created branches first |
+| Created ↑ | Created ↑ | Oldest branches first (by creation date) |
+
+When a non-default sort mode is active, the header displays a sort indicator: `🔀 Active ↓`
+
 ### Selection
 
 | Key | Action |
@@ -67,6 +86,7 @@ The active filter tab is highlighted in cyan, and each tab displays the branch c
 | `Enter` | Delete selected branches (opens confirmation) |
 | `f` | Toggle force mode |
 | `d` | Toggle dry run mode |
+| `s` | Cycle sort mode |
 | `i` | Show info modal (about the tool) |
 | `?` | Show help modal |
 

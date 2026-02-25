@@ -251,6 +251,10 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 // Toggle info modal
                                 app.show_info = !app.show_info;
                             }
+                            KeyCode::Char('s') => {
+                                // Cycle sort mode
+                                app.cycle_sort_mode();
+                            }
                             KeyCode::Char('/') => {
                                 // Enter search mode
                                 app.search_active = true;

@@ -3,6 +3,50 @@
 use crate::git::{self, BranchInfo, BranchStatus};
 use std::collections::HashSet;
 
+/// Sort mode for branch list
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortMode {
+    /// Sort by status (current default) - protected/current first, then by status type
+    #[default]
+    Status,
+    /// Sort alphabetically by branch name
+    Name,
+    /// Sort by last activity (last commit), newest first
+    ActivityNewest,
+    /// Sort by last activity (last commit), oldest first
+    ActivityOldest,
+    /// Sort by branch creation date, newest first
+    CreatedNewest,
+    /// Sort by branch creation date, oldest first
+    CreatedOldest,
+}
+
+impl SortMode {
+    /// Get the label for the sort mode
+    pub fn label(&self) -> &'static str {
+        match self {
+            SortMode::Status => "Status",
+            SortMode::Name => "Name",
+            SortMode::ActivityNewest => "Active ↓",
+            SortMode::ActivityOldest => "Active ↑",
+            SortMode::CreatedNewest => "Created ↓",
+            SortMode::CreatedOldest => "Created ↑",
+        }
+    }
+
+    /// Cycle to the next sort mode
+    pub fn next(&self) -> Self {
+        match self {
+            SortMode::Status => SortMode::Name,
+            SortMode::Name => SortMode::ActivityNewest,
+            SortMode::ActivityNewest => SortMode::ActivityOldest,
+            SortMode::ActivityOldest => SortMode::CreatedNewest,
+            SortMode::CreatedNewest => SortMode::CreatedOldest,
+            SortMode::CreatedOldest => SortMode::Status,
+        }
+    }
+}
+
 /// Filter mode for branch list
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilterMode {
@@ -92,6 +136,8 @@ pub struct App {
     pub scroll_offset: usize,
     /// Visible height of the branch list (set during render)
     pub visible_height: usize,
+    /// Current sort mode
+    pub sort_mode: SortMode,
 }
 
 impl App {
@@ -115,6 +161,7 @@ impl App {
             search_query: String::new(),
             scroll_offset: 0,
             visible_height: 0,
+            sort_mode: SortMode::Status,
         }
     }
 
@@ -181,12 +228,12 @@ impl App {
         if self.visible_height == 0 {
             return;
         }
-        
+
         // If cursor is above the visible area, scroll up
         if self.selected_index < self.scroll_offset {
             self.scroll_offset = self.selected_index;
         }
-        
+
         // If cursor is below the visible area, scroll down
         // visible_height - 1 because we need to account for header row
         let visible_rows = self.visible_height.saturating_sub(1);
@@ -205,20 +252,23 @@ impl App {
     pub fn filtered_branches(&self) -> Vec<&BranchInfo> {
         let status_filtered: Vec<&BranchInfo> = match self.current_filter {
             FilterMode::All => self.branches.iter().collect(),
-            FilterMode::SafeMerged => self.branches
+            FilterMode::SafeMerged => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::SafeMerged)
                 .collect(),
-            FilterMode::GoneUpstream => self.branches
+            FilterMode::GoneUpstream => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::GoneUpstream)
                 .collect(),
-            FilterMode::Unmerged => self.branches
+            FilterMode::Unmerged => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::Unmerged)
                 .collect(),
         };
-        
+
         // Apply search filter if query is not empty
         if self.search_query.is_empty() {
             status_filtered
@@ -235,15 +285,18 @@ impl App {
     pub fn filter_count(&self, filter: FilterMode) -> usize {
         match filter {
             FilterMode::All => self.branches.len(),
-            FilterMode::SafeMerged => self.branches
+            FilterMode::SafeMerged => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::SafeMerged)
                 .count(),
-            FilterMode::GoneUpstream => self.branches
+            FilterMode::GoneUpstream => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::GoneUpstream)
                 .count(),
-            FilterMode::Unmerged => self.branches
+            FilterMode::Unmerged => self
+                .branches
                 .iter()
                 .filter(|b| b.status == BranchStatus::Unmerged)
                 .count(),
@@ -265,10 +318,66 @@ impl App {
         self.scroll_offset = 0;
     }
 
+    /// Cycle to next sort mode and re-sort branches
+    pub fn cycle_sort_mode(&mut self) {
+        self.sort_mode = self.sort_mode.next();
+        self.sort_branches();
+        // Reset selection and scroll when sort changes
+        self.selected_index = 0;
+        self.scroll_offset = 0;
+    }
+
+    /// Sort branches based on current sort mode
+    pub fn sort_branches(&mut self) {
+        match self.sort_mode {
+            SortMode::Status => {
+                // Original sort: protected/current first, then by status
+                self.branches.sort_by(|a, b| {
+                    let order = |s: &BranchStatus| match s {
+                        BranchStatus::Current => 0,
+                        BranchStatus::Protected => 1,
+                        BranchStatus::SafeMerged => 2,
+                        BranchStatus::GoneUpstream => 3,
+                        BranchStatus::Unmerged => 4,
+                    };
+                    order(&a.status).cmp(&order(&b.status))
+                });
+            }
+            SortMode::Name => {
+                // Sort alphabetically by branch name (case-insensitive)
+                self.branches
+                    .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            }
+            SortMode::ActivityNewest => {
+                // Sort by last activity timestamp, newest first (descending)
+                self.branches
+                    .sort_by(|a, b| b.last_activity_timestamp.cmp(&a.last_activity_timestamp));
+            }
+            SortMode::ActivityOldest => {
+                // Sort by last activity timestamp, oldest first (ascending)
+                self.branches
+                    .sort_by(|a, b| a.last_activity_timestamp.cmp(&b.last_activity_timestamp));
+            }
+            SortMode::CreatedNewest => {
+                // Sort by branch creation timestamp, newest first (descending)
+                self.branches
+                    .sort_by(|a, b| b.branch_created_timestamp.cmp(&a.branch_created_timestamp));
+            }
+            SortMode::CreatedOldest => {
+                // Sort by branch creation timestamp, oldest first (ascending)
+                self.branches
+                    .sort_by(|a, b| a.branch_created_timestamp.cmp(&b.branch_created_timestamp));
+            }
+        }
+    }
+
     /// Count of deletable branches
     #[allow(dead_code)]
     pub fn deletable_count(&self) -> usize {
-        self.branches.iter().filter(|b| b.status.is_deletable()).count()
+        self.branches
+            .iter()
+            .filter(|b| b.status.is_deletable())
+            .count()
     }
 
     /// Count of protected branches
@@ -311,17 +420,19 @@ impl App {
     /// Select all safe (deletable) branches
     pub fn select_all_safe(&mut self) {
         // If all safe branches are selected, deselect all
-        let safe_indices: Vec<usize> = self.branches
+        let safe_indices: Vec<usize> = self
+            .branches
             .iter()
             .enumerate()
             .filter(|(_, b)| {
-                b.status.is_deletable() && 
-                (self.force_mode || b.status != BranchStatus::Unmerged)
+                b.status.is_deletable() && (self.force_mode || b.status != BranchStatus::Unmerged)
             })
             .map(|(i, _)| i)
             .collect();
 
-        let all_selected = safe_indices.iter().all(|i| self.selected_branches.contains(i));
+        let all_selected = safe_indices
+            .iter()
+            .all(|i| self.selected_branches.contains(i));
 
         if all_selected {
             // Deselect all
@@ -373,20 +484,23 @@ impl App {
 
     /// Execute deletion of selected branches
     pub fn delete_selected_branches(&mut self) {
-        let selected: Vec<(usize, String, BranchStatus)> = self.selected_branches
+        let selected: Vec<(usize, String, BranchStatus)> = self
+            .selected_branches
             .iter()
             .filter_map(|&i| {
-                self.branches.get(i).map(|b| (i, b.name.clone(), b.status.clone()))
+                self.branches
+                    .get(i)
+                    .map(|b| (i, b.name.clone(), b.status.clone()))
             })
             .collect();
 
         for (_, branch_name, status) in &selected {
             // Auto-force for "gone" branches (squash/rebase merges) and "unmerged" branches
             // Also respect user's force_mode setting
-            let use_force = self.force_mode 
-                || *status == BranchStatus::Unmerged 
+            let use_force = self.force_mode
+                || *status == BranchStatus::Unmerged
                 || *status == BranchStatus::GoneUpstream;
-            
+
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {
                     let method = if use_force { "-D" } else { "-d" };
@@ -504,26 +618,26 @@ mod tests {
     #[test]
     fn test_select_next_prev() {
         let mut app = create_test_app();
-        
+
         // Initially at index 0
         assert_eq!(app.selected_index, 0);
-        
+
         // Move next
         app.select_next();
         assert_eq!(app.selected_index, 1);
-        
+
         app.select_next();
         assert_eq!(app.selected_index, 2);
-        
+
         // Move prev
         app.select_prev();
         assert_eq!(app.selected_index, 1);
-        
+
         // Stop at end (no wrap)
         app.selected_index = 4;
         app.select_next();
         assert_eq!(app.selected_index, 4); // Should stay at 4
-        
+
         // Stop at beginning (no wrap)
         app.selected_index = 0;
         app.select_prev();
@@ -533,25 +647,25 @@ mod tests {
     #[test]
     fn test_filtered_branches() {
         let app = create_test_app();
-        
+
         // All filter
         let all = app.filtered_branches();
         assert_eq!(all.len(), 5);
-        
+
         // Safe merged filter
         let mut app = create_test_app();
         app.current_filter = FilterMode::SafeMerged;
         let safe = app.filtered_branches();
         assert_eq!(safe.len(), 1);
         assert_eq!(safe[0].name, "feature/merged");
-        
+
         // Gone upstream filter
         let mut app = create_test_app();
         app.current_filter = FilterMode::GoneUpstream;
         let gone = app.filtered_branches();
         assert_eq!(gone.len(), 1);
         assert_eq!(gone[0].name, "feature/gone");
-        
+
         // Unmerged filter
         let mut app = create_test_app();
         app.current_filter = FilterMode::Unmerged;
@@ -563,7 +677,7 @@ mod tests {
     #[test]
     fn test_filter_count() {
         let app = create_test_app();
-        
+
         assert_eq!(app.filter_count(FilterMode::All), 5);
         assert_eq!(app.filter_count(FilterMode::SafeMerged), 1);
         assert_eq!(app.filter_count(FilterMode::GoneUpstream), 1);
@@ -574,7 +688,7 @@ mod tests {
     fn test_set_filter() {
         let mut app = create_test_app();
         app.selected_index = 3;
-        
+
         app.set_filter(FilterMode::SafeMerged);
         assert_eq!(app.current_filter, FilterMode::SafeMerged);
         assert_eq!(app.selected_index, 0); // Reset on filter change
@@ -583,7 +697,7 @@ mod tests {
     #[test]
     fn test_next_filter() {
         let mut app = create_test_app();
-        
+
         assert_eq!(app.current_filter, FilterMode::All);
         app.next_filter();
         assert_eq!(app.current_filter, FilterMode::SafeMerged);
@@ -607,27 +721,27 @@ mod tests {
     #[test]
     fn test_toggle_selection() {
         let mut app = create_test_app();
-        
+
         // Cannot select protected branch (index 0)
         app.toggle_selection(0);
         assert!(!app.is_branch_selected(0));
-        
+
         // Can select safe merged branch (index 1)
         app.toggle_selection(1);
         assert!(app.is_branch_selected(1));
-        
+
         // Toggle again to deselect
         app.toggle_selection(1);
         assert!(!app.is_branch_selected(1));
-        
+
         // Can select gone upstream (index 2)
         app.toggle_selection(2);
         assert!(app.is_branch_selected(2));
-        
+
         // Cannot select unmerged without force mode (index 3)
         app.toggle_selection(3);
         assert!(!app.is_branch_selected(3));
-        
+
         // Can select unmerged with force mode
         app.force_mode = true;
         app.toggle_selection(3);
@@ -637,35 +751,35 @@ mod tests {
     #[test]
     fn test_select_all_safe() {
         let mut app = create_test_app();
-        
+
         // Select all safe branches (without force mode)
         app.select_all_safe();
         assert!(!app.is_branch_selected(0)); // Protected
-        assert!(app.is_branch_selected(1));  // SafeMerged
-        assert!(app.is_branch_selected(2));  // GoneUpstream
+        assert!(app.is_branch_selected(1)); // SafeMerged
+        assert!(app.is_branch_selected(2)); // GoneUpstream
         assert!(!app.is_branch_selected(3)); // Unmerged (no force)
         assert!(!app.is_branch_selected(4)); // Current
-        
+
         // Toggle again to deselect all
         app.select_all_safe();
         assert_eq!(app.selected_count(), 0);
-        
+
         // With force mode, unmerged branches should be selectable
         app.force_mode = true;
         app.select_all_safe();
-        assert!(app.is_branch_selected(1));  // SafeMerged
-        assert!(app.is_branch_selected(2));  // GoneUpstream
-        assert!(app.is_branch_selected(3));  // Unmerged (with force)
+        assert!(app.is_branch_selected(1)); // SafeMerged
+        assert!(app.is_branch_selected(2)); // GoneUpstream
+        assert!(app.is_branch_selected(3)); // Unmerged (with force)
     }
 
     #[test]
     fn test_clear_selection() {
         let mut app = create_test_app();
-        
+
         app.toggle_selection(1);
         app.toggle_selection(2);
         assert_eq!(app.selected_count(), 2);
-        
+
         app.clear_selection();
         assert_eq!(app.selected_count(), 0);
     }
@@ -673,13 +787,13 @@ mod tests {
     #[test]
     fn test_get_selected_branches() {
         let mut app = create_test_app();
-        
+
         app.toggle_selection(1);
         app.toggle_selection(2);
-        
+
         let selected = app.get_selected_branches();
         assert_eq!(selected.len(), 2);
-        
+
         // Check that both branches are present (order not guaranteed from HashSet)
         let names: Vec<&str> = selected.iter().map(|b| b.name.as_str()).collect();
         assert!(names.contains(&"feature/merged"));
@@ -689,11 +803,11 @@ mod tests {
     #[test]
     fn test_selected_branch() {
         let mut app = create_test_app();
-        
+
         let branch = app.selected_branch();
         assert!(branch.is_some());
         assert_eq!(branch.unwrap().name, "main");
-        
+
         app.selected_index = 1;
         let branch = app.selected_branch();
         assert_eq!(branch.unwrap().name, "feature/merged");
@@ -703,7 +817,7 @@ mod tests {
     fn test_quit() {
         let mut app = create_test_app();
         assert!(!app.should_quit);
-        
+
         app.quit();
         assert!(app.should_quit);
     }
@@ -711,16 +825,16 @@ mod tests {
     #[test]
     fn test_confirmation_modal() {
         let mut app = create_test_app();
-        
+
         // Cannot show confirmation with no selection
         app.show_confirm_modal();
         assert!(!app.show_confirmation);
-        
+
         // Can show with selection
         app.toggle_selection(1);
         app.show_confirm_modal();
         assert!(app.show_confirmation);
-        
+
         // Can hide
         app.hide_confirm_modal();
         assert!(!app.show_confirmation);
@@ -729,19 +843,19 @@ mod tests {
     #[test]
     fn test_action_log() {
         let mut app = create_test_app();
-        
+
         app.action_log.push(ActionLogEntry {
             branch_name: "test1".to_string(),
             success: true,
             message: "Deleted (-d)".to_string(),
         });
-        
+
         app.action_log.push(ActionLogEntry {
             branch_name: "test2".to_string(),
             success: false,
             message: "Failed to delete".to_string(),
         });
-        
+
         assert_eq!(app.deletion_success_count(), 1);
         assert_eq!(app.deletion_failure_count(), 1);
     }
@@ -749,12 +863,12 @@ mod tests {
     #[test]
     fn test_toggle_selection_at_cursor() {
         let mut app = create_test_app();
-        
+
         // Move to safe merged branch
         app.selected_index = 1;
         app.toggle_selection_at_cursor();
         assert!(app.is_branch_selected(1));
-        
+
         // Move to another branch
         app.selected_index = 2;
         app.toggle_selection_at_cursor();
@@ -764,19 +878,19 @@ mod tests {
     #[test]
     fn test_filtered_selection() {
         let mut app = create_test_app();
-        
+
         // Switch to SafeMerged filter
         app.set_filter(FilterMode::SafeMerged);
-        
+
         // Should have only 1 item in filtered list
         let filtered = app.filtered_branches();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "feature/merged");
-        
+
         // Select at cursor (should select the merged branch)
         app.selected_index = 0;
         app.toggle_selection_at_cursor();
-        
+
         // Original index 1 should be selected
         assert!(app.is_branch_selected(1));
     }

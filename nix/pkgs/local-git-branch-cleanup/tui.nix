@@ -1,4 +1,8 @@
-{ lib, rustPlatform, git }:
+{
+  lib,
+  rustPlatform,
+  git,
+}:
 
 rustPlatform.buildRustPackage rec {
   pname = "local-git-branch-cleanup-tui";
@@ -6,24 +10,30 @@ rustPlatform.buildRustPackage rec {
 
   # Use lib.fileset to explicitly include only needed files from workspace
   src = lib.fileset.toSource {
-    root = ../../rust;
+    root = ../../../rust;
     fileset = lib.fileset.unions [
       # Workspace manifest
-      ../../rust/Cargo.toml
-      ../../rust/Cargo.lock
+      ../../../rust/Cargo.toml
+      ../../../rust/Cargo.lock
       # App crate
-      ../../rust/local-git-branch-cleanup-tui/Cargo.toml
-      ../../rust/local-git-branch-cleanup-tui/src
-      ../../rust/local-git-branch-cleanup-tui/tests
+      ../../../rust/local-git-branch-cleanup-tui/Cargo.toml
+      ../../../rust/local-git-branch-cleanup-tui/src
+      ../../../rust/local-git-branch-cleanup-tui/tests
       # Library crate (dependency)
-      ../../rust/omni-lib/Cargo.toml
-      ../../rust/omni-lib/src
+      ../../../rust/omni-lib/Cargo.toml
+      ../../../rust/omni-lib/src
     ];
   };
 
   # Build only the specific package from workspace
-  cargoBuildFlags = [ "-p" "local-git-branch-cleanup-tui" ];
-  cargoTestFlags = [ "-p" "local-git-branch-cleanup-tui" ];
+  cargoBuildFlags = [
+    "-p"
+    "local-git-branch-cleanup-tui"
+  ];
+  cargoTestFlags = [
+    "-p"
+    "local-git-branch-cleanup-tui"
+  ];
 
   cargoHash = "sha256-6ZA8OdA0kpu/b3OtxINq+rYc0QGxWbt7rQIzwsy1eHA=";
 

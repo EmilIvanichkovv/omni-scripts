@@ -2,3 +2,6 @@
 .direnv
 result
 .env
+
+# Pre-commit
+.pre-commit-config.yaml

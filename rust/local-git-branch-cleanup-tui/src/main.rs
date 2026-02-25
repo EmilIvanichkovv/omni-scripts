@@ -89,11 +89,25 @@ fn main() -> Result<()> {
     }
 
     // Run TUI mode
-    run_tui_mode(branches, repo_path, trunk, args.force, args.dry_run, github_enabled)
+    run_tui_mode(
+        branches,
+        repo_path,
+        trunk,
+        args.force,
+        args.dry_run,
+        github_enabled,
+    )
 }
 
 /// Run the interactive TUI mode
-fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String, force_mode: bool, dry_run: bool, github_enabled: bool) -> Result<()> {
+fn run_tui_mode(
+    branches: Vec<git::BranchInfo>,
+    repo_path: String,
+    trunk: String,
+    force_mode: bool,
+    dry_run: bool,
+    github_enabled: bool,
+) -> Result<()> {
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -135,12 +149,19 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                     app.delete_selected_branches();
                                 } else {
                                     // Dry run: just log what would happen
-                                    let branches_to_preview: Vec<_> = app.get_selected_branches().iter().map(|b| b.name.clone()).collect();
+                                    let branches_to_preview: Vec<_> = app
+                                        .get_selected_branches()
+                                        .iter()
+                                        .map(|b| b.name.clone())
+                                        .collect();
                                     for branch_name in branches_to_preview {
                                         app.action_log.push(app::ActionLogEntry {
                                             branch_name: branch_name.clone(),
                                             success: true,
-                                            message: format!("[DRY RUN] Would delete: {}", branch_name),
+                                            message: format!(
+                                                "[DRY RUN] Would delete: {}",
+                                                branch_name
+                                            ),
                                         });
                                     }
                                     app.clear_selection();
@@ -233,118 +254,118 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 _ => {}
                             }
                         } else {
-                        match key.code {
-                            KeyCode::Char('q') => {
-                                app.quit();
-                            }
-                            KeyCode::Esc => {
-                                // If search query is active, clear it first
-                                if !app.search_query.is_empty() {
-                                    app.search_query.clear();
-                                    app.selected_index = 0;
-                                    app.scroll_offset = 0;
-                                } else {
+                            match key.code {
+                                KeyCode::Char('q') => {
                                     app.quit();
                                 }
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                app.select_next();
-                            }
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                app.select_prev();
-                            }
-                            KeyCode::Home | KeyCode::Char('g') => {
-                                // Go to top of list
-                                app.go_to_top();
-                            }
-                            KeyCode::End | KeyCode::Char('G') => {
-                                // Go to bottom of list
-                                app.go_to_bottom();
-                            }
-                            KeyCode::PageUp => {
-                                // Move up by one page
-                                app.page_up();
-                            }
-                            KeyCode::PageDown => {
-                                // Move down by one page
-                                app.page_down();
-                            }
-                            KeyCode::Char(' ') => {
-                                // Toggle selection of current branch (using filtered index)
-                                app.toggle_selection_at_cursor();
-                            }
-                            KeyCode::Char('a') => {
-                                // Select all safe branches
-                                app.select_all_safe();
-                            }
-                            KeyCode::Char('c') => {
-                                // Clear selection
-                                app.clear_selection();
-                            }
-                            KeyCode::Char('f') => {
-                                // Toggle force mode
-                                app.force_mode = !app.force_mode;
-                                // Clear selection when toggling force mode
-                                app.clear_selection();
-                            }
-                            KeyCode::Char('d') => {
-                                // Toggle dry run mode
-                                app.dry_run = !app.dry_run;
-                            }
-                            KeyCode::Char('?') => {
-                                // Toggle help modal
-                                app.show_help = !app.show_help;
-                            }
-                            KeyCode::Char('i') => {
-                                // Toggle info modal
-                                app.show_info = !app.show_info;
-                            }
-                            KeyCode::Char('s') => {
-                                // Cycle sort mode
-                                app.cycle_sort_mode();
-                            }
-                            KeyCode::Char('/') => {
-                                // Enter search mode
-                                app.search_active = true;
-                            }
-                            KeyCode::Char('F') => {
-                                // Toggle filter bar visibility (Shift+F)
-                                app.show_filter = !app.show_filter;
-                            }
-                            KeyCode::Tab => {
-                                // Cycle to next filter
-                                app.next_filter();
-                            }
-                            KeyCode::Char('1') | KeyCode::F(1) => {
-                                // Safe merged filter
-                                app.set_filter(app::FilterMode::SafeMerged);
-                            }
-                            KeyCode::Char('2') | KeyCode::F(2) => {
-                                // Gone upstream filter
-                                app.set_filter(app::FilterMode::GoneUpstream);
-                            }
-                            KeyCode::Char('3') | KeyCode::F(3) => {
-                                // Unmerged filter
-                                app.set_filter(app::FilterMode::Unmerged);
-                            }
-                            KeyCode::Char('4') | KeyCode::F(4) => {
-                                // All branches filter
-                                app.set_filter(app::FilterMode::All);
-                            }
-                            KeyCode::Char('o') => {
-                                // Open PR URL in browser (if GitHub integration enabled and PR exists)
-                                if app.github_enabled {
-                                    app.open_selected_pr();
+                                KeyCode::Esc => {
+                                    // If search query is active, clear it first
+                                    if !app.search_query.is_empty() {
+                                        app.search_query.clear();
+                                        app.selected_index = 0;
+                                        app.scroll_offset = 0;
+                                    } else {
+                                        app.quit();
+                                    }
                                 }
-                            }
-                            KeyCode::Enter => {
-                                // Show confirmation if branches are selected
-                                if app.selected_count() > 0 {
-                                    app.show_confirmation = true;
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    app.select_next();
                                 }
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    app.select_prev();
+                                }
+                                KeyCode::Home | KeyCode::Char('g') => {
+                                    // Go to top of list
+                                    app.go_to_top();
+                                }
+                                KeyCode::End | KeyCode::Char('G') => {
+                                    // Go to bottom of list
+                                    app.go_to_bottom();
+                                }
+                                KeyCode::PageUp => {
+                                    // Move up by one page
+                                    app.page_up();
+                                }
+                                KeyCode::PageDown => {
+                                    // Move down by one page
+                                    app.page_down();
+                                }
+                                KeyCode::Char(' ') => {
+                                    // Toggle selection of current branch (using filtered index)
+                                    app.toggle_selection_at_cursor();
+                                }
+                                KeyCode::Char('a') => {
+                                    // Select all safe branches
+                                    app.select_all_safe();
+                                }
+                                KeyCode::Char('c') => {
+                                    // Clear selection
+                                    app.clear_selection();
+                                }
+                                KeyCode::Char('f') => {
+                                    // Toggle force mode
+                                    app.force_mode = !app.force_mode;
+                                    // Clear selection when toggling force mode
+                                    app.clear_selection();
+                                }
+                                KeyCode::Char('d') => {
+                                    // Toggle dry run mode
+                                    app.dry_run = !app.dry_run;
+                                }
+                                KeyCode::Char('?') => {
+                                    // Toggle help modal
+                                    app.show_help = !app.show_help;
+                                }
+                                KeyCode::Char('i') => {
+                                    // Toggle info modal
+                                    app.show_info = !app.show_info;
+                                }
+                                KeyCode::Char('s') => {
+                                    // Cycle sort mode
+                                    app.cycle_sort_mode();
+                                }
+                                KeyCode::Char('/') => {
+                                    // Enter search mode
+                                    app.search_active = true;
+                                }
+                                KeyCode::Char('F') => {
+                                    // Toggle filter bar visibility (Shift+F)
+                                    app.show_filter = !app.show_filter;
+                                }
+                                KeyCode::Tab => {
+                                    // Cycle to next filter
+                                    app.next_filter();
+                                }
+                                KeyCode::Char('1') | KeyCode::F(1) => {
+                                    // Safe merged filter
+                                    app.set_filter(app::FilterMode::SafeMerged);
+                                }
+                                KeyCode::Char('2') | KeyCode::F(2) => {
+                                    // Gone upstream filter
+                                    app.set_filter(app::FilterMode::GoneUpstream);
+                                }
+                                KeyCode::Char('3') | KeyCode::F(3) => {
+                                    // Unmerged filter
+                                    app.set_filter(app::FilterMode::Unmerged);
+                                }
+                                KeyCode::Char('4') | KeyCode::F(4) => {
+                                    // All branches filter
+                                    app.set_filter(app::FilterMode::All);
+                                }
+                                KeyCode::Char('o') => {
+                                    // Open PR URL in browser (if GitHub integration enabled and PR exists)
+                                    if app.github_enabled {
+                                        app.open_selected_pr();
+                                    }
+                                }
+                                KeyCode::Enter => {
+                                    // Show confirmation if branches are selected
+                                    if app.selected_count() > 0 {
+                                        app.show_confirmation = true;
+                                    }
+                                }
+                                _ => {}
                             }
-                            _ => {}
-                        }
                         }
                     }
                 }
@@ -365,9 +386,15 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
 }
 
 /// Run the CLI mode (non-interactive)
-fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run: bool, github_enabled: bool) -> Result<()> {
+fn run_cli_mode(
+    branches: &[git::BranchInfo],
+    trunk: &str,
+    force: bool,
+    dry_run: bool,
+    github_enabled: bool,
+) -> Result<()> {
     println!("🌳 Trunk branch: {}", trunk);
-    
+
     // Show mode indicators
     if force {
         println!("⚠️  FORCE MODE: Will force-delete unmerged branches");
@@ -378,7 +405,7 @@ fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run:
     if github_enabled {
         println!("🔗 GitHub PR integration enabled");
     }
-    
+
     println!();
 
     // Print header
@@ -425,7 +452,11 @@ fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run:
         };
         let line = format!(
             "   {} {:30} [{:>12}] {}{}",
-            if branch.status.is_deletable() { "[ ]" } else { "   " },
+            if branch.status.is_deletable() {
+                "[ ]"
+            } else {
+                "   "
+            },
             branch.name,
             branch.last_commit_relative,
             status_indicator,
@@ -567,7 +598,12 @@ fn print_centered(text: &str, width: usize) {
     // Strip ANSI codes for length calculation
     let text_len = text.chars().count();
     let padding = (width - 2 - text_len) / 2;
-    println!("│{}{:^width$}│", " ".repeat(padding), text, width = width - 2 - padding);
+    println!(
+        "│{}{:^width$}│",
+        " ".repeat(padding),
+        text,
+        width = width - 2 - padding
+    );
 }
 
 fn print_boxed_line(text: &str) {

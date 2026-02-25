@@ -1,0 +1,42 @@
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+
+  # All local hooks using Nix-provided tools
+  - repo: local
+    hooks:
+      # Rust formatting
+      - id: rustfmt
+        name: cargo fmt
+        entry: bash -lc 'cd rust && cargo fmt --all'
+        language: system
+        pass_filenames: false
+        files: '\.rs$'
+
+      - id: clippy
+        name: cargo clippy
+        entry: bash -lc 'cd rust && cargo clippy --all-targets --all-features -- -D warnings'
+        language: system
+        pass_filenames: false
+        files: '\.(rs|toml)$'
+
+      # Markdown formatting (using Nix-provided prettier)
+      - id: prettier
+        name: prettier
+        entry: prettier --write --prose-wrap always --print-width 100
+        language: system
+        types: [markdown]
+
+      # Markdown linting (using Nix-provided markdownlint)
+      - id: markdownlint
+        name: markdownlint
+        entry: markdownlint --fix
+        language: system
+        types: [markdown]

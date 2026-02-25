@@ -151,9 +151,7 @@ pub fn get_current_branch() -> Result<String> {
 
 /// Get current git user name from config
 pub fn get_current_git_user() -> Result<String> {
-    let output = Command::new("git")
-        .args(["config", "user.name"])
-        .output()?;
+    let output = Command::new("git").args(["config", "user.name"]).output()?;
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
@@ -174,13 +172,20 @@ pub fn get_default_branch(trunk_override: Option<&str>) -> Result<String> {
     if output.status.success() {
         let branch = String::from_utf8(output.stdout)?.trim().to_string();
         // Strip "origin/" prefix if present
-        return Ok(branch.strip_prefix("origin/").unwrap_or(&branch).to_string());
+        return Ok(branch
+            .strip_prefix("origin/")
+            .unwrap_or(&branch)
+            .to_string());
     }
 
     // Fallback: check if main or master exists
     for candidate in &["main", "master"] {
         let check = Command::new("git")
-            .args(["rev-parse", "--verify", &format!("refs/heads/{}", candidate)])
+            .args([
+                "rev-parse",
+                "--verify",
+                &format!("refs/heads/{}", candidate),
+            ])
             .output()?;
 
         if check.status.success() {
@@ -241,7 +246,12 @@ pub fn get_gone_branches() -> Result<Vec<String>> {
 /// Get ahead/behind counts for a branch relative to its upstream
 fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(Option<usize>, Option<usize>)> {
     let output = Command::new("git")
-        .args(["rev-list", "--left-right", "--count", &format!("{}...{}", branch, upstream)])
+        .args([
+            "rev-list",
+            "--left-right",
+            "--count",
+            &format!("{}...{}", branch, upstream),
+        ])
         .output()?;
 
     if !output.status.success() {
@@ -250,8 +260,8 @@ fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(Option<usize
 
     let counts = String::from_utf8(output.stdout)?.trim().to_string();
     let parts: Vec<&str> = counts.split_whitespace().collect();
-    
-    let ahead = parts.get(0).and_then(|s| s.parse().ok());
+
+    let ahead = parts.first().and_then(|s| s.parse().ok());
     let behind = parts.get(1).and_then(|s| s.parse().ok());
 
     Ok((ahead, behind))
@@ -327,7 +337,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
 
         let details_str = String::from_utf8(commit_details.stdout)?.trim().to_string();
         let details_parts: Vec<&str> = details_str.split('|').collect();
-        let last_commit_sha = details_parts.get(0).unwrap_or(&"").to_string();
+        let last_commit_sha = details_parts.first().unwrap_or(&"").to_string();
         let last_commit_author = details_parts.get(1).unwrap_or(&"").to_string();
         let last_commit_message = details_parts.get(2).unwrap_or(&"").to_string();
 
@@ -343,7 +353,12 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         // Get branch creation timestamp (first unique commit on branch, not on trunk)
         // This gives us when the branch was actually created/diverged from trunk
         let created_output = Command::new("git")
-            .args(["log", "--format=%ct|%an", "--reverse", &format!("{}..{}", trunk, branch)])
+            .args([
+                "log",
+                "--format=%ct|%an",
+                "--reverse",
+                &format!("{}..{}", trunk, branch),
+            ])
             .output()?;
         let created_info = String::from_utf8(created_output.stdout)?;
         let first_line = created_info.lines().next().unwrap_or("");
@@ -351,11 +366,11 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         let branch_created_timestamp = created_parts
             .first()
             .and_then(|s| s.trim().parse::<i64>().ok())
-            .unwrap_or(last_activity_timestamp);  // Fallback to last activity if no unique commits
+            .unwrap_or(last_activity_timestamp); // Fallback to last activity if no unique commits
         let branch_author = created_parts
             .get(1)
             .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| last_commit_author.clone());  // Fallback to last commit author
+            .unwrap_or_else(|| last_commit_author.clone()); // Fallback to last commit author
 
         // Get ahead/behind counts if there's an upstream
         let (ahead, behind) = if has_upstream && !is_gone {
@@ -365,13 +380,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         };
 
         // Determine branch status
-        let status = classify_branch(
-            branch,
-            &current_branch,
-            &trunk,
-            &merged_branches,
-            is_gone,
-        );
+        let status = classify_branch(branch, &current_branch, &trunk, &merged_branches, is_gone);
 
         branches.push(BranchInfo {
             name: branch.to_string(),
@@ -455,7 +464,10 @@ pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(color_eyre::eyre::eyre!("Failed to delete branch: {}", stderr.trim()));
+        return Err(color_eyre::eyre::eyre!(
+            "Failed to delete branch: {}",
+            stderr.trim()
+        ));
     }
 
     Ok(())
@@ -477,11 +489,16 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
     // gh pr list --head <branch> --json number,state,title,url --limit 1
     let output = Command::new("gh")
         .args([
-            "pr", "list",
-            "--head", branch_name,
-            "--json", "number,state,title,url",
-            "--limit", "1",
-            "--state", "all",  // Include open, closed, and merged PRs
+            "pr",
+            "list",
+            "--head",
+            branch_name,
+            "--json",
+            "number,state,title,url",
+            "--limit",
+            "1",
+            "--state",
+            "all", // Include open, closed, and merged PRs
         ])
         .output()
         .ok()?;
@@ -492,7 +509,7 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
 
     let json_str = String::from_utf8(output.stdout).ok()?;
     let json_str = json_str.trim();
-    
+
     // Parse JSON response (it's an array)
     // Example: [{"number":123,"state":"MERGED","title":"My PR","url":"https://..."}]
     if json_str.is_empty() || json_str == "[]" {
@@ -544,7 +561,7 @@ fn extract_json_string(json: &str, key: &str) -> Option<String> {
     let pattern = format!("\"{}\":\"", key);
     let start = json.find(&pattern)? + pattern.len();
     let rest = &json[start..];
-    
+
     // Find the closing quote, handling escaped quotes
     let mut end = 0;
     let mut chars = rest.chars().peekable();
@@ -559,7 +576,7 @@ fn extract_json_string(json: &str, key: &str) -> Option<String> {
             end += c.len_utf8();
         }
     }
-    
+
     Some(rest[..end].to_string())
 }
 
@@ -568,9 +585,11 @@ fn extract_json_number(json: &str, key: &str) -> Option<u64> {
     let pattern = format!("\"{}\":", key);
     let start = json.find(&pattern)? + pattern.len();
     let rest = &json[start..].trim_start();
-    
+
     // Extract digits until non-digit
-    let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
     rest[..end].parse().ok()
 }
 
@@ -578,25 +597,19 @@ fn extract_json_number(json: &str, key: &str) -> Option<u64> {
 pub fn open_url_in_browser(url: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open")
-            .arg(url)
-            .spawn()?;
+        Command::new("xdg-open").arg(url).spawn()?;
     }
-    
+
     #[cfg(target_os = "macos")]
     {
-        Command::new("open")
-            .arg(url)
-            .spawn()?;
+        Command::new("open").arg(url).spawn()?;
     }
-    
+
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .spawn()?;
+        Command::new("cmd").args(["/C", "start", "", url]).spawn()?;
     }
-    
+
     Ok(())
 }
 
@@ -654,7 +667,7 @@ mod tests {
     fn test_classify_branch_current() {
         let status = classify_branch(
             "feature/test",
-            "feature/test",  // current
+            "feature/test", // current
             "main",
             &["other-branch".to_string()],
             false,
@@ -664,22 +677,10 @@ mod tests {
 
     #[test]
     fn test_classify_branch_protected() {
-        let status = classify_branch(
-            "main",
-            "feature/test",
-            "main",
-            &[],
-            false,
-        );
+        let status = classify_branch("main", "feature/test", "main", &[], false);
         assert_eq!(status, BranchStatus::Protected);
 
-        let status2 = classify_branch(
-            "master",
-            "feature/test",
-            "main",
-            &[],
-            false,
-        );
+        let status2 = classify_branch("master", "feature/test", "main", &[], false);
         assert_eq!(status2, BranchStatus::Protected);
     }
 
@@ -690,7 +691,7 @@ mod tests {
             "main",
             "main",
             &[],
-            true,  // is_gone
+            true, // is_gone
         );
         assert_eq!(status, BranchStatus::GoneUpstream);
     }
@@ -698,25 +699,13 @@ mod tests {
     #[test]
     fn test_classify_branch_merged() {
         let merged = vec!["feature/done".to_string()];
-        let status = classify_branch(
-            "feature/done",
-            "main",
-            "main",
-            &merged,
-            false,
-        );
+        let status = classify_branch("feature/done", "main", "main", &merged, false);
         assert_eq!(status, BranchStatus::SafeMerged);
     }
 
     #[test]
     fn test_classify_branch_unmerged() {
-        let status = classify_branch(
-            "feature/wip",
-            "main",
-            "main",
-            &[],
-            false,
-        );
+        let status = classify_branch("feature/wip", "main", "main", &[], false);
         assert_eq!(status, BranchStatus::Unmerged);
     }
 
@@ -725,9 +714,9 @@ mod tests {
         // Current branch takes priority over protected
         let status = classify_branch(
             "main",
-            "main",  // current
+            "main", // current
             "main",
-            &["main".to_string()],  // also merged
+            &["main".to_string()], // also merged
             false,
         );
         assert_eq!(status, BranchStatus::Current);
@@ -735,9 +724,9 @@ mod tests {
         // Protected takes priority over merged
         let status2 = classify_branch(
             "main",
-            "feature/test",  // not current
-            "develop",  // trunk is something else
-            &["main".to_string()],  // merged
+            "feature/test",        // not current
+            "develop",             // trunk is something else
+            &["main".to_string()], // merged
             false,
         );
         assert_eq!(status2, BranchStatus::Protected);

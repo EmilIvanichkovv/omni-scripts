@@ -18,9 +18,9 @@ const COLOR_MUTED: Color = Color::Rgb(169, 177, 214); // #A9B1D6 - muted text
 const COLOR_SUCCESS: Color = Color::Rgb(80, 250, 123); // #50FA7B - green
 const COLOR_CURRENT: Color = Color::Rgb(189, 147, 249); // #BD93F9 - purple
 const COLOR_SELECTED: Color = Color::Rgb(255, 121, 198); // #FF79C6 - pink for selected
-// PR state colors
+                                                         // PR state colors
 const COLOR_PR_OPEN: Color = Color::Rgb(255, 203, 107); // Yellow/amber for open PRs
-const COLOR_PR_MERGED: Color = Color::Rgb(80, 250, 123); // Green for merged PRs  
+const COLOR_PR_MERGED: Color = Color::Rgb(80, 250, 123); // Green for merged PRs
 const COLOR_PR_CLOSED: Color = Color::Rgb(255, 85, 85); // Red for closed PRs
 
 /// Render the TUI
@@ -221,11 +221,11 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         // Build styled spans for the search query
         let mut spans = vec![Span::styled("  ", Style::default())];
-        
+
         // Parse and style the search query with special handling for @commands
         let query = &app.search_query;
         let mut remaining = query.as_str();
-        
+
         while !remaining.is_empty() {
             if let Some(at_pos) = remaining.find('@') {
                 // Add text before @ as normal
@@ -235,9 +235,9 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
                         Style::default().fg(Color::White),
                     ));
                 }
-                
+
                 remaining = &remaining[at_pos..];
-                
+
                 // Check for @author: pattern
                 let lower = remaining.to_lowercase();
                 if lower.starts_with("@author:") {
@@ -246,48 +246,33 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
                         "@author:",
                         Style::default().fg(COLOR_SELECTED), // Pink color for special commands
                     ));
-                    
+
                     let after_colon = &remaining[8..]; // Skip "@author:"
-                    
+
                     // Check if value is quoted
-                    if after_colon.starts_with('"') {
+                    if let Some(content) = after_colon.strip_prefix('"') {
                         // Find closing quote
-                        let content = &after_colon[1..];
                         if let Some(close_quote) = content.find('"') {
                             // Style opening quote
-                            spans.push(Span::styled(
-                                "\"",
-                                Style::default().fg(COLOR_MUTED),
-                            ));
+                            spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
                             // Style author name in accent color
                             spans.push(Span::styled(
                                 &content[..close_quote],
                                 Style::default().fg(COLOR_ACCENT),
                             ));
                             // Style closing quote
-                            spans.push(Span::styled(
-                                "\"",
-                                Style::default().fg(COLOR_MUTED),
-                            ));
+                            spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
                             remaining = &after_colon[close_quote + 2..]; // Skip content + both quotes
                         } else {
                             // No closing quote yet (user still typing)
-                            spans.push(Span::styled(
-                                "\"",
-                                Style::default().fg(COLOR_MUTED),
-                            ));
-                            spans.push(Span::styled(
-                                content,
-                                Style::default().fg(COLOR_ACCENT),
-                            ));
+                            spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
+                            spans.push(Span::styled(content, Style::default().fg(COLOR_ACCENT)));
                             remaining = "";
                         }
                     } else {
                         // Unquoted value - find end at space
-                        let value_end = after_colon
-                            .find(' ')
-                            .unwrap_or(after_colon.len());
-                        
+                        let value_end = after_colon.find(' ').unwrap_or(after_colon.len());
+
                         if value_end > 0 {
                             spans.push(Span::styled(
                                 &after_colon[..value_end],
@@ -302,30 +287,27 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
                         .find(|c: char| c.is_whitespace() || c == ':')
                         .map(|p| p + 1)
                         .unwrap_or(remaining.len());
-                    
+
                     spans.push(Span::styled(
                         &remaining[..cmd_end],
                         Style::default().fg(COLOR_SELECTED),
                     ));
-                    
+
                     remaining = &remaining[cmd_end..];
                 }
             } else {
                 // No more @ symbols, add rest as normal text
-                spans.push(Span::styled(
-                    remaining,
-                    Style::default().fg(Color::White),
-                ));
+                spans.push(Span::styled(remaining, Style::default().fg(Color::White)));
                 break;
             }
         }
-        
+
         spans.push(Span::styled(cursor, Style::default().fg(COLOR_ACCENT)));
         spans.push(Span::styled(
             format!("  ({} matches)", match_count),
             Style::default().fg(COLOR_MUTED),
         ));
-        
+
         Line::from(spans)
     };
 
@@ -353,28 +335,33 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 /// Render the autocomplete suggestions dropdown
-fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, _show_filter: bool) {
+fn render_suggestions_dropdown(
+    frame: &mut Frame,
+    app: &App,
+    show_search: bool,
+    _show_filter: bool,
+) {
     if app.suggestions.is_empty() {
         return;
     }
 
     let area = frame.area();
-    
+
     // Calculate position: below the search box
     // Header is 3 lines, search box is 3 lines (if shown)
     let y_offset = 3 + if show_search { 3 } else { 0 };
-    
+
     // Calculate available space for dropdown
     let available_height = area.height.saturating_sub(y_offset as u16 + 2); // Reserve some space at bottom
-    
+
     // Calculate how many items we can show (accounting for borders and potential "..." indicators)
     let total_suggestions = app.suggestions.len();
     let max_visible_items = (available_height.saturating_sub(2)) as usize; // -2 for borders
     let visible_items = max_visible_items.min(total_suggestions);
-    
+
     // If we can show all items, no need for scrolling indicators
     let needs_scroll = total_suggestions > visible_items;
-    
+
     // Calculate scroll offset to keep selected item visible
     let selected_idx = app.suggestion_index.unwrap_or(0);
     let scroll_offset = if needs_scroll {
@@ -389,10 +376,10 @@ fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, 
     } else {
         0
     };
-    
+
     let dropdown_height = (visible_items + 2) as u16; // +2 for borders
     let dropdown_width = 40.min(area.width - 4);
-    
+
     // Position dropdown below the search box, aligned to the left with some padding
     let dropdown_area = Rect {
         x: 3,
@@ -411,41 +398,44 @@ fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, 
 
     // Build suggestion lines with scroll indicators
     let mut lines: Vec<Line> = Vec::new();
-    
+
     // Add "more above" indicator if needed
     let has_more_above = scroll_offset > 0;
     let has_more_below = scroll_offset + visible_items < total_suggestions;
-    
+
     // Calculate items to display (may be reduced by 1 or 2 for scroll indicators)
     let display_start = scroll_offset;
     let mut items_to_show = visible_items;
-    
+
     if has_more_above && items_to_show > 0 {
         items_to_show -= 1;
     }
     if has_more_below && items_to_show > 0 {
         items_to_show -= 1;
     }
-    
+
     // Add "↑ more" indicator
     if has_more_above {
         lines.push(Line::from(Span::styled(
             format!("  ↑ {} more above", scroll_offset),
-            Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(COLOR_MUTED)
+                .add_modifier(Modifier::ITALIC),
         )));
     }
-    
+
     // Add visible suggestions
-    for (display_idx, suggestion) in app.suggestions
+    for (display_idx, suggestion) in app
+        .suggestions
         .iter()
-        .skip(display_start + if has_more_above { 0 } else { 0 })
+        .skip(display_start)
         .take(items_to_show + if has_more_above { 1 } else { 0 })
         .enumerate()
     {
         let actual_idx = display_start + display_idx;
         let is_selected = app.suggestion_index == Some(actual_idx);
         let prefix = if is_selected { "▸ " } else { "  " };
-        
+
         // Determine if this is a command or an author
         let display_text = if suggestion == "author" {
             format!("{}@{}:", prefix, suggestion)
@@ -454,7 +444,7 @@ fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, 
         } else {
             format!("{}@author:{}", prefix, suggestion)
         };
-        
+
         let style = if is_selected {
             Style::default()
                 .fg(Color::Black)
@@ -463,16 +453,19 @@ fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, 
         } else {
             Style::default().fg(Color::White)
         };
-        
+
         lines.push(Line::from(Span::styled(display_text, style)));
     }
-    
+
     // Add "↓ more" indicator
     if has_more_below {
-        let remaining = total_suggestions - (scroll_offset + items_to_show + if has_more_above { 1 } else { 0 });
+        let remaining = total_suggestions
+            - (scroll_offset + items_to_show + if has_more_above { 1 } else { 0 });
         lines.push(Line::from(Span::styled(
             format!("  ↓ {} more below", remaining),
-            Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(COLOR_MUTED)
+                .add_modifier(Modifier::ITALIC),
         )));
     }
 
@@ -487,7 +480,11 @@ fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, 
             .borders(Borders::ALL)
             .border_style(Style::default().fg(COLOR_ACCENT))
             .title(title)
-            .title_style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+            .title_style(
+                Style::default()
+                    .fg(COLOR_ACCENT)
+                    .add_modifier(Modifier::BOLD),
+            ),
     );
 
     frame.render_widget(dropdown, dropdown_area);
@@ -525,16 +522,14 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     } else {
         vec!["", "☑", "Branch", "Last Commit", "Status"]
     };
-    
-    let header_cells = header_labels
-        .iter()
-        .map(|h| {
-            Cell::from(*h).style(
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            )
-        });
+
+    let header_cells = header_labels.iter().map(|h| {
+        Cell::from(*h).style(
+            Style::default()
+                .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        )
+    });
     let header = Row::new(header_cells).height(1);
 
     // Create table rows from filtered branches
@@ -606,7 +601,10 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 let (pr_text, pr_style) = match &branch.pr_info {
                     Some(pr) => {
                         let color = get_pr_state_color(&pr.state);
-                        (format!("{} #{}", pr.state.icon(), pr.number), Style::default().fg(color))
+                        (
+                            format!("{} #{}", pr.state.icon(), pr.number),
+                            Style::default().fg(color),
+                        )
                     }
                     None => ("⚪".to_string(), Style::default().fg(COLOR_MUTED)),
                 };
@@ -863,7 +861,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                         .fg(COLOR_MUTED)
                         .add_modifier(Modifier::BOLD),
                 )]));
-                
+
                 // PR number and state
                 lines.push(Line::from(vec![
                     Span::styled("  ", Style::default()),
@@ -872,10 +870,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                         Style::default().fg(get_pr_state_color(&pr.state)),
                     ),
                     Span::styled(" PR #", Style::default().fg(COLOR_MUTED)),
-                    Span::styled(
-                        format!("{}", pr.number),
-                        Style::default().fg(COLOR_ACCENT),
-                    ),
+                    Span::styled(format!("{}", pr.number), Style::default().fg(COLOR_ACCENT)),
                     Span::styled(" (", Style::default().fg(COLOR_MUTED)),
                     Span::styled(
                         pr.state.label(),
@@ -1120,13 +1115,19 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         let mut spans = key_hints.spans;
         // Insert "o pr" before the quit
         let quit_idx = spans.len() - 2; // Position before "q" and " quit"
-        spans.insert(quit_idx, Span::styled(
-            "o",
-            Style::default()
-                .fg(COLOR_PR_MERGED)
-                .add_modifier(Modifier::BOLD),
-        ));
-        spans.insert(quit_idx + 1, Span::styled(" pr  ", Style::default().fg(COLOR_MUTED)));
+        spans.insert(
+            quit_idx,
+            Span::styled(
+                "o",
+                Style::default()
+                    .fg(COLOR_PR_MERGED)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        );
+        spans.insert(
+            quit_idx + 1,
+            Span::styled(" pr  ", Style::default().fg(COLOR_MUTED)),
+        );
         Line::from(spans)
     } else {
         key_hints
@@ -1215,8 +1216,8 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     lines.push(Line::from(""));
 
     // Show branch names (up to 3)
-    for (i, branch) in selected_branches.iter().take(3).enumerate() {
-        let prefix = if i == 0 { "  • " } else { "  • " };
+    for branch in selected_branches.iter().take(3) {
+        let prefix = "  • ";
         lines.push(Line::from(vec![
             Span::styled(prefix, Style::default().fg(COLOR_MUTED)),
             Span::styled(&branch.name, Style::default().fg(COLOR_ACCENT)),

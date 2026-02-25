@@ -1,14 +1,20 @@
-{ lib, stdenvNoCC, makeWrapper, git, bash }:
+{
+  lib,
+  stdenvNoCC,
+  makeWrapper,
+  git,
+  bash,
+}:
 
 stdenvNoCC.mkDerivation rec {
   pname = "local-git-branch-cleanup";
   version = "0.1.0";
 
   src = lib.fileset.toSource {
-    root = ../../bash;
+    root = ../../../bash;
     fileset = lib.fileset.unions [
-      ../../bash/local-git-branch-cleanup.sh
-      ../../bash/utils
+      ../../../bash/local-git-branch-cleanup.sh
+      ../../../bash/utils
     ];
   };
 

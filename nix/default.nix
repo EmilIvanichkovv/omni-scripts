@@ -1,0 +1,7 @@
+{ lib, ... }:
+{
+  imports = [
+    ./shells
+    ./pkgs
+  ];
+}

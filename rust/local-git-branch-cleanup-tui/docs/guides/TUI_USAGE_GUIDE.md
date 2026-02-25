@@ -52,6 +52,25 @@ The TUI is divided into several sections:
 
 The active filter tab is highlighted in cyan, and each tab displays the branch count for that category.
 
+### Search
+
+| Key | Action |
+|-----|--------|
+| `/` | Start search mode |
+| `Esc` | Exit search and clear query |
+| `Enter` | Exit search and keep filter active |
+
+**Search Syntax:**
+
+| Syntax | Description |
+|--------|-------------|
+| `feature` | Filter branches containing "feature" in name |
+| `@author:john` | Filter by branch author containing "john" |
+| `@author:me` | Filter by your branches (current git user) |
+| `feature @author:john` | Combine name and author filters |
+
+When search is active, the search box appears below the filters. The search is case-insensitive.
+
 ### Sorting Branches
 
 | Key | Action |

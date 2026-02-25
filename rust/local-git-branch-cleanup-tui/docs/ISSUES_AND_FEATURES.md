@@ -129,28 +129,35 @@ _No open critical issues._
 ### Issue #10: Add filter by branch creator/author
 
 - **GitHub:** [#22](https://github.com/EmilIvanichkovv/omni-scripts/issues/22)
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-25
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to filter branches by their creator (the author of the first commit on the branch)
   - Useful in team environments to quickly find and manage your own branches
 - **Expected Behavior:**
-  - Add a keyboard shortcut (e.g., `a` for author) to open author filter
-  - Display a list of unique branch authors to select from, or allow typing author name
-  - Option to filter by "my branches" (current git user)
-  - Show filtered results with indicator of active filter
-  - Clear filter option (e.g., press shortcut again or `Esc`)
+  - Integrate author filtering into existing search functionality using `@author:` prefix
+  - User presses `/` to open search, then types `@author:` to initiate author search
+  - Search syntax examples:
+    - `@author:john` - filter by author name containing "john"
+    - `@author:me` - special keyword to filter by current git user
+  - Can combine with branch name search: `feature @author:john`
+  - Show filtered results with indicator of active author filter
+  - Clear filter by removing `@author:` from search or pressing `Esc`
 - **Actual Behavior:**
   - No filtering by author/creator available
   - Users must manually scan through all branches
-- **Suggested Fix:**
-  - Fetch branch author using `git log -1 --format=%an <branch>` or `git log -1 --format=%ae <branch>` for email
-  - Add `author_filter` field to App state (Option<String>)
-  - Collect unique authors when loading branches
-  - Add key handler to open author selection or toggle "my branches" filter
-  - Filter displayed branches based on selected author
-  - Show active filter in header/footer (e.g., "Filtered by: john@example.com")
+- **Fix:**
+  - Added `branch_author` field to `BranchInfo` struct in `git.rs`
+  - Fetched branch author via `git log --format=%ct|%an --reverse trunk..branch` (first commit author)
+  - Added `get_current_git_user()` function to get user from `git config user.name`
+  - Added `current_git_user` field to App state for `@author:me` support
+  - Implemented `parse_search_query()` method to extract `@author:` prefix from search
+  - Updated `filtered_branches()` to filter by author name (case-insensitive partial match)
+  - Support combining name search with author filter: `feature @author:john`
+  - Added help modal documentation for `@author:` syntax
+  - Added unit tests for author filtering functionality
 
 ---
 

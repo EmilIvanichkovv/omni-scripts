@@ -140,10 +140,28 @@ pub struct App {
     pub sort_mode: SortMode,
     /// Current git user name (for @author:me filter)
     pub current_git_user: String,
+    /// Unique branch authors for autocomplete
+    pub unique_authors: Vec<String>,
+    /// Current autocomplete suggestions
+    pub suggestions: Vec<String>,
+    /// Selected suggestion index (None if no suggestion selected)
+    pub suggestion_index: Option<usize>,
+    /// Whether to show suggestions dropdown
+    pub show_suggestions: bool,
 }
 
 impl App {
     pub fn new(branches: Vec<BranchInfo>, repo_path: String, trunk: String, current_git_user: String) -> Self {
+        // Collect unique branch authors for autocomplete
+        let mut unique_authors: Vec<String> = branches
+            .iter()
+            .map(|b| b.branch_author.clone())
+            .filter(|a| !a.is_empty())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        unique_authors.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+
         Self {
             branches,
             selected_index: 0,
@@ -165,6 +183,10 @@ impl App {
             visible_height: 0,
             sort_mode: SortMode::Status,
             current_git_user,
+            unique_authors,
+            suggestions: Vec::new(),
+            suggestion_index: None,
+            show_suggestions: false,
         }
     }
 
@@ -300,6 +322,7 @@ impl App {
 
     /// Parse search query into name filter and author filter
     /// Returns (name_query, Option<author_query>)
+    /// Supports quoted author names: @author:"Emil Ivanichkov"
     fn parse_search_query(&self) -> (String, Option<String>) {
         let query = self.search_query.to_lowercase();
         
@@ -308,9 +331,21 @@ impl App {
             let before_author = query[..author_idx].trim().to_string();
             let after_author = &query[author_idx + 8..]; // Skip "@author:"
             
-            // Find the end of author query (next space or end of string)
-            let author_end = after_author.find(' ').unwrap_or(after_author.len());
-            let author_value = after_author[..author_end].trim().to_string();
+            // Check if author value is quoted
+            let (author_value, author_end) = if after_author.starts_with('"') {
+                // Find closing quote
+                let content = &after_author[1..]; // Skip opening quote
+                if let Some(close_quote) = content.find('"') {
+                    (content[..close_quote].to_string(), close_quote + 2) // +2 for both quotes
+                } else {
+                    // No closing quote, treat rest as author (user still typing)
+                    (content.to_string(), after_author.len())
+                }
+            } else {
+                // Find the end of author query (next space or end of string)
+                let end = after_author.find(' ').unwrap_or(after_author.len());
+                (after_author[..end].trim().to_string(), end)
+            };
             
             // Get any remaining name query after author
             let remaining = if author_end < after_author.len() {
@@ -431,6 +466,127 @@ impl App {
                     .sort_by(|a, b| a.branch_created_timestamp.cmp(&b.branch_created_timestamp));
             }
         }
+    }
+
+    /// Update autocomplete suggestions based on current search query
+    pub fn update_suggestions(&mut self) {
+        let query = &self.search_query;
+        
+        // Available search commands
+        const SEARCH_COMMANDS: &[&str] = &["author"];
+        
+        // Check if we're at a point where we should show suggestions
+        if let Some(at_pos) = query.rfind('@') {
+            let after_at = &query[at_pos + 1..];
+            
+            // Check if we're typing a command (no colon yet)
+            if !after_at.contains(':') {
+                // Show command suggestions that match what's typed after @
+                self.suggestions = SEARCH_COMMANDS
+                    .iter()
+                    .filter(|cmd| cmd.to_lowercase().starts_with(&after_at.to_lowercase()))
+                    .map(|s| s.to_string())
+                    .collect();
+                self.show_suggestions = !self.suggestions.is_empty();
+                self.suggestion_index = if self.show_suggestions { Some(0) } else { None };
+                return;
+            }
+            
+            // Check if we have @author: and need to show author suggestions
+            if after_at.to_lowercase().starts_with("author:") {
+                let author_query = &after_at[7..]; // Skip "author:"
+                
+                // Build author suggestions including "me" as first option
+                let mut author_suggestions: Vec<String> = Vec::new();
+                
+                // Add "me" if it matches the query
+                if "me".starts_with(&author_query.to_lowercase()) {
+                    author_suggestions.push("me".to_string());
+                }
+                
+                // Add matching authors from unique_authors
+                for author in &self.unique_authors {
+                    if author.to_lowercase().starts_with(&author_query.to_lowercase()) 
+                       || author.to_lowercase().contains(&author_query.to_lowercase()) {
+                        author_suggestions.push(author.clone());
+                    }
+                }
+                
+                self.suggestions = author_suggestions;
+                self.show_suggestions = !self.suggestions.is_empty();
+                self.suggestion_index = if self.show_suggestions { Some(0) } else { None };
+                return;
+            }
+        }
+        
+        // No suggestions needed
+        self.suggestions.clear();
+        self.show_suggestions = false;
+        self.suggestion_index = None;
+    }
+
+    /// Move to next suggestion
+    pub fn suggestion_next(&mut self) {
+        if self.show_suggestions && !self.suggestions.is_empty() {
+            self.suggestion_index = Some(
+                self.suggestion_index
+                    .map(|i| (i + 1) % self.suggestions.len())
+                    .unwrap_or(0)
+            );
+        }
+    }
+
+    /// Move to previous suggestion
+    pub fn suggestion_prev(&mut self) {
+        if self.show_suggestions && !self.suggestions.is_empty() {
+            self.suggestion_index = Some(
+                self.suggestion_index
+                    .map(|i| if i == 0 { self.suggestions.len() - 1 } else { i - 1 })
+                    .unwrap_or(0)
+            );
+        }
+    }
+
+    /// Accept the currently selected suggestion
+    pub fn accept_suggestion(&mut self) -> bool {
+        if !self.show_suggestions || self.suggestions.is_empty() {
+            return false;
+        }
+        
+        let suggestion_idx = self.suggestion_index.unwrap_or(0);
+        if let Some(suggestion) = self.suggestions.get(suggestion_idx).cloned() {
+            let query = self.search_query.clone();
+            
+            if let Some(at_pos) = query.rfind('@') {
+                let after_at = &query[at_pos + 1..];
+                
+                // Accepting a command (no colon yet)
+                if !after_at.contains(':') {
+                    // Replace everything after @ with the command and add colon
+                    self.search_query = format!("{}@{}:", &query[..at_pos], suggestion);
+                } else if after_at.to_lowercase().starts_with("author:") {
+                    // Accepting an author name - wrap in quotes if contains space
+                    let formatted_author = if suggestion.contains(' ') {
+                        format!("\"{}\"", suggestion)
+                    } else {
+                        suggestion
+                    };
+                    self.search_query = format!("{}@author:{}", &query[..at_pos], formatted_author);
+                }
+            }
+            
+            // Update suggestions after accepting
+            self.update_suggestions();
+            return true;
+        }
+        
+        false
+    }
+
+    /// Hide suggestions dropdown
+    pub fn hide_suggestions(&mut self) {
+        self.show_suggestions = false;
+        self.suggestion_index = None;
     }
 
     /// Count of deletable branches
@@ -1025,5 +1181,160 @@ mod tests {
         let filtered = app.filtered_branches();
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].name, "alice-feature");
+    }
+
+    #[test]
+    fn test_unique_authors_collected() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("branch2", BranchStatus::SafeMerged, "Bob"),
+            create_test_branch_with_author("branch3", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("branch4", BranchStatus::SafeMerged, "Charlie"),
+        ];
+        let app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Should have 3 unique authors, sorted alphabetically
+        assert_eq!(app.unique_authors.len(), 3);
+        assert_eq!(app.unique_authors[0], "Alice");
+        assert_eq!(app.unique_authors[1], "Bob");
+        assert_eq!(app.unique_authors[2], "Charlie");
+    }
+
+    #[test]
+    fn test_suggestions_for_at_symbol() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @ - should show "author" command
+        app.search_query = "@".to_string();
+        app.update_suggestions();
+        assert!(app.show_suggestions);
+        assert_eq!(app.suggestions.len(), 1);
+        assert_eq!(app.suggestions[0], "author");
+    }
+
+    #[test]
+    fn test_suggestions_for_author_prefix() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("branch2", BranchStatus::SafeMerged, "Bob"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @author: - should show "me" and authors
+        app.search_query = "@author:".to_string();
+        app.update_suggestions();
+        assert!(app.show_suggestions);
+        assert!(app.suggestions.contains(&"me".to_string()));
+        assert!(app.suggestions.contains(&"Alice".to_string()));
+        assert!(app.suggestions.contains(&"Bob".to_string()));
+    }
+
+    #[test]
+    fn test_accept_command_suggestion() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @ and accept suggestion
+        app.search_query = "@".to_string();
+        app.update_suggestions();
+        app.accept_suggestion();
+        
+        // Should have @author: in query
+        assert_eq!(app.search_query, "@author:");
+    }
+
+    #[test]
+    fn test_accept_author_suggestion() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @author:a and accept Alice suggestion
+        app.search_query = "@author:a".to_string();
+        app.update_suggestions();
+        
+        // First suggestion after "me" should be Alice
+        if let Some(alice_idx) = app.suggestions.iter().position(|s| s == "Alice") {
+            app.suggestion_index = Some(alice_idx);
+            app.accept_suggestion();
+            assert_eq!(app.search_query, "@author:Alice");
+        }
+    }
+
+    #[test]
+    fn test_suggestion_navigation() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Alice"),
+            create_test_branch_with_author("branch2", BranchStatus::SafeMerged, "Bob"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @author: to get suggestions
+        app.search_query = "@author:".to_string();
+        app.update_suggestions();
+        
+        let initial_idx = app.suggestion_index;
+        assert_eq!(initial_idx, Some(0));
+        
+        // Navigate next
+        app.suggestion_next();
+        assert_eq!(app.suggestion_index, Some(1));
+        
+        // Navigate prev
+        app.suggestion_prev();
+        assert_eq!(app.suggestion_index, Some(0));
+        
+        // Navigate prev from 0 should wrap to end
+        app.suggestion_prev();
+        assert_eq!(app.suggestion_index, Some(app.suggestions.len() - 1));
+    }
+
+    #[test]
+    fn test_quoted_author_filter() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Emil Ivanichkov"),
+            create_test_branch_with_author("branch2", BranchStatus::SafeMerged, "Alice Smith"),
+            create_test_branch_with_author("branch3", BranchStatus::GoneUpstream, "Emil Ivanichkov"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Test quoted author filter with spaces
+        app.search_query = "@author:\"emil ivanichkov\"".to_string();
+        let filtered = app.filtered_branches();
+        assert_eq!(filtered.len(), 2);
+        assert!(filtered.iter().all(|b| b.branch_author.to_lowercase() == "emil ivanichkov"));
+
+        // Test that unquoted version only matches partial (Emil)
+        app.search_query = "@author:emil ivanichkov".to_string();
+        let filtered = app.filtered_branches();
+        // "ivanichkov" is treated as branch name filter, not part of author
+        // So it should match branches where author contains "emil" AND name contains "ivanichkov"
+        assert_eq!(filtered.len(), 0); // No branch name contains "ivanichkov"
+    }
+
+    #[test]
+    fn test_accept_suggestion_with_spaces() {
+        let branches = vec![
+            create_test_branch_with_author("branch1", BranchStatus::SafeMerged, "Emil Ivanichkov"),
+        ];
+        let mut app = App::new(branches, "/test/repo".to_string(), "main".to_string(), "Test".to_string());
+
+        // Type @author: and accept suggestion with spaces
+        app.search_query = "@author:".to_string();
+        app.update_suggestions();
+        
+        // Find Emil Ivanichkov in suggestions
+        if let Some(idx) = app.suggestions.iter().position(|s| s == "Emil Ivanichkov") {
+            app.suggestion_index = Some(idx);
+            app.accept_suggestion();
+            // Should be wrapped in quotes
+            assert_eq!(app.search_query, "@author:\"Emil Ivanichkov\"");
+        }
     }
 }

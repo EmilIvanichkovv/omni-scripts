@@ -144,31 +144,55 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 app.search_query.clear();
                                 app.selected_index = 0;
                                 app.scroll_offset = 0;
+                                app.hide_suggestions();
                             }
-                            KeyCode::Enter | KeyCode::Down => {
-                                // Exit search but keep the query filter active
-                                // Move focus to branch list for navigation/selection
-                                app.search_active = false;
-                                if key.code == KeyCode::Down {
+                            KeyCode::Tab => {
+                                // Accept suggestion if showing, otherwise ignore
+                                if app.show_suggestions {
+                                    app.accept_suggestion();
+                                }
+                            }
+                            KeyCode::Enter => {
+                                // Accept suggestion if showing, otherwise exit search
+                                if app.show_suggestions {
+                                    app.accept_suggestion();
+                                } else {
+                                    // Exit search but keep the query filter active
+                                    app.search_active = false;
+                                    app.hide_suggestions();
+                                }
+                            }
+                            KeyCode::Down => {
+                                // Navigate suggestions if showing, otherwise exit search
+                                if app.show_suggestions {
+                                    app.suggestion_next();
+                                } else {
+                                    app.search_active = false;
                                     app.select_next();
                                 }
                             }
                             KeyCode::Up => {
-                                // Exit search and navigate up
-                                app.search_active = false;
-                                app.select_prev();
+                                // Navigate suggestions if showing, otherwise exit search
+                                if app.show_suggestions {
+                                    app.suggestion_prev();
+                                } else {
+                                    app.search_active = false;
+                                    app.select_prev();
+                                }
                             }
                             KeyCode::Backspace => {
                                 // Remove last character
                                 app.search_query.pop();
                                 app.selected_index = 0;
                                 app.scroll_offset = 0;
+                                app.update_suggestions();
                             }
                             KeyCode::Char(c) => {
                                 // Add character to search query
                                 app.search_query.push(c);
                                 app.selected_index = 0;
                                 app.scroll_offset = 0;
+                                app.update_suggestions();
                             }
                             _ => {}
                         }

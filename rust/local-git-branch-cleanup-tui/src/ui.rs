@@ -88,6 +88,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         render_confirmation_modal(frame, app);
     }
 
+    // Render suggestions dropdown on top if shown (before help/info modals)
+    if app.show_suggestions && !app.suggestions.is_empty() {
+        render_suggestions_dropdown(frame, app, show_search, show_filter);
+    }
+
     // Render help modal on top if shown
     if app.show_help {
         render_help_modal(frame);
@@ -210,20 +215,114 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(COLOR_MUTED),
         )])
     } else {
-        Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled(
-                &app.search_query,
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(cursor, Style::default().fg(COLOR_ACCENT)),
-            Span::styled(
-                format!("  ({} matches)", match_count),
-                Style::default().fg(COLOR_MUTED),
-            ),
-        ])
+        // Build styled spans for the search query
+        let mut spans = vec![Span::styled("  ", Style::default())];
+        
+        // Parse and style the search query with special handling for @commands
+        let query = &app.search_query;
+        let mut remaining = query.as_str();
+        
+        while !remaining.is_empty() {
+            if let Some(at_pos) = remaining.find('@') {
+                // Add text before @ as normal
+                if at_pos > 0 {
+                    spans.push(Span::styled(
+                        &remaining[..at_pos],
+                        Style::default().fg(Color::White),
+                    ));
+                }
+                
+                remaining = &remaining[at_pos..];
+                
+                // Check for @author: pattern
+                let lower = remaining.to_lowercase();
+                if lower.starts_with("@author:") {
+                    // Style @author: in special color (magenta/pink)
+                    spans.push(Span::styled(
+                        "@author:",
+                        Style::default().fg(COLOR_SELECTED), // Pink color for special commands
+                    ));
+                    
+                    let after_colon = &remaining[8..]; // Skip "@author:"
+                    
+                    // Check if value is quoted
+                    if after_colon.starts_with('"') {
+                        // Find closing quote
+                        let content = &after_colon[1..];
+                        if let Some(close_quote) = content.find('"') {
+                            // Style opening quote
+                            spans.push(Span::styled(
+                                "\"",
+                                Style::default().fg(COLOR_MUTED),
+                            ));
+                            // Style author name in accent color
+                            spans.push(Span::styled(
+                                &content[..close_quote],
+                                Style::default().fg(COLOR_ACCENT),
+                            ));
+                            // Style closing quote
+                            spans.push(Span::styled(
+                                "\"",
+                                Style::default().fg(COLOR_MUTED),
+                            ));
+                            remaining = &after_colon[close_quote + 2..]; // Skip content + both quotes
+                        } else {
+                            // No closing quote yet (user still typing)
+                            spans.push(Span::styled(
+                                "\"",
+                                Style::default().fg(COLOR_MUTED),
+                            ));
+                            spans.push(Span::styled(
+                                content,
+                                Style::default().fg(COLOR_ACCENT),
+                            ));
+                            remaining = "";
+                        }
+                    } else {
+                        // Unquoted value - find end at space
+                        let value_end = after_colon
+                            .find(' ')
+                            .unwrap_or(after_colon.len());
+                        
+                        if value_end > 0 {
+                            spans.push(Span::styled(
+                                &after_colon[..value_end],
+                                Style::default().fg(COLOR_ACCENT),
+                            ));
+                        }
+                        remaining = &after_colon[value_end..];
+                    }
+                } else if lower.starts_with("@") && !lower.starts_with("@author:") {
+                    // Partial @ command being typed - style in special color
+                    let cmd_end = remaining[1..]
+                        .find(|c: char| c.is_whitespace() || c == ':')
+                        .map(|p| p + 1)
+                        .unwrap_or(remaining.len());
+                    
+                    spans.push(Span::styled(
+                        &remaining[..cmd_end],
+                        Style::default().fg(COLOR_SELECTED),
+                    ));
+                    
+                    remaining = &remaining[cmd_end..];
+                }
+            } else {
+                // No more @ symbols, add rest as normal text
+                spans.push(Span::styled(
+                    remaining,
+                    Style::default().fg(Color::White),
+                ));
+                break;
+            }
+        }
+        
+        spans.push(Span::styled(cursor, Style::default().fg(COLOR_ACCENT)));
+        spans.push(Span::styled(
+            format!("  ({} matches)", match_count),
+            Style::default().fg(COLOR_MUTED),
+        ));
+        
+        Line::from(spans)
     };
 
     let border_color = if app.search_active {
@@ -247,6 +346,147 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     );
 
     frame.render_widget(search_box, area);
+}
+
+/// Render the autocomplete suggestions dropdown
+fn render_suggestions_dropdown(frame: &mut Frame, app: &App, show_search: bool, _show_filter: bool) {
+    if app.suggestions.is_empty() {
+        return;
+    }
+
+    let area = frame.area();
+    
+    // Calculate position: below the search box
+    // Header is 3 lines, search box is 3 lines (if shown)
+    let y_offset = 3 + if show_search { 3 } else { 0 };
+    
+    // Calculate available space for dropdown
+    let available_height = area.height.saturating_sub(y_offset as u16 + 2); // Reserve some space at bottom
+    
+    // Calculate how many items we can show (accounting for borders and potential "..." indicators)
+    let total_suggestions = app.suggestions.len();
+    let max_visible_items = (available_height.saturating_sub(2)) as usize; // -2 for borders
+    let visible_items = max_visible_items.min(total_suggestions);
+    
+    // If we can show all items, no need for scrolling indicators
+    let needs_scroll = total_suggestions > visible_items;
+    
+    // Calculate scroll offset to keep selected item visible
+    let selected_idx = app.suggestion_index.unwrap_or(0);
+    let scroll_offset = if needs_scroll {
+        // Keep selected item in view with some context
+        if selected_idx < visible_items / 2 {
+            0
+        } else if selected_idx >= total_suggestions.saturating_sub(visible_items / 2) {
+            total_suggestions.saturating_sub(visible_items)
+        } else {
+            selected_idx.saturating_sub(visible_items / 2)
+        }
+    } else {
+        0
+    };
+    
+    let dropdown_height = (visible_items + 2) as u16; // +2 for borders
+    let dropdown_width = 40.min(area.width - 4);
+    
+    // Position dropdown below the search box, aligned to the left with some padding
+    let dropdown_area = Rect {
+        x: 3,
+        y: y_offset as u16,
+        width: dropdown_width,
+        height: dropdown_height,
+    };
+
+    // Ensure dropdown doesn't go off screen
+    if dropdown_area.y + dropdown_area.height > area.height {
+        return;
+    }
+
+    // Clear the area behind the dropdown
+    frame.render_widget(Clear, dropdown_area);
+
+    // Build suggestion lines with scroll indicators
+    let mut lines: Vec<Line> = Vec::new();
+    
+    // Add "more above" indicator if needed
+    let has_more_above = scroll_offset > 0;
+    let has_more_below = scroll_offset + visible_items < total_suggestions;
+    
+    // Calculate items to display (may be reduced by 1 or 2 for scroll indicators)
+    let display_start = scroll_offset;
+    let mut items_to_show = visible_items;
+    
+    if has_more_above && items_to_show > 0 {
+        items_to_show -= 1;
+    }
+    if has_more_below && items_to_show > 0 {
+        items_to_show -= 1;
+    }
+    
+    // Add "↑ more" indicator
+    if has_more_above {
+        lines.push(Line::from(Span::styled(
+            format!("  ↑ {} more above", scroll_offset),
+            Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC),
+        )));
+    }
+    
+    // Add visible suggestions
+    for (display_idx, suggestion) in app.suggestions
+        .iter()
+        .skip(display_start + if has_more_above { 0 } else { 0 })
+        .take(items_to_show + if has_more_above { 1 } else { 0 })
+        .enumerate()
+    {
+        let actual_idx = display_start + display_idx;
+        let is_selected = app.suggestion_index == Some(actual_idx);
+        let prefix = if is_selected { "▸ " } else { "  " };
+        
+        // Determine if this is a command or an author
+        let display_text = if suggestion == "author" {
+            format!("{}@{}:", prefix, suggestion)
+        } else if suggestion == "me" {
+            format!("{}@author:{} (your branches)", prefix, suggestion)
+        } else {
+            format!("{}@author:{}", prefix, suggestion)
+        };
+        
+        let style = if is_selected {
+            Style::default()
+                .fg(Color::Black)
+                .bg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        
+        lines.push(Line::from(Span::styled(display_text, style)));
+    }
+    
+    // Add "↓ more" indicator
+    if has_more_below {
+        let remaining = total_suggestions - (scroll_offset + items_to_show + if has_more_above { 1 } else { 0 });
+        lines.push(Line::from(Span::styled(
+            format!("  ↓ {} more below", remaining),
+            Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC),
+        )));
+    }
+
+    let title = if app.search_query.contains("@author:") {
+        " Authors ".to_string()
+    } else {
+        " Commands ".to_string()
+    };
+
+    let dropdown = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(COLOR_ACCENT))
+            .title(title)
+            .title_style(Style::default().fg(COLOR_ACCENT).add_modifier(Modifier::BOLD)),
+    );
+
+    frame.render_widget(dropdown, dropdown_area);
 }
 
 /// Render the branch list as a table
@@ -941,7 +1181,7 @@ fn render_help_modal(frame: &mut Frame) {
 
     // Calculate modal size (larger for help content)
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 48.min(area.height - 4);
+    let modal_height = 50.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1046,6 +1286,18 @@ fn render_help_modal(frame: &mut Frame) {
             ),
             Span::styled(
                 "    Filter by your branches",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    Tab / Enter",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "   Accept autocomplete suggestion",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),

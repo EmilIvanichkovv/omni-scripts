@@ -27,6 +27,7 @@ _Coming soon: Video demonstration of the TUI in action_
   - ! **Unmerged** - Has commits not in trunk (requires `--force`)
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
   - ◉ **Current** - Currently checked out branch
+- **Flexible Sorting** - Sort branches by status, name, activity, or creation date
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -148,6 +149,7 @@ ln -s $(pwd)/target/release/local-git-branch-cleanup-tui ~/.local/bin/
 | `a`                | Select all safe branches            |
 | `c`                | Clear selections                    |
 | `1`-`4` or `Tab`   | Switch filter tabs                  |
+| `s`                | Cycle sort mode                     |
 | `f`                | Toggle force mode                   |
 | `d`                | Toggle dry run mode                 |
 | `Enter`            | Delete selected (with confirmation) |

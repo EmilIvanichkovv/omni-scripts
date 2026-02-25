@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-02-13 18:55
+**Last Updated:** 2026-02-25 13:15
 
 ---
 
@@ -92,8 +92,9 @@ _No open critical issues._
 ### Issue #9: Add ability to sort branches by creation date
 
 - **GitHub:** [#21](https://github.com/EmilIvanichkovv/omni-scripts/issues/21)
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-25
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to sort branches by their creation date/time
@@ -108,12 +109,20 @@ _No open critical issues._
 - **Actual Behavior:**
   - Branches are only displayed in default order (alphabetical or git's default)
   - No sorting options available
-- **Suggested Fix:**
-  - Add `sort_mode` field to App state (enum: Name, NewestFirst, OldestFirst)
-  - Fetch branch creation date using `git log -1 --format=%ci <branch>`
-  - Add key handler to cycle through sort modes
-  - Display current sort mode in footer or header
-  - Re-sort branch list when mode changes
+- **Fix:**
+  - Added `SortMode` enum to `app.rs` with 6 variants:
+    - `Status` (default) - sort by branch status type
+    - `Name` - alphabetical by branch name
+    - `ActivityNewest` / `ActivityOldest` - sort by last commit date (Active ↓/↑)
+    - `CreatedNewest` / `CreatedOldest` - sort by branch creation date (Created ↓/↑)
+  - Added `last_activity_timestamp` field (last commit on branch)
+  - Added `branch_created_timestamp` field (first unique commit, fetched via `git log --format=%ct --reverse trunk..branch`)
+  - Added `sort_mode` field to App state
+  - Added `cycle_sort_mode()` and `sort_branches()` methods to App
+  - Added `s` key handler to cycle through sort modes
+  - Footer shows `s sort` shortcut (no highlight on activation)
+  - Header shows sort indicator (🔀) with current mode when not using default
+  - Help modal updated with sorting section
 
 ---
 
@@ -342,3 +351,4 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |
 | 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
 | 2026-02-13 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |
+| 2026-02-25 | 13:15 | #9    | Resolved: Added sort by date with 's' key (Status/Name/Newest/Oldest)  |

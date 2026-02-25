@@ -137,6 +137,21 @@ pub enum BranchStatus {
     Current,         // Currently checked out
 }
 
+/// Pull Request state (GitHub integration)
+pub enum PrState {
+    Open,            // PR is open
+    Merged,          // PR was merged
+    Closed,          // PR was closed without merging
+}
+
+/// Pull Request information
+pub struct PrInfo {
+    pub number: u64,
+    pub state: PrState,
+    pub title: String,
+    pub url: String,
+}
+
 /// Complete branch information
 pub struct BranchInfo {
     pub name: String,
@@ -148,6 +163,7 @@ pub struct BranchInfo {
     pub commit_message: String,
     pub ahead: Option<usize>,
     pub behind: Option<usize>,
+    pub pr_info: Option<PrInfo>,  // GitHub PR info (when --github enabled)
 }
 ```
 
@@ -170,6 +186,11 @@ pub fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(usize, u
 
 // Branch operations
 pub fn delete_branch(name: &str, force: bool) -> Result<String>
+
+// GitHub PR integration (requires gh CLI)
+pub fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
+pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo])
+pub fn open_url_in_browser(url: &str) -> Result<()>
 ```
 
 **Git Command Usage:**
@@ -184,8 +205,8 @@ pub fn delete_branch(name: &str, force: bool) -> Result<String>
 | Gone check | Parse `[gone]` from `git for-each-ref` |
 | Commit info | `git log -1 --format="%cr\|%h\|%an\|%s"` |
 | Ahead/behind | `git rev-list --left-right --count <branch>...<upstream>` |
-| Delete | `git branch -d/-D <branch>` |
-
+| Delete | `git branch -d/-D <branch>` || PR info (GitHub) | `gh pr list --head <branch> --json number,state,title,url` |
+| Open URL | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows) |
 **Classification Logic:**
 
 ```

@@ -175,8 +175,9 @@ _No open critical issues._
 ### Issue #11: Show GitHub PR association for branches
 
 - **GitHub:** [#23](https://github.com/EmilIvanichkovv/omni-scripts/issues/23)
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
+- **Resolved:** 2026-02-25
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to see if a branch has an associated Pull Request on GitHub
@@ -193,17 +194,34 @@ _No open critical issues._
 - **Actual Behavior:**
   - No GitHub integration
   - Users must manually check GitHub for PR status
-- **Suggested Fix:**
-  - Use GitHub CLI (`gh pr list --head <branch>`) or GitHub API to fetch PR info
-  - Add optional `--github` flag to enable PR fetching (may slow startup)
-  - Cache PR data to avoid repeated API calls
-  - Add `pr_info` field to Branch struct: `Option<PrInfo>` with number, state, title, url
-  - Display PR indicator in branch list table
-  - Add key handler to open PR URL in default browser
+- **Fix:**
+  - Added `--github` / `-g` CLI flag to enable GitHub PR integration
+  - Added `PrState` enum with variants: `Open`, `Merged`, `Closed`
+  - Added `PrInfo` struct with fields: `number`, `state`, `title`, `url`
+  - Added `pr_info: Option<PrInfo>` field to `BranchInfo` struct
+  - Implemented `get_pr_info_for_branch()` using GitHub CLI (`gh pr list --head <branch> --json`)
+  - Implemented `fetch_pr_info_for_branches()` to batch fetch PR info for all branches
+  - **Branch list table:**
+    - Added PR column showing: 🟢 merged, 🟡 open, 🔴 closed, ⚪ none
+    - Only shown when `--github` flag is enabled
+  - **Details pane:**
+    - Shows PR number, state, and title when branch has associated PR
+    - Shows "Press `o` to open in browser" hint
+    - Shows "Pull Request: none" when no PR exists
+  - **Keyboard shortcut:**
+    - `o` key opens PR URL in default browser (Linux: xdg-open, macOS: open, Windows: start)
+  - **Legend updated:**
+    - Shows PR status icons when GitHub integration enabled
+  - **Help modal updated:**
+    - Added "GitHub Integration" section with `o` shortcut documentation
+  - **Footer updated:**
+    - Shows `o pr` hint when GitHub integration is enabled
+  - **CLI mode:**
+    - Shows PR indicator next to branch status when `--github` flag is enabled
 - **Notes:**
-  - Requires `gh` CLI or GitHub API token for authentication
-  - Consider rate limiting and error handling for API calls
-  - Could be optional feature enabled via flag or config
+  - Requires GitHub CLI (`gh`) to be installed and authenticated
+  - Shows warning if `gh` CLI is not available when `--github` flag is used
+  - PR fetching happens at startup; may slow startup with many branches
 
 ---
 
@@ -370,3 +388,4 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
 | 2026-02-13 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |
 | 2026-02-25 | 13:15 | #9    | Resolved: Added sort by date with 's' key (Status/Name/Newest/Oldest)  |
+| 2026-02-25 | 14:30 | #11   | Resolved: Added GitHub PR integration with --github flag               |

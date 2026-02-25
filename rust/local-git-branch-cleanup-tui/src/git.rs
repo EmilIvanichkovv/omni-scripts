@@ -6,6 +6,50 @@ use std::process::Command;
 /// Protected branch names that should never be deleted
 const PROTECTED_BRANCHES: &[&str] = &["main", "master", "develop", "development"];
 
+/// GitHub Pull Request state
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrState {
+    /// PR is open (pending review/merge)
+    Open,
+    /// PR was merged
+    Merged,
+    /// PR was closed without merging
+    Closed,
+}
+
+impl PrState {
+    /// Get display label for the PR state
+    pub fn label(&self) -> &'static str {
+        match self {
+            PrState::Open => "open",
+            PrState::Merged => "merged",
+            PrState::Closed => "closed",
+        }
+    }
+
+    /// Get icon for the PR state
+    pub fn icon(&self) -> &'static str {
+        match self {
+            PrState::Open => "🟡",
+            PrState::Merged => "🟢",
+            PrState::Closed => "🔴",
+        }
+    }
+}
+
+/// GitHub Pull Request information
+#[derive(Debug, Clone)]
+pub struct PrInfo {
+    /// PR number (e.g., 123)
+    pub number: u64,
+    /// PR state (open, merged, closed)
+    pub state: PrState,
+    /// PR title
+    pub title: String,
+    /// PR URL on GitHub
+    pub url: String,
+}
+
 /// Branch classification status
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BranchStatus {
@@ -79,6 +123,8 @@ pub struct BranchInfo {
     pub branch_created_timestamp: i64,
     /// Author who created the branch (author of first unique commit)
     pub branch_author: String,
+    /// GitHub PR information (if --github flag enabled and PR exists)
+    pub pr_info: Option<PrInfo>,
 }
 
 /// Verify we're inside a Git repository
@@ -340,6 +386,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             last_activity_timestamp,
             branch_created_timestamp,
             branch_author,
+            pr_info: None, // Will be populated later if --github flag is used
         });
     }
 
@@ -411,6 +458,145 @@ pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
         return Err(color_eyre::eyre::eyre!("Failed to delete branch: {}", stderr.trim()));
     }
 
+    Ok(())
+}
+
+/// Check if GitHub CLI (gh) is available
+pub fn is_gh_cli_available() -> bool {
+    Command::new("gh")
+        .args(["--version"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Fetch PR information for a branch using GitHub CLI
+/// Returns None if no PR is associated with the branch or if gh CLI is not available
+pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
+    // Try to get PR info using gh CLI
+    // gh pr list --head <branch> --json number,state,title,url --limit 1
+    let output = Command::new("gh")
+        .args([
+            "pr", "list",
+            "--head", branch_name,
+            "--json", "number,state,title,url",
+            "--limit", "1",
+            "--state", "all",  // Include open, closed, and merged PRs
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let json_str = String::from_utf8(output.stdout).ok()?;
+    let json_str = json_str.trim();
+    
+    // Parse JSON response (it's an array)
+    // Example: [{"number":123,"state":"MERGED","title":"My PR","url":"https://..."}]
+    if json_str.is_empty() || json_str == "[]" {
+        return None;
+    }
+
+    // Simple JSON parsing without external dependencies
+    // Extract first PR from the array
+    let inner = json_str.trim_start_matches('[').trim_end_matches(']');
+    if inner.is_empty() {
+        return None;
+    }
+
+    // Parse the JSON object manually (simple approach)
+    let number = extract_json_number(inner, "number")?;
+    let state_str = extract_json_string(inner, "state")?;
+    let title = extract_json_string(inner, "title")?;
+    let url = extract_json_string(inner, "url")?;
+
+    let state = match state_str.to_uppercase().as_str() {
+        "OPEN" => PrState::Open,
+        "MERGED" => PrState::Merged,
+        "CLOSED" => PrState::Closed,
+        _ => return None,
+    };
+
+    Some(PrInfo {
+        number,
+        state,
+        title,
+        url,
+    })
+}
+
+/// Fetch PR information for multiple branches (batched for efficiency)
+/// This is more efficient than calling get_pr_info_for_branch for each branch
+pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo]) {
+    // Process branches in parallel could be done here, but for simplicity
+    // we'll process them sequentially. The gh CLI is reasonably fast.
+    for branch in branches.iter_mut() {
+        if let Some(pr_info) = get_pr_info_for_branch(&branch.name) {
+            branch.pr_info = Some(pr_info);
+        }
+    }
+}
+
+/// Helper to extract a string value from a simple JSON object
+fn extract_json_string(json: &str, key: &str) -> Option<String> {
+    let pattern = format!("\"{}\":\"", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = &json[start..];
+    
+    // Find the closing quote, handling escaped quotes
+    let mut end = 0;
+    let mut chars = rest.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // Skip escaped character
+            chars.next();
+            end += 2;
+        } else if c == '"' {
+            break;
+        } else {
+            end += c.len_utf8();
+        }
+    }
+    
+    Some(rest[..end].to_string())
+}
+
+/// Helper to extract a number value from a simple JSON object
+fn extract_json_number(json: &str, key: &str) -> Option<u64> {
+    let pattern = format!("\"{}\":", key);
+    let start = json.find(&pattern)? + pattern.len();
+    let rest = &json[start..].trim_start();
+    
+    // Extract digits until non-digit
+    let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+/// Open a URL in the default browser
+pub fn open_url_in_browser(url: &str) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(url)
+            .spawn()?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(url)
+            .spawn()?;
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn()?;
+    }
+    
     Ok(())
 }
 

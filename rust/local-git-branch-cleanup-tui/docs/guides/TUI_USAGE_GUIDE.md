@@ -14,6 +14,7 @@ The TUI is divided into several sections:
 ├───────────────────────────────────────────┬─────────────────────────────┤
 │                                           │                             │
 │            Branch List (70%)              │    Details Pane (30%)       │
+│   (includes PR column with --github)      │    (includes PR info)       │
 │                                           │                             │
 ├───────────────────────────────────────────┴─────────────────────────────┤
 │ Action Log: Deletion results (appears after deletions)                  │
@@ -124,10 +125,59 @@ When a non-default sort mode is active, the header displays a sort indicator: `�
 | `f` | Toggle force mode |
 | `d` | Toggle dry run mode |
 | `s` | Cycle sort mode |
+| `o` | Open PR in browser (when --github enabled) |
 | `i` | Show info modal (about the tool) |
 | `?` | Show help modal |
 
 ---
+
+## GitHub PR Integration
+
+When started with the `--github` flag, the TUI shows Pull Request information for each branch.
+
+### Requirements
+
+- **GitHub CLI (`gh`)** must be installed and authenticated
+- Repository must have a GitHub remote
+
+### Enabling GitHub Integration
+
+```bash
+# Start with GitHub PR integration
+local-git-branch-cleanup-tui --github
+
+# Or with cargo
+cargo run -- --github
+```
+
+### PR Status Icons
+
+| Icon | Status | Description |
+|------|--------|-------------|
+| 🟢 | Merged | PR was merged |
+| 🟡 | Open | PR is still open |
+| 🔴 | Closed | PR was closed without merging |
+| ⚪ | None | No associated PR |
+
+### PR Column
+
+When enabled, an additional "PR" column appears in the branch list showing:
+- PR state icon (🟢/🟡/🔴/⚪)
+- PR number (e.g., `#165`)
+
+### Details Pane
+
+The details pane shows additional PR information:
+- **PR Title** - The pull request title
+- **PR Number** - The PR number (e.g., #165)
+- **PR State** - Open, Merged, or Closed
+- **Hint** - Press `o` to open in browser
+
+### Opening PRs in Browser
+
+Press `o` when a branch with an associated PR is selected to open the PR URL in your default browser.
+
+> **Note:** GitHub integration requires additional API calls at startup, which may slow down the initial load with many branches.
 
 ## Understanding Branch Status
 

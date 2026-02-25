@@ -134,6 +134,20 @@ Compare behavior with the original bash script:
 - [ ] Terminal restored properly on exit
 - [ ] No artifacts left on screen
 
+#### 3.10 GitHub PR Integration (with --github flag)
+- [ ] `--github` flag enables GitHub integration
+- [ ] PR column appears in branch list when enabled
+- [ ] PR status icons display correctly (🟢 merged, 🟡 open, 🔴 closed, ⚪ none)
+- [ ] PR number shows next to icon (e.g., "🟢 #165")
+- [ ] Details pane shows PR title when branch has PR
+- [ ] Details pane shows PR state and number
+- [ ] `o` key opens PR URL in browser
+- [ ] `o` key does nothing when no PR associated
+- [ ] Footer shows `o pr` hint when GitHub enabled
+- [ ] Help modal includes GitHub section
+- [ ] Error handling when `gh` CLI not installed
+- [ ] Works without --github (PR column hidden, no extra API calls)
+
 ### 4. CLI Mode Tests
 
 #### 4.1 Basic CLI
@@ -147,6 +161,7 @@ Compare behavior with the original bash script:
 - [ ] `--trunk develop` - uses develop as trunk branch
 - [ ] `--force` - shows "FORCE MODE" indicator
 - [ ] `--dry-run` - shows "DRY RUN" indicator
+- [ ] `--github` - enables GitHub PR integration
 - [ ] `--help` - shows comprehensive help
 - [ ] `--version` - shows version number
 

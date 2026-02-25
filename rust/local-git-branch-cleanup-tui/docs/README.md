@@ -38,3 +38,4 @@ Testing documentation and reports:
 | Coming from the bash script? | [Migration Guide](guides/MIGRATION.md)       |
 | Understand the codebase      | [Architecture](specs/ARCHITECTURE.md)        |
 | Run or write tests           | [Testing Checklist](testing/TESTING.md)      |
+| Enable GitHub PR integration | [TUI Usage Guide - GitHub](guides/TUI_USAGE_GUIDE.md#github-pr-integration) |

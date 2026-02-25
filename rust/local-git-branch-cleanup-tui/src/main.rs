@@ -34,6 +34,11 @@ struct Args {
     /// Dry run mode - preview actions without executing
     #[arg(long)]
     dry_run: bool,
+
+    /// Enable GitHub PR integration (requires gh CLI)
+    /// Shows PR status for branches with associated pull requests
+    #[arg(long, short = 'g')]
+    github: bool,
 }
 
 fn main() -> Result<()> {
@@ -55,7 +60,7 @@ fn main() -> Result<()> {
     let trunk = git::get_default_branch(args.trunk.as_deref())?;
 
     // Get branches with classification
-    let branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
+    let mut branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
         Ok(branches) => branches,
         Err(e) => {
             eprintln!("❌ Error scanning branches: {}", e);
@@ -63,17 +68,32 @@ fn main() -> Result<()> {
         }
     };
 
+    // Fetch GitHub PR info if --github flag is enabled
+    let github_enabled = if args.github {
+        if git::is_gh_cli_available() {
+            eprintln!("🔗 Fetching GitHub PR info...");
+            git::fetch_pr_info_for_branches(&mut branches);
+            true
+        } else {
+            eprintln!("⚠️  GitHub CLI (gh) not found. Install it to enable PR integration.");
+            eprintln!("   See: https://cli.github.com/");
+            false
+        }
+    } else {
+        false
+    };
+
     // Use CLI mode if --cli flag is set
     if args.cli {
-        return run_cli_mode(&branches, &trunk, args.force, args.dry_run);
+        return run_cli_mode(&branches, &trunk, args.force, args.dry_run, github_enabled);
     }
 
     // Run TUI mode
-    run_tui_mode(branches, repo_path, trunk, args.force, args.dry_run)
+    run_tui_mode(branches, repo_path, trunk, args.force, args.dry_run, github_enabled)
 }
 
 /// Run the interactive TUI mode
-fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String, force_mode: bool, dry_run: bool) -> Result<()> {
+fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String, force_mode: bool, dry_run: bool, github_enabled: bool) -> Result<()> {
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -88,6 +108,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
     let mut app = App::new(branches, repo_path, trunk, current_git_user);
     app.force_mode = force_mode;
     app.dry_run = dry_run;
+    app.github_enabled = github_enabled;
 
     // Main loop
     loop {
@@ -310,6 +331,12 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
                                 // All branches filter
                                 app.set_filter(app::FilterMode::All);
                             }
+                            KeyCode::Char('o') => {
+                                // Open PR URL in browser (if GitHub integration enabled and PR exists)
+                                if app.github_enabled {
+                                    app.open_selected_pr();
+                                }
+                            }
                             KeyCode::Enter => {
                                 // Show confirmation if branches are selected
                                 if app.selected_count() > 0 {
@@ -338,7 +365,7 @@ fn run_tui_mode(branches: Vec<git::BranchInfo>, repo_path: String, trunk: String
 }
 
 /// Run the CLI mode (non-interactive)
-fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run: bool) -> Result<()> {
+fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run: bool, github_enabled: bool) -> Result<()> {
     println!("🌳 Trunk branch: {}", trunk);
     
     // Show mode indicators
@@ -347,6 +374,9 @@ fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run:
     }
     if dry_run {
         println!("🔍 DRY RUN: Preview mode - no branches will be deleted");
+    }
+    if github_enabled {
+        println!("🔗 GitHub PR integration enabled");
     }
     
     println!();
@@ -375,17 +405,31 @@ fn run_cli_mode(branches: &[git::BranchInfo], trunk: &str, force: bool, dry_run:
     println!();
 
     // Print legend
-    print_boxed_line("   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current");
+    let legend = if github_enabled {
+        "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
+    } else {
+        "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current"
+    };
+    print_boxed_line(legend);
     print_separator();
 
     for branch in branches {
         let status_indicator = format!("{} {}", branch.status.icon(), branch.status.label());
+        let pr_indicator = if github_enabled {
+            match &branch.pr_info {
+                Some(pr) => format!(" {} PR #{}", pr.state.icon(), pr.number),
+                None => "".to_string(),
+            }
+        } else {
+            "".to_string()
+        };
         let line = format!(
-            "   {} {:30} [{:>12}] {}",
+            "   {} {:30} [{:>12}] {}{}",
             if branch.status.is_deletable() { "[ ]" } else { "   " },
             branch.name,
             branch.last_commit_relative,
-            status_indicator
+            status_indicator,
+            pr_indicator
         );
         print_boxed_line(&line);
     }

@@ -4,8 +4,8 @@
 **Target Name**: `local-git-branch-cleanup-tui`
 **Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace member)
 **Status**: 🎉 COMPLETE - All 9 Milestones Done! Production Ready! 🎉
-**Version**: 0.2.0
-**Last Updated**: 2026-02-12
+**Version**: 0.3.0
+**Last Updated**: 2026-02-25
 
 ---
 
@@ -25,12 +25,17 @@
 - ✅ CLI mode for bash-like behavior
 - ✅ Comprehensive test suite (43 tests, 80%+ coverage)
 - ✅ Complete documentation (README, ARCHITECTURE, MIGRATION, TESTING)
+- ✅ Flexible sorting (status, name, activity, creation date)
+- ✅ Powerful search with `@author:` filter and autocomplete
+- ✅ GitHub PR integration (`--github` flag)
 
 **Key Improvements Over Bash Script:**
 - 🛡️ **Safety**: Protected branches, safe delete default, requires force flag for unmerged branches
 - 🎯 **Control**: Individual selection instead of all-or-nothing
-- 📊 **Information**: Branch classification, commit details, ahead/behind tracking
+- 📊 **Information**: Branch classification, commit details, ahead/behind tracking, PR status
 - 🎨 **User Experience**: Interactive TUI, filters, color-coded status, help modal
+- 🔍 **Search**: Filter by name or author with smart autocomplete
+- 🐙 **GitHub Integration**: See PR status and open PRs in browser
 
 **Project Timeline:**
 - Started: February 11, 2026

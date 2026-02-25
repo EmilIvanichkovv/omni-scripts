@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-02-25 14:15
+**Last Updated:** 2026-02-25 16:05
 
 ---
 
@@ -29,148 +29,23 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #7: Scrolling behavior causes unnecessary viewport movement
-
-- **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
-- **Category:** UI/UX / Bug
-- **Description:**
-  - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even when there's room for the cursor to move within the current view
-  - The viewport should remain stable while the cursor moves within the visible area
-- **Steps to Reproduce:**
-  1. Open the TUI in a repository with enough branches to require scrolling
-  2. Scroll down to the bottom of the list
-  3. Press up arrow to move selection upward
-- **Expected Behavior:**
-  - The cursor/selection moves up within the visible area
-  - The viewport stays in place until the cursor reaches the top edge of the visible area
-  - Only then should the viewport scroll to reveal more items above
-- **Actual Behavior:**
-  - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top of visible area
-- **Fix:**
-  - Added `scroll_offset` and `visible_height` fields to App state
-  - Implemented `adjust_scroll_for_selection()` method for "edge-only" scrolling
-  - Viewport only adjusts when cursor would move outside visible bounds
-  - Used `TableState::with_offset()` to control scroll position manually
+_No open UI/UX issues._
 
 ---
 
-### Issue #8: Missing keyboard shortcuts for list navigation
+## Performance Issues
 
-- **GitHub:** [#20](https://github.com/EmilIvanichkovv/omni-scripts/issues/20)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - The TUI is missing common keyboard shortcuts for efficient list navigation
-  - Users expect vim-like and standard terminal navigation keys to work
-- **Expected Behavior:**
-  - **Go to top of list:**
-    - `Home` key
-    - `Ctrl+U`
-    - `g` (vim-style)
-  - **Go to bottom of list:**
-    - `End` key
-    - `Ctrl+D`
-    - `G` (vim-style, Shift+g)
-  - **Page navigation:**
-    - `Page Up` - move up by one page/viewport height
-    - `Page Down` - move down by one page/viewport height
-- **Actual Behavior:**
-  - These keyboard shortcuts are not implemented
-  - Users can only navigate one item at a time with arrow keys
-- **Fix:**
-  - Added `go_to_top()`, `go_to_bottom()`, `page_up()`, `page_down()` methods to App
-  - Added key handlers for Home/g, End/G, Ctrl+U, Ctrl+D, PageUp, PageDown
-  - All navigation methods properly adjust scroll_offset
+_No open performance issues._
 
 ---
 
-### Issue #9: Add ability to sort branches by creation date
+## Minor/Cosmetic Issues
 
-- **GitHub:** [#21](https://github.com/EmilIvanichkovv/omni-scripts/issues/21)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-25
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - Users should be able to sort branches by their creation date/time
-  - This helps identify old branches that may need cleanup
-- **Expected Behavior:**
-  - Add a keyboard shortcut (e.g., `s` or `o` for sort/order) to toggle sorting mode
-  - Sorting options:
-    - By name (alphabetical) - current default
-    - By creation date (newest first)
-    - By creation date (oldest first)
-  - Visual indicator in the UI showing current sort order
-- **Actual Behavior:**
-  - Branches are only displayed in default order (alphabetical or git's default)
-  - No sorting options available
-- **Fix:**
-  - Added `SortMode` enum to `app.rs` with 6 variants:
-    - `Status` (default) - sort by branch status type
-    - `Name` - alphabetical by branch name
-    - `ActivityNewest` / `ActivityOldest` - sort by last commit date (Active ↓/↑)
-    - `CreatedNewest` / `CreatedOldest` - sort by branch creation date (Created ↓/↑)
-  - Added `last_activity_timestamp` field (last commit on branch)
-  - Added `branch_created_timestamp` field (first unique commit, fetched via `git log --format=%ct --reverse trunk..branch`)
-  - Added `sort_mode` field to App state
-  - Added `cycle_sort_mode()` and `sort_branches()` methods to App
-  - Added `s` key handler to cycle through sort modes
-  - Footer shows `s sort` shortcut (no highlight on activation)
-  - Header shows sort indicator (🔀) with current mode when not using default
-  - Help modal updated with sorting section
+_No open minor/cosmetic issues._
 
 ---
 
-### Issue #10: Add filter by branch creator/author
-
-- **GitHub:** [#22](https://github.com/EmilIvanichkovv/omni-scripts/issues/22)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-25
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - Users should be able to filter branches by their creator (the author of the first commit on the branch)
-  - Useful in team environments to quickly find and manage your own branches
-- **Expected Behavior:**
-  - Integrate author filtering into existing search functionality using `@author:` prefix
-  - User presses `/` to open search, then types `@author:` to initiate author search
-  - Search syntax examples:
-    - `@author:john` - filter by author name containing "john"
-    - `@author:me` - special keyword to filter by current git user
-  - Can combine with branch name search: `feature @author:john`
-  - Show filtered results with indicator of active author filter
-  - Clear filter by removing `@author:` from search or pressing `Esc`
-- **Actual Behavior:**
-  - No filtering by author/creator available
-  - Users must manually scan through all branches
-- **Fix:**
-  - Added `branch_author` field to `BranchInfo` struct in `git.rs`
-  - Fetched branch author via `git log --format=%ct|%an --reverse trunk..branch` (first commit author)
-  - Added `get_current_git_user()` function to get user from `git config user.name`
-  - Added `current_git_user` field to App state for `@author:me` support
-  - Implemented `parse_search_query()` method to extract `@author:` prefix from search
-  - Updated `filtered_branches()` to filter by author name (case-insensitive partial match)
-  - Support combining name search with author filter: `feature @author:john`
-  - **Quoted author names:** Support `@author:"John Doe"` for names with spaces
-  - **Autocomplete suggestions:**
-    - Typing `@` shows available commands (currently: `author`)
-    - Typing `@author:` shows list of unique branch authors + `me` keyword
-    - Use `Tab` or `Enter` to accept suggestion, `↑/↓` to navigate
-    - Collects unique authors from all branches at startup
-    - **Auto-quoting:** Author names with spaces are automatically wrapped in quotes
-  - **Scrollable dropdown:**
-    - Dropdown adapts to available screen space
-    - Shows `↑ X more above` and `↓ X more below` indicators when scrolling
-    - Auto-scrolls to keep selected item visible
-  - Added help modal documentation for `@author:` syntax
-  - Added unit tests for author filtering, quoted names, and autocomplete functionality
-
----
+## Resolved Issues
 
 ### Issue #11: Show GitHub PR association for branches
 
@@ -225,42 +100,224 @@ _No open critical issues._
 
 ---
 
-## Performance Issues
+### Issue #10: Add filter by branch creator/author
 
-_No open performance issues._
+- **GitHub:** [#22](https://github.com/EmilIvanichkovv/omni-scripts/issues/22)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-25
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Users should be able to filter branches by their creator (the author of the first commit on the branch)
+  - Useful in team environments to quickly find and manage your own branches
+- **Expected Behavior:**
+  - Integrate author filtering into existing search functionality using `@author:` prefix
+  - User presses `/` to open search, then types `@author:` to initiate author search
+  - Search syntax examples:
+    - `@author:john` - filter by author name containing "john"
+    - `@author:me` - special keyword to filter by current git user
+  - Can combine with branch name search: `feature @author:john`
+  - Show filtered results with indicator of active author filter
+  - Clear filter by removing `@author:` from search or pressing `Esc`
+- **Actual Behavior:**
+  - No filtering by author/creator available
+  - Users must manually scan through all branches
+- **Fix:**
+  - Added `branch_author` field to `BranchInfo` struct in `git.rs`
+  - Fetched branch author via `git log --format=%ct|%an --reverse trunk..branch` (first commit author)
+  - Added `get_current_git_user()` function to get user from `git config user.name`
+  - Added `current_git_user` field to App state for `@author:me` support
+  - Implemented `parse_search_query()` method to extract `@author:` prefix from search
+  - Updated `filtered_branches()` to filter by author name (case-insensitive partial match)
+  - Support combining name search with author filter: `feature @author:john`
+  - **Quoted author names:** Support `@author:"John Doe"` for names with spaces
+  - **Autocomplete suggestions:**
+    - Typing `@` shows available commands (currently: `author`)
+    - Typing `@author:` shows list of unique branch authors + `me` keyword
+    - Use `Tab` or `Enter` to accept suggestion, `↑/↓` to navigate
+    - Collects unique authors from all branches at startup
+    - **Auto-quoting:** Author names with spaces are automatically wrapped in quotes
+  - **Scrollable dropdown:**
+    - Dropdown adapts to available screen space
+    - Shows `↑ X more above` and `↓ X more below` indicators when scrolling
+    - Auto-scrolls to keep selected item visible
+  - Added help modal documentation for `@author:` syntax
+  - Added unit tests for author filtering, quoted names, and autocomplete functionality
 
 ---
 
-## Minor/Cosmetic Issues
+### Issue #9: Add ability to sort branches by creation date
 
-_No open minor/cosmetic issues._
+- **GitHub:** [#21](https://github.com/EmilIvanichkovv/omni-scripts/issues/21)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-25
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Users should be able to sort branches by their creation date/time
+  - This helps identify old branches that may need cleanup
+- **Expected Behavior:**
+  - Add a keyboard shortcut (e.g., `s` or `o` for sort/order) to toggle sorting mode
+  - Sorting options:
+    - By name (alphabetical) - current default
+    - By creation date (newest first)
+    - By creation date (oldest first)
+  - Visual indicator in the UI showing current sort order
+- **Actual Behavior:**
+  - Branches are only displayed in default order (alphabetical or git's default)
+  - No sorting options available
+- **Fix:**
+  - Added `SortMode` enum to `app.rs` with 6 variants:
+    - `Status` (default) - sort by branch status type
+    - `Name` - alphabetical by branch name
+    - `ActivityNewest` / `ActivityOldest` - sort by last commit date (Active ↓/↑)
+    - `CreatedNewest` / `CreatedOldest` - sort by branch creation date (Created ↓/↑)
+  - Added `last_activity_timestamp` field (last commit on branch)
+  - Added `branch_created_timestamp` field (first unique commit, fetched via `git log --format=%ct --reverse trunk..branch`)
+  - Added `sort_mode` field to App state
+  - Added `cycle_sort_mode()` and `sort_branches()` methods to App
+  - Added `s` key handler to cycle through sort modes
+  - Footer shows `s sort` shortcut (no highlight on activation)
+  - Header shows sort indicator (🔀) with current mode when not using default
+  - Help modal updated with sorting section
 
 ---
 
-## Resolved Issues
+### Issue #8: Missing keyboard shortcuts for list navigation
 
-### Issue #1: Force delete mode not using `git branch -D`
-
-- **GitHub:** [#11](https://github.com/EmilIvanichkovv/omni-scripts/issues/11)
+- **GitHub:** [#20](https://github.com/EmilIvanichkovv/omni-scripts/issues/20)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Category:** Critical / Bug
+- **Category:** UI/UX / Enhancement
 - **Description:**
-  - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the deletion fails with an error suggesting the branch is not fully merged.
-- **Steps to Reproduce:**
-  1. Have a branch marked as "gone" (remote deleted)
-  2. Enable force delete mode
-  3. Attempt to delete the branch
-- **Expected Behavior:** Branch should be force deleted using `git branch -D`
+  - The TUI is missing common keyboard shortcuts for efficient list navigation
+  - Users expect vim-like and standard terminal navigation keys to work
+- **Expected Behavior:**
+  - **Go to top of list:**
+    - `Home` key
+    - `Ctrl+U`
+    - `g` (vim-style)
+  - **Go to bottom of list:**
+    - `End` key
+    - `Ctrl+D`
+    - `G` (vim-style, Shift+g)
+  - **Page navigation:**
+    - `Page Up` - move up by one page/viewport height
+    - `Page Down` - move down by one page/viewport height
 - **Actual Behavior:**
-  - Shows error: `✗ feat/TUI - Failed to delete branch: error: the branch 'feat/TUI' is not fully merged`
-  - Hint suggests running `git branch -D feat/TUI`
+  - These keyboard shortcuts are not implemented
+  - Users can only navigate one item at a time with arrow keys
 - **Fix:**
-  - In `app.rs`, `delete_selected_branches()` now respects `self.force_mode`
-  - Also auto-forces deletion for "gone" branches (handles squash/rebase merges)
-  - Changed: `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
-- **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix force delete mode to properly use git branch -D`
+  - Added `go_to_top()`, `go_to_bottom()`, `page_up()`, `page_down()` methods to App
+  - Added key handlers for Home/g, End/G, Ctrl+U, Ctrl+D, PageUp, PageDown
+  - All navigation methods properly adjust scroll_offset
+
+---
+
+### Issue #7: Scrolling behavior causes unnecessary viewport movement
+
+- **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
+- **Category:** UI/UX / Bug
+- **Description:**
+  - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even when there's room for the cursor to move within the current view
+  - The viewport should remain stable while the cursor moves within the visible area
+- **Steps to Reproduce:**
+  1. Open the TUI in a repository with enough branches to require scrolling
+  2. Scroll down to the bottom of the list
+  3. Press up arrow to move selection upward
+- **Expected Behavior:**
+  - The cursor/selection moves up within the visible area
+  - The viewport stays in place until the cursor reaches the top edge of the visible area
+  - Only then should the viewport scroll to reveal more items above
+- **Actual Behavior:**
+  - The viewport scrolls/re-renders immediately when moving up, even when cursor is not at the top of visible area
+- **Fix:**
+  - Added `scroll_offset` and `visible_height` fields to App state
+  - Implemented `adjust_scroll_for_selection()` method for "edge-only" scrolling
+  - Viewport only adjusts when cursor would move outside visible bounds
+  - Used `TableState::with_offset()` to control scroll position manually
+
+---
+
+### Issue #6: Improve search focus behavior
+
+- **GitHub:** [#16](https://github.com/EmilIvanichkovv/omni-scripts/issues/16)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Improve the search workflow to allow seamless switching between search input and branch selection
+- **Expected Behavior:**
+  1. User presses `/` to activate search and types a query
+  2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but query remains)
+  3. User can navigate and select branches with arrow keys and Space
+  4. User presses `/` again to return focus to search bar and continue editing the query
+- **Fix:**
+  - Arrow down/up in search mode now exits search but keeps query
+  - Pressing `/` re-enters search mode to continue editing
+  - Esc clears query and exits search
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve search focus behavior`
+
+---
+
+### Issue #5: Confirmation modal Y/N not visible with many branches selected
+
+- **GitHub:** [#15](https://github.com/EmilIvanichkovv/omni-scripts/issues/15)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
+- **Category:** UI/UX / Bug + Enhancement
+- **Description:**
+  - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
+  - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
+- **Fix:**
+  - Dynamic modal height based on content (branches + warnings)
+  - Added Enter key to confirm deletion (in addition to y/Y)
+  - Esc already supported for cancel
+  - Confirmation hints now centered: `y/Enter confirm    n/Esc cancel`
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve confirmation modal UX`
+
+---
+
+### Issue #4: Add info modal (shortcut: i)
+
+- **GitHub:** [#14](https://github.com/EmilIvanichkovv/omni-scripts/issues/14)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - Add an info modal accessible via the 'i' shortcut that provides users with brief information about what the tool does
+- **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose and functionality
+- **Fix:**
+  - Added `show_info` state to App
+  - Added 'i' key handler in main.rs
+  - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
+  - Added `i info` hint in footer
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Add info modal with tool description`
+
+---
+
+### Issue #3: Highlight active mode options in footer
+
+- **GitHub:** [#13](https://github.com/EmilIvanichkovv/omni-scripts/issues/13)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-02-13
+- **Resolved:** 2026-02-13
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - When user toggles force mode (f) or dry run mode (d), the selected option should be visually highlighted in the footer
+- **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer to provide clear visual feedback
+- **Fix:**
+  - When active, `f force` gets black text on red background
+  - When active, `d dry` gets black text on amber background
+  - Entire label is highlighted, not just the key
+- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Highlight active mode options in footer`
 
 ---
 
@@ -285,81 +342,28 @@ _No open minor/cosmetic issues._
 
 ---
 
-### Issue #3: Highlight active mode options in footer
+### Issue #1: Force delete mode not using `git branch -D`
 
-- **GitHub:** [#13](https://github.com/EmilIvanichkovv/omni-scripts/issues/13)
+- **GitHub:** [#11](https://github.com/EmilIvanichkovv/omni-scripts/issues/11)
 - **Status:** 🟢 Resolved
 - **Reported:** 2026-02-13
 - **Resolved:** 2026-02-13
-- **Category:** UI/UX / Enhancement
+- **Category:** Critical / Bug
 - **Description:**
-  - When user toggles force mode (f) or dry run mode (d), the selected option should be visually highlighted in the footer
-- **Expected Behavior:** Active mode options should be highlighted/styled differently in the footer to provide clear visual feedback
+  - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the deletion fails with an error suggesting the branch is not fully merged.
+- **Steps to Reproduce:**
+  1. Have a branch marked as "gone" (remote deleted)
+  2. Enable force delete mode
+  3. Attempt to delete the branch
+- **Expected Behavior:** Branch should be force deleted using `git branch -D`
+- **Actual Behavior:**
+  - Shows error: `✗ feat/TUI - Failed to delete branch: error: the branch 'feat/TUI' is not fully merged`
+  - Hint suggests running `git branch -D feat/TUI`
 - **Fix:**
-  - When active, `f force` gets black text on red background
-  - When active, `d dry` gets black text on amber background
-  - Entire label is highlighted, not just the key
-- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Highlight active mode options in footer`
-
----
-
-### Issue #4: Add info modal (shortcut: i)
-
-- **GitHub:** [#14](https://github.com/EmilIvanichkovv/omni-scripts/issues/14)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - Add an info modal accessible via the 'i' shortcut that provides users with brief information about what the tool does
-- **Expected Behavior:** Pressing 'i' opens a modal with a brief description of the tool's purpose and functionality
-- **Fix:**
-  - Added `show_info` state to App
-  - Added 'i' key handler in main.rs
-  - Created `render_info_modal` function in ui.rs with tool description and branch status explanations
-  - Added `i info` hint in footer
-- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Add info modal with tool description`
-
----
-
-### Issue #5: Confirmation modal Y/N not visible with many branches selected
-
-- **GitHub:** [#15](https://github.com/EmilIvanichkovv/omni-scripts/issues/15)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
-- **Category:** UI/UX / Bug + Enhancement
-- **Description:**
-  - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not visible in the modal
-  - Additionally, users should be able to confirm with Enter and cancel with Esc (not just y/n)
-- **Fix:**
-  - Dynamic modal height based on content (branches + warnings)
-  - Added Enter key to confirm deletion (in addition to y/Y)
-  - Esc already supported for cancel
-  - Confirmation hints now centered: `y/Enter confirm    n/Esc cancel`
-- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve confirmation modal UX`
-
----
-
-### Issue #6: Improve search focus behavior
-
-- **GitHub:** [#16](https://github.com/EmilIvanichkovv/omni-scripts/issues/16)
-- **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - Improve the search workflow to allow seamless switching between search input and branch selection
-- **Expected Behavior:**
-  1. User presses `/` to activate search and types a query
-  2. User presses `↓` (arrow down) to move focus to the branch list (search input loses focus but query remains)
-  3. User can navigate and select branches with arrow keys and Space
-  4. User presses `/` again to return focus to search bar and continue editing the query
-- **Fix:**
-  - Arrow down/up in search mode now exits search but keeps query
-  - Pressing `/` re-enters search mode to continue editing
-  - Esc clears query and exits search
-- **Commit:** `✨(rust/local-git-branch-cleanup-tui): Improve search focus behavior`
+  - In `app.rs`, `delete_selected_branches()` now respects `self.force_mode`
+  - Also auto-forces deletion for "gone" branches (handles squash/rebase merges)
+  - Changed: `let use_force = self.force_mode || *status == BranchStatus::Unmerged || *status == BranchStatus::GoneUpstream;`
+- **Commit:** `🐛(rust/local-git-branch-cleanup-tui): Fix force delete mode to properly use git branch -D`
 
 ---
 
@@ -388,4 +392,6 @@ _No open minor/cosmetic issues._
 | 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
 | 2026-02-13 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |
 | 2026-02-25 | 13:15 | #9    | Resolved: Added sort by date with 's' key (Status/Name/Newest/Oldest)  |
+| 2026-02-25 | 14:00 | #10   | Resolved: Added @author: filter with autocomplete suggestions          |
 | 2026-02-25 | 14:30 | #11   | Resolved: Added GitHub PR integration with --github flag               |
+| 2026-02-25 | 16:05 | -     | Migrated resolved issues #7-#11 to Resolved Issues section             |

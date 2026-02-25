@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-02-25 13:15
+**Last Updated:** 2026-02-25 14:15
 
 ---
 
@@ -156,8 +156,19 @@ _No open critical issues._
   - Implemented `parse_search_query()` method to extract `@author:` prefix from search
   - Updated `filtered_branches()` to filter by author name (case-insensitive partial match)
   - Support combining name search with author filter: `feature @author:john`
+  - **Quoted author names:** Support `@author:"John Doe"` for names with spaces
+  - **Autocomplete suggestions:**
+    - Typing `@` shows available commands (currently: `author`)
+    - Typing `@author:` shows list of unique branch authors + `me` keyword
+    - Use `Tab` or `Enter` to accept suggestion, `↑/↓` to navigate
+    - Collects unique authors from all branches at startup
+    - **Auto-quoting:** Author names with spaces are automatically wrapped in quotes
+  - **Scrollable dropdown:**
+    - Dropdown adapts to available screen space
+    - Shows `↑ X more above` and `↓ X more below` indicators when scrolling
+    - Auto-scrolls to keep selected item visible
   - Added help modal documentation for `@author:` syntax
-  - Added unit tests for author filtering functionality
+  - Added unit tests for author filtering, quoted names, and autocomplete functionality
 
 ---
 

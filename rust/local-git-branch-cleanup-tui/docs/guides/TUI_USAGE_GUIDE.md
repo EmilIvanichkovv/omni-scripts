@@ -57,8 +57,10 @@ The active filter tab is highlighted in cyan, and each tab displays the branch c
 | Key | Action |
 |-----|--------|
 | `/` | Start search mode |
+| `Tab` / `Enter` | Accept autocomplete suggestion |
+| `↑` / `↓` | Navigate autocomplete suggestions |
 | `Esc` | Exit search and clear query |
-| `Enter` | Exit search and keep filter active |
+| `Enter` | Exit search and keep filter active (when no suggestions) |
 
 **Search Syntax:**
 
@@ -67,7 +69,23 @@ The active filter tab is highlighted in cyan, and each tab displays the branch c
 | `feature` | Filter branches containing "feature" in name |
 | `@author:john` | Filter by branch author containing "john" |
 | `@author:me` | Filter by your branches (current git user) |
+| `@author:"John Doe"` | Filter by author with spaces (use quotes) |
 | `feature @author:john` | Combine name and author filters |
+
+**Autocomplete:**
+
+When you type `@`, the search box shows available commands:
+- `@author:` - Filter by branch author
+
+After typing `@author:`, you'll see suggestions for:
+- `me` - Your branches (based on git config user.name)
+- All unique branch authors in the repository
+
+**Autocomplete Features:**
+- Use `Tab` or `Enter` to accept a suggestion
+- Use `↑`/`↓` to navigate through suggestions
+- **Scrollable dropdown** - When many authors exist, the dropdown shows scroll indicators (`↑ X more above`, `↓ X more below`)
+- **Auto-quoting** - Author names with spaces are automatically wrapped in quotes when selected
 
 When search is active, the search box appears below the filters. The search is case-insensitive.
 

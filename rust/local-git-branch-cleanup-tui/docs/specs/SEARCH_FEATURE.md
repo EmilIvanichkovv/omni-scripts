@@ -32,9 +32,29 @@ Add real-time branch name search functionality to filter the branch list as the 
 |-----|--------|
 | `/` | Enter search mode |
 | `Escape` | Exit search, clear query |
-| `Enter` | Exit search, keep query |
+| `Enter` | Exit search, keep query / Accept autocomplete |
+| `Tab` | Accept autocomplete suggestion |
+| `↑` / `↓` | Navigate autocomplete suggestions |
 | `Backspace` | Delete last character |
 | Any printable | Add to search query |
+
+## Author Filtering
+
+### Syntax
+- `@author:john` - Filter by author name containing "john"
+- `@author:me` - Filter by current git user
+- `@author:"John Doe"` - Filter by author with spaces (quoted)
+
+### Autocomplete
+Typing `@` triggers autocomplete with available commands. After `@author:`, suggestions show:
+- `me` - Your branches (based on git config user.name)
+- All unique branch authors in the repository
+
+### Scrollable Dropdown
+When there are many authors, the dropdown becomes scrollable:
+- Shows `↑ X more above` indicator when scrolled down
+- Shows `↓ X more below` indicator when more items exist
+- Auto-scrolls to keep selected item visible
 
 ## Technical Design
 

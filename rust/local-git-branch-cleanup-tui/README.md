@@ -28,7 +28,8 @@ _Coming soon: Video demonstration of the TUI in action_
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
   - ◉ **Current** - Currently checked out branch
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
-- **Powerful Search** - Filter by name or author (`@author:name` / `@author:me`)
+- **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` / `@author:"Name With Spaces"`)
+- **Smart Autocomplete** - Suggestions for `@author:` with scrollable dropdown and auto-quoting
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`

@@ -35,6 +35,9 @@
 
                 # Pre-commit hooks
                 pre-commit
+
+                # Task runner
+                just
               ];
 
               RUST_BACKTRACE = 1;

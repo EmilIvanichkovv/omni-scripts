@@ -30,7 +30,42 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #12: Cannot edit search query text with left/right arrow keys
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-03-23
+- **Category:** UI/UX / Bug
+- **Description:**
+  - When user is in search mode (typing a search query), they should be able to use Left and Right
+    arrow keys to move the cursor within the search input text for editing
+  - Currently, Left/Right arrow keys are not handled during search input, preventing text editing
+- **Expected Behavior:**
+  - User presses `/` to activate search
+  - User types a search query (e.g., "feature/abc")
+  - User realizes they made a typo and wants to edit it
+  - User presses Left arrow key multiple times to move cursor back to the typo position
+  - User can then delete/correct the character and use Right arrow to move forward
+  - Standard text editing experience like in a terminal input field
+- **Actual Behavior:**
+  - Left/Right arrow keys don't work during search input
+  - Cannot position cursor within the search query text
+  - Must delete entire query with Backspace and retype if there's a typo in the middle
+- **Root Cause:**
+  - In `main.rs`, the search_active input handler (lines 180-238) does not handle `KeyCode::Left`
+    and `KeyCode::Right`
+  - No cursor position tracking for the search query string
+  - Left/Right keys likely fall through to the `_ => {}` catch-all
+- **Impact:**
+  - Poor text editing experience in search input
+  - Users cannot easily correct typos without retyping entire query
+  - Expected UX pattern for text input fields is missing
+- **Required Implementation:**
+  - Add `search_cursor_pos` field to App state to track cursor position in search query
+  - Handle `KeyCode::Left` to move cursor left (if not at start)
+  - Handle `KeyCode::Right` to move cursor right (if not at end)
+  - Modify Backspace to delete character at cursor position
+  - Modify Char input to insert at cursor position instead of append
+  - Visual cursor indicator in search input (e.g., `|` character)
 
 ---
 

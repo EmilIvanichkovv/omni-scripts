@@ -207,87 +207,6 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(tabs, area);
 }
 
-/// Helper function to render styled text with @author: command highlighting
-fn render_styled_text<'a>(spans: &mut Vec<Span<'a>>, text: &'a str) {
-    let mut remaining = text;
-
-    while !remaining.is_empty() {
-        if let Some(at_pos) = remaining.find('@') {
-            // Add text before @ as normal
-            if at_pos > 0 {
-                spans.push(Span::styled(
-                    &remaining[..at_pos],
-                    Style::default().fg(Color::White),
-                ));
-            }
-
-            remaining = &remaining[at_pos..];
-
-            // Check for @author: pattern
-            let lower = remaining.to_lowercase();
-            if lower.starts_with("@author:") {
-                // Style @author: in special color (magenta/pink)
-                spans.push(Span::styled(
-                    "@author:",
-                    Style::default().fg(COLOR_SELECTED),
-                ));
-
-                let after_colon = &remaining[8..]; // Skip "@author:"
-
-                // Check if value is quoted
-                if let Some(content) = after_colon.strip_prefix('"') {
-                    // Find closing quote
-                    if let Some(close_quote) = content.find('"') {
-                        // Style opening quote
-                        spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
-                        // Style author name in accent color
-                        spans.push(Span::styled(
-                            &content[..close_quote],
-                            Style::default().fg(COLOR_ACCENT),
-                        ));
-                        // Style closing quote
-                        spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
-                        remaining = &after_colon[close_quote + 2..]; // Skip content + both quotes
-                    } else {
-                        // No closing quote yet (user still typing)
-                        spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
-                        spans.push(Span::styled(content, Style::default().fg(COLOR_ACCENT)));
-                        remaining = "";
-                    }
-                } else {
-                    // Unquoted value - find end at space
-                    let value_end = after_colon.find(' ').unwrap_or(after_colon.len());
-
-                    if value_end > 0 {
-                        spans.push(Span::styled(
-                            &after_colon[..value_end],
-                            Style::default().fg(COLOR_ACCENT),
-                        ));
-                    }
-                    remaining = &after_colon[value_end..];
-                }
-            } else if lower.starts_with("@") && !lower.starts_with("@author:") {
-                // Partial @ command being typed - style in special color
-                let cmd_end = remaining[1..]
-                    .find(|c: char| c.is_whitespace() || c == ':')
-                    .map(|p| p + 1)
-                    .unwrap_or(remaining.len());
-
-                spans.push(Span::styled(
-                    &remaining[..cmd_end],
-                    Style::default().fg(COLOR_SELECTED),
-                ));
-
-                remaining = &remaining[cmd_end..];
-            }
-        } else {
-            // No more @ symbols, add rest as normal text
-            spans.push(Span::styled(remaining, Style::default().fg(Color::White)));
-            break;
-        }
-    }
-}
-
 /// Render the search input box with border
 fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
     let match_count = app.filtered_branches().len();
@@ -298,32 +217,243 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(COLOR_MUTED),
         )])
     } else {
-        // Build styled spans for the search query with cursor positioning
+        // Build styled spans for the search query
         let mut spans = vec![Span::styled("  ", Style::default())];
 
+        // Parse and style the search query with special handling for @commands
         let query = &app.search_query;
         let cursor_pos = app.search_cursor_pos;
+        let mut remaining = query.as_str();
+        let mut current_pos = 0;
 
-        // Render the query with cursor at the correct position
-        if query.is_empty() {
-            if app.search_active {
-                spans.push(Span::styled("_", Style::default().fg(COLOR_ACCENT)));
+        while !remaining.is_empty() {
+            if let Some(at_pos) = remaining.find('@') {
+                // Add text before @ as normal, inserting cursor if needed
+                if at_pos > 0 {
+                    let before_text = &remaining[..at_pos];
+                    let segment_start = current_pos;
+                    let segment_end = current_pos + at_pos;
+
+                    if cursor_pos >= segment_start && cursor_pos <= segment_end {
+                        // Cursor is in this segment
+                        let cursor_offset = cursor_pos - segment_start;
+                        if cursor_offset > 0 {
+                            spans.push(Span::styled(
+                                &before_text[..cursor_offset],
+                                Style::default().fg(Color::White),
+                            ));
+                        }
+                        spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                        if cursor_offset < before_text.len() {
+                            spans.push(Span::styled(
+                                &before_text[cursor_offset..],
+                                Style::default().fg(Color::White),
+                            ));
+                        }
+                    } else {
+                        spans.push(Span::styled(before_text, Style::default().fg(Color::White)));
+                    }
+                    current_pos = segment_end;
+                }
+
+                remaining = &remaining[at_pos..];
+
+                // Check for @author: pattern
+                let lower = remaining.to_lowercase();
+                if lower.starts_with("@author:") {
+                    // Style @author: in special color (magenta/pink)
+                    let cmd_part = "@author:";
+                    let cmd_start = current_pos;
+                    let cmd_end = current_pos + cmd_part.len();
+
+                    if cursor_pos >= cmd_start && cursor_pos <= cmd_end {
+                        let cursor_offset = cursor_pos - cmd_start;
+                        if cursor_offset > 0 {
+                            spans.push(Span::styled(
+                                &cmd_part[..cursor_offset],
+                                Style::default().fg(COLOR_SELECTED),
+                            ));
+                        }
+                        spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                        if cursor_offset < cmd_part.len() {
+                            spans.push(Span::styled(
+                                &cmd_part[cursor_offset..],
+                                Style::default().fg(COLOR_SELECTED),
+                            ));
+                        }
+                    } else {
+                        spans.push(Span::styled(cmd_part, Style::default().fg(COLOR_SELECTED)));
+                    }
+                    current_pos = cmd_end;
+
+                    let after_colon = &remaining[8..]; // Skip "@author:"
+
+                    // Check if value is quoted
+                    if let Some(content) = after_colon.strip_prefix('"') {
+                        // Find closing quote
+                        if let Some(close_quote) = content.find('"') {
+                            let quote_start = current_pos;
+                            let quote_mid = quote_start + 1;
+                            let quote_end = quote_start + 1 + close_quote;
+                            let close_quote_pos = quote_end;
+
+                            // Style opening quote
+                            if cursor_pos == quote_start {
+                                spans.push(Span::styled("▏\"", Style::default().fg(COLOR_ACCENT)));
+                            } else {
+                                spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
+                            }
+
+                            // Style author name in accent color
+                            let name_text = &content[..close_quote];
+                            if cursor_pos > quote_mid && cursor_pos < quote_end {
+                                let cursor_offset = cursor_pos - quote_mid;
+                                if cursor_offset > 0 {
+                                    spans.push(Span::styled(
+                                        &name_text[..cursor_offset],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                                spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                                if cursor_offset < name_text.len() {
+                                    spans.push(Span::styled(
+                                        &name_text[cursor_offset..],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                            } else {
+                                spans.push(Span::styled(
+                                    name_text,
+                                    Style::default().fg(COLOR_ACCENT),
+                                ));
+                            }
+
+                            // Style closing quote
+                            if cursor_pos == close_quote_pos {
+                                spans.push(Span::styled("▏\"", Style::default().fg(COLOR_ACCENT)));
+                            } else {
+                                spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
+                            }
+
+                            current_pos = close_quote_pos + 1;
+                            remaining = &after_colon[close_quote + 2..]; // Skip content + both quotes
+                        } else {
+                            // No closing quote yet (user still typing)
+                            spans.push(Span::styled("\"", Style::default().fg(COLOR_MUTED)));
+                            let name_text = content;
+                            let start = current_pos + 1;
+                            if cursor_pos > start && cursor_pos <= start + name_text.len() {
+                                let cursor_offset = cursor_pos - start;
+                                if cursor_offset > 0 {
+                                    spans.push(Span::styled(
+                                        &name_text[..cursor_offset],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                                spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                                if cursor_offset < name_text.len() {
+                                    spans.push(Span::styled(
+                                        &name_text[cursor_offset..],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                            } else {
+                                spans.push(Span::styled(
+                                    name_text,
+                                    Style::default().fg(COLOR_ACCENT),
+                                ));
+                            }
+                            current_pos = start + name_text.len();
+                            remaining = "";
+                        }
+                    } else {
+                        // Unquoted value - find end at space
+                        let value_end = after_colon.find(' ').unwrap_or(after_colon.len());
+
+                        if value_end > 0 {
+                            let value_start = current_pos;
+                            let value_text = &after_colon[..value_end];
+
+                            if cursor_pos >= value_start && cursor_pos <= value_start + value_end {
+                                let cursor_offset = cursor_pos - value_start;
+                                if cursor_offset > 0 {
+                                    spans.push(Span::styled(
+                                        &value_text[..cursor_offset],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                                spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                                if cursor_offset < value_text.len() {
+                                    spans.push(Span::styled(
+                                        &value_text[cursor_offset..],
+                                        Style::default().fg(COLOR_ACCENT),
+                                    ));
+                                }
+                            } else {
+                                spans.push(Span::styled(
+                                    value_text,
+                                    Style::default().fg(COLOR_ACCENT),
+                                ));
+                            }
+                            current_pos = value_start + value_end;
+                        }
+                        remaining = &after_colon[value_end..];
+                    }
+                } else if lower.starts_with("@") && !lower.starts_with("@author:") {
+                    // Partial @ command being typed - style in special color
+                    let cmd_end = remaining[1..]
+                        .find(|c: char| c.is_whitespace() || c == ':')
+                        .map(|p| p + 1)
+                        .unwrap_or(remaining.len());
+
+                    let cmd_text = &remaining[..cmd_end];
+                    let cmd_start = current_pos;
+                    let cmd_end_pos = current_pos + cmd_end;
+
+                    if cursor_pos >= cmd_start && cursor_pos <= cmd_end_pos {
+                        let cursor_offset = cursor_pos - cmd_start;
+                        if cursor_offset > 0 {
+                            spans.push(Span::styled(
+                                &cmd_text[..cursor_offset],
+                                Style::default().fg(COLOR_SELECTED),
+                            ));
+                        }
+                        spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                        if cursor_offset < cmd_text.len() {
+                            spans.push(Span::styled(
+                                &cmd_text[cursor_offset..],
+                                Style::default().fg(COLOR_SELECTED),
+                            ));
+                        }
+                    } else {
+                        spans.push(Span::styled(cmd_text, Style::default().fg(COLOR_SELECTED)));
+                    }
+
+                    current_pos = cmd_end_pos;
+                    remaining = &remaining[cmd_end..];
+                }
+            } else {
+                // No more @ symbols, add rest as normal text
+                if cursor_pos >= current_pos && cursor_pos <= current_pos + remaining.len() {
+                    let cursor_offset = cursor_pos - current_pos;
+                    if cursor_offset > 0 {
+                        spans.push(Span::styled(
+                            &remaining[..cursor_offset],
+                            Style::default().fg(Color::White),
+                        ));
+                    }
+                    spans.push(Span::styled("|", Style::default().fg(COLOR_ACCENT)));
+                    if cursor_offset < remaining.len() {
+                        spans.push(Span::styled(
+                            &remaining[cursor_offset..],
+                            Style::default().fg(Color::White),
+                        ));
+                    }
+                } else {
+                    spans.push(Span::styled(remaining, Style::default().fg(Color::White)));
+                }
+                break;
             }
-        } else {
-            // Split query at cursor position and render both parts with cursor in between
-            let before_cursor = &query[..cursor_pos.min(query.len())];
-            let after_cursor = &query[cursor_pos.min(query.len())..];
-
-            // Render text before cursor with styling
-            render_styled_text(&mut spans, before_cursor);
-
-            // Render cursor
-            if app.search_active {
-                spans.push(Span::styled("_", Style::default().fg(COLOR_ACCENT)));
-            }
-
-            // Render text after cursor with styling
-            render_styled_text(&mut spans, after_cursor);
         }
 
         spans.push(Span::styled(

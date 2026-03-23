@@ -132,6 +132,8 @@ pub struct App {
     pub search_active: bool,
     /// Current search query string
     pub search_query: String,
+    /// Cursor position in search query (0-indexed)
+    pub search_cursor_pos: usize,
     /// Scroll offset for the branch list viewport
     pub scroll_offset: usize,
     /// Visible height of the branch list (set during render)
@@ -186,6 +188,7 @@ impl App {
             show_filter: false,
             search_active: false,
             search_query: String::new(),
+            search_cursor_pos: 0,
             scroll_offset: 0,
             visible_height: 0,
             sort_mode: SortMode::Status,
@@ -606,6 +609,60 @@ impl App {
     pub fn hide_suggestions(&mut self) {
         self.show_suggestions = false;
         self.suggestion_index = None;
+    }
+
+    /// Move search cursor left
+    pub fn search_cursor_left(&mut self) {
+        if self.search_cursor_pos > 0 {
+            self.search_cursor_pos -= 1;
+        }
+    }
+
+    /// Move search cursor right
+    pub fn search_cursor_right(&mut self) {
+        if self.search_cursor_pos < self.search_query.len() {
+            self.search_cursor_pos += 1;
+        }
+    }
+
+    /// Insert character at cursor position in search query
+    pub fn search_insert_char(&mut self, c: char) {
+        self.search_query.insert(self.search_cursor_pos, c);
+        self.search_cursor_pos += 1;
+        self.selected_index = 0;
+        self.scroll_offset = 0;
+        self.update_suggestions();
+    }
+
+    /// Delete character before cursor in search query (backspace behavior)
+    pub fn search_backspace(&mut self) {
+        if self.search_cursor_pos > 0 {
+            self.search_query.remove(self.search_cursor_pos - 1);
+            self.search_cursor_pos -= 1;
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            self.update_suggestions();
+        }
+    }
+
+    /// Delete character at cursor position in search query
+    pub fn search_delete(&mut self) {
+        if self.search_cursor_pos < self.search_query.len() {
+            self.search_query.remove(self.search_cursor_pos);
+            self.selected_index = 0;
+            self.scroll_offset = 0;
+            self.update_suggestions();
+        }
+    }
+
+    /// Move cursor to start of search query
+    pub fn search_cursor_start(&mut self) {
+        self.search_cursor_pos = 0;
+    }
+
+    /// Move cursor to end of search query
+    pub fn search_cursor_end(&mut self) {
+        self.search_cursor_pos = self.search_query.len();
     }
 
     /// Count of deletable branches

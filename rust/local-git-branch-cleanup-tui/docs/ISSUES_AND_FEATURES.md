@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-02-25 16:05
+**Last Updated:** 2026-03-25 16:40
 
 ---
 
@@ -30,42 +30,7 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #12: Cannot edit search query text with left/right arrow keys
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-03-23
-- **Category:** UI/UX / Bug
-- **Description:**
-  - When user is in search mode (typing a search query), they should be able to use Left and Right
-    arrow keys to move the cursor within the search input text for editing
-  - Currently, Left/Right arrow keys are not handled during search input, preventing text editing
-- **Expected Behavior:**
-  - User presses `/` to activate search
-  - User types a search query (e.g., "feature/abc")
-  - User realizes they made a typo and wants to edit it
-  - User presses Left arrow key multiple times to move cursor back to the typo position
-  - User can then delete/correct the character and use Right arrow to move forward
-  - Standard text editing experience like in a terminal input field
-- **Actual Behavior:**
-  - Left/Right arrow keys don't work during search input
-  - Cannot position cursor within the search query text
-  - Must delete entire query with Backspace and retype if there's a typo in the middle
-- **Root Cause:**
-  - In `main.rs`, the search_active input handler (lines 180-238) does not handle `KeyCode::Left`
-    and `KeyCode::Right`
-  - No cursor position tracking for the search query string
-  - Left/Right keys likely fall through to the `_ => {}` catch-all
-- **Impact:**
-  - Poor text editing experience in search input
-  - Users cannot easily correct typos without retyping entire query
-  - Expected UX pattern for text input fields is missing
-- **Required Implementation:**
-  - Add `search_cursor_pos` field to App state to track cursor position in search query
-  - Handle `KeyCode::Left` to move cursor left (if not at start)
-  - Handle `KeyCode::Right` to move cursor right (if not at end)
-  - Modify Backspace to delete character at cursor position
-  - Modify Char input to insert at cursor position instead of append
-  - Visual cursor indicator in search input (e.g., `|` character)
+_No open UI/UX issues._
 
 ---
 
@@ -82,6 +47,68 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #12: Cannot edit search query text with left/right arrow keys
+
+- **GitHub:** [#27](https://github.com/EmilIvanichkovv/omni-scripts/issues/27)
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-03-23
+- **Resolved:** 2026-03-23
+- **Category:** UI/UX / Bug
+- **Description:**
+  - When user is in search mode (typing a search query), they should be able to use Left and Right
+    arrow keys to move the cursor within the search input text for editing
+  - Previously, Left/Right arrow keys were not handled during search input, preventing text editing
+- **Expected Behavior:**
+  - User presses `/` to activate search
+  - User types a search query (e.g., "feature/abc")
+  - User can use Left/Right arrow keys to move cursor within the text
+  - User can use Backspace/Delete to edit characters
+  - Standard text editing experience like in a terminal input field
+  - Also support Home/End keys for cursor positioning
+- **Actual Behavior (Before Fix):**
+  - Left/Right arrow keys didn't work during search input
+  - Cannot position cursor within the search query text
+  - Had to delete entire query with Backspace and retype if there was a typo
+- **Fix:**
+  - Added `search_cursor_pos: usize` field to App state to track cursor position in search query
+  - Implemented helper methods in `app.rs`:
+    - `search_cursor_left()` - move cursor left (if not at start)
+    - `search_cursor_right()` - move cursor right (if not at end)
+    - `search_cursor_start()` - move cursor to start of query
+    - `search_cursor_end()` - move cursor to end of query
+    - `search_insert_char(c)` - insert character at cursor position and advance cursor
+    - `search_backspace()` - delete character before cursor (respects cursor position)
+    - `search_delete()` - delete character at cursor (Delete key)
+  - Updated search input handler in `main.rs` to:
+    - Handle `KeyCode::Left` to move cursor left
+    - Handle `KeyCode::Right` to move cursor right
+    - Handle `KeyCode::Home` to move cursor to start
+    - Handle `KeyCode::End` to move cursor to end
+    - Handle `KeyCode::Delete` to delete char at cursor
+    - Use `search_insert_char()` instead of `push()` for character input
+    - Use `search_backspace()` instead of `pop()` for backspace
+    - Reset `search_cursor_pos` when clearing search
+  - Updated search box rendering in `ui.rs` to:
+    - Display cursor position (\_) at correct location within text
+    - Cursor uses accent color for visibility
+    - Supports cursor display within regular text, @author commands, and quoted values
+    - Visual cursor feedback shows position clearly for all text segments
+    - Cursor character chosen for minimal spacing impact on text rendering
+- **Implementation Notes:**
+  - Cursor position is character-based (0-indexed), not byte-based (handles multi-byte chars
+    correctly)
+  - Suggestions update when text is modified (char insertion/deletion)
+  - All existing search features (autocomplete, @author filtering) continue to work
+  - Cursor resets to 0 when typing new characters after clearing query
+- **Testing:**
+  - Manually tested cursor movement within search query
+  - Tested text insertion and deletion at various cursor positions
+  - Verified cursor display at start, middle, and end of text
+  - Tested with @author: commands and quoted names
+  - Verified suggestions still update correctly when editing text
+
+---
 
 ### Issue #11: Show GitHub PR association for branches
 
@@ -449,3 +476,5 @@ _No open minor/cosmetic issues._
 | 2026-02-25 | 14:00 | #10   | Resolved: Added @author: filter with autocomplete suggestions          |
 | 2026-02-25 | 14:30 | #11   | Resolved: Added GitHub PR integration with --github flag               |
 | 2026-02-25 | 16:05 | -     | Migrated resolved issues #7-#11 to Resolved Issues section             |
+| 2026-03-23 | 17:40 | #12   | Reported: Cannot edit search query with left/right arrow keys          |
+| 2026-03-23 | 18:30 | #12   | Resolved: Added cursor position tracking and text editing support      |

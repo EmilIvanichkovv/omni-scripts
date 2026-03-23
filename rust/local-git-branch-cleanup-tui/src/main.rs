@@ -184,6 +184,7 @@ fn run_tui_mode(
                                 // Exit search and clear query
                                 app.search_active = false;
                                 app.search_query.clear();
+                                app.search_cursor_pos = 0;
                                 app.selected_index = 0;
                                 app.scroll_offset = 0;
                                 app.hide_suggestions();
@@ -204,6 +205,22 @@ fn run_tui_mode(
                                     app.hide_suggestions();
                                 }
                             }
+                            KeyCode::Left => {
+                                // Move cursor left in search query
+                                app.search_cursor_left();
+                            }
+                            KeyCode::Right => {
+                                // Move cursor right in search query
+                                app.search_cursor_right();
+                            }
+                            KeyCode::Home => {
+                                // Move cursor to start of search query
+                                app.search_cursor_start();
+                            }
+                            KeyCode::End => {
+                                // Move cursor to end of search query
+                                app.search_cursor_end();
+                            }
                             KeyCode::Down => {
                                 // Navigate suggestions if showing, otherwise exit search
                                 if app.show_suggestions {
@@ -223,18 +240,16 @@ fn run_tui_mode(
                                 }
                             }
                             KeyCode::Backspace => {
-                                // Remove last character
-                                app.search_query.pop();
-                                app.selected_index = 0;
-                                app.scroll_offset = 0;
-                                app.update_suggestions();
+                                // Delete character before cursor
+                                app.search_backspace();
+                            }
+                            KeyCode::Delete => {
+                                // Delete character at cursor
+                                app.search_delete();
                             }
                             KeyCode::Char(c) => {
-                                // Add character to search query
-                                app.search_query.push(c);
-                                app.selected_index = 0;
-                                app.scroll_offset = 0;
-                                app.update_suggestions();
+                                // Insert character at cursor position
+                                app.search_insert_char(c);
                             }
                             _ => {}
                         }

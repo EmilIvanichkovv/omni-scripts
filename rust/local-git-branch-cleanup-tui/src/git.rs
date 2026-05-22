@@ -473,6 +473,49 @@ pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
     Ok(())
 }
 
+/// Returns the GitHub "owner/repo" slug derived from the remote URL.
+///
+/// Supports both HTTPS (`https://github.com/owner/repo.git`) and
+/// SSH (`git@github.com:owner/repo.git`) remote formats.
+/// Falls back to the repository's root directory basename if parsing fails.
+pub fn get_repo_slug() -> Result<String> {
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()?;
+
+    if !output.status.success() {
+        // Fall back to directory basename.
+        let dir = std::env::current_dir()?;
+        let name = dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        return Ok(format!("unknown/{name}"));
+    }
+
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    // HTTPS: https://github.com/owner/repo.git
+    // SSH:   git@github.com:owner/repo.git
+    let slug = if let Some(path) = url.strip_prefix("https://") {
+        // Drop host, keep "owner/repo[.git]"
+        path.split_once('/')
+            .map(|x| x.1)
+            .unwrap_or(&url)
+            .to_string()
+    } else if let Some(path) = url.split_once(':').map(|x| x.1) {
+        // SSH format — the part after the colon
+        path.to_string()
+    } else {
+        url.clone()
+    };
+
+    // Strip trailing .git
+    let slug = slug.strip_suffix(".git").unwrap_or(&slug).to_string();
+    Ok(slug)
+}
+
 /// Check if GitHub CLI (gh) is available
 pub fn is_gh_cli_available() -> bool {
     Command::new("gh")
@@ -544,14 +587,41 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
     })
 }
 
-/// Fetch PR information for multiple branches (batched for efficiency)
-/// This is more efficient than calling get_pr_info_for_branch for each branch
-pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo]) {
-    // Process branches in parallel could be done here, but for simplicity
-    // we'll process them sequentially. The gh CLI is reasonably fast.
-    for branch in branches.iter_mut() {
-        if let Some(pr_info) = get_pr_info_for_branch(&branch.name) {
-            branch.pr_info = Some(pr_info);
+/// Fetch PR information for multiple branches, consulting the cache first.
+///
+/// For each branch:
+/// - If a valid cache entry exists, use it (no `gh` subprocess).
+/// - Otherwise, call the GitHub CLI and store the result in the cache.
+///
+/// Passing a `cache` of `None` falls back to the original behaviour (no caching).
+pub fn fetch_pr_info_for_branches(
+    branches: &mut [BranchInfo],
+    cache: Option<&mut crate::cache::PrCache>,
+) {
+    use crate::cache::CacheResult;
+
+    match cache {
+        Some(pr_cache) => {
+            for branch in branches.iter_mut() {
+                match pr_cache.get(&branch.name) {
+                    CacheResult::Hit(pr_info) => {
+                        branch.pr_info = pr_info;
+                    }
+                    CacheResult::Miss => {
+                        let fetched = get_pr_info_for_branch(&branch.name);
+                        let _ = pr_cache.set(&branch.name, fetched.as_ref());
+                        branch.pr_info = fetched;
+                    }
+                }
+            }
+        }
+        None => {
+            // No cache — original sequential behaviour.
+            for branch in branches.iter_mut() {
+                if let Some(pr_info) = get_pr_info_for_branch(&branch.name) {
+                    branch.pr_info = Some(pr_info);
+                }
+            }
         }
     }
 }

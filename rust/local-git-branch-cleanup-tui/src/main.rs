@@ -1,4 +1,5 @@
 mod app;
+mod cache;
 mod git;
 mod ui;
 
@@ -71,9 +72,31 @@ fn main() -> Result<()> {
     // Fetch GitHub PR info if --github flag is enabled
     let github_enabled = if args.github {
         if git::is_gh_cli_available() {
-            eprintln!("🔗 Fetching GitHub PR info...");
-            git::fetch_pr_info_for_branches(&mut branches);
-            true
+            let repo_slug = git::get_repo_slug().unwrap_or_else(|_| "unknown/unknown".to_string());
+            let ttl = std::time::Duration::from_secs(3600);
+
+            match cache::PrCache::open(&repo_slug, ttl) {
+                Ok(mut pr_cache) => {
+                    pr_cache
+                        .evict_stale(std::time::Duration::from_secs(30 * 24 * 60 * 60))
+                        .ok();
+                    eprintln!("🔗 Fetching GitHub PR info...");
+                    git::fetch_pr_info_for_branches(&mut branches, Some(&mut pr_cache));
+                    let stats = pr_cache.stats();
+                    if stats.hits > 0 {
+                        eprintln!(
+                            "   {} from cache, {} fetched from GitHub",
+                            stats.hits, stats.misses
+                        );
+                    }
+                    true
+                }
+                Err(e) => {
+                    eprintln!("⚠️  PR cache unavailable ({}), fetching live data.", e);
+                    git::fetch_pr_info_for_branches(&mut branches, None);
+                    true
+                }
+            }
         } else {
             eprintln!("⚠️  GitHub CLI (gh) not found. Install it to enable PR integration.");
             eprintln!("   See: https://cli.github.com/");

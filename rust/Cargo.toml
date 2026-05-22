@@ -19,6 +19,9 @@ color-eyre = "0.6.5"
 crossterm = "0.29.0"
 ratatui = { version = "0.30.0", features = ["all-widgets"] }
 
+rusqlite = { version = "0.31", features = ["bundled"] }
+dirs = "5.0"
+
 # Testing dependencies
 tempfile = "3.17"
 assert_cmd = "2.0"

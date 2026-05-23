@@ -26,6 +26,13 @@ clear separation of concerns.
     └──────────┘         └──────────┘         └──────────┘
     Application          Git Integration      UI Rendering
     State Logic          & Classification     (Ratatui)
+                               │
+                               ▼
+                        ┌──────────┐
+                        │ cache.rs │
+                        └──────────┘
+                        SQLite PR Cache
+                        (rusqlite)
 ```
 
 ## Module Responsibilities
@@ -216,6 +223,19 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 | Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>` |
 | Delete          | `git branch -d/-D <branch>`                               |     | PR info (GitHub) | `gh pr list --head <branch> --json number,state,title,url` |
 | Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)   |
+| Remote URL      | `git remote get-url origin`                               |
+
+**Key Functions (PR-related):**
+
+```rust
+// GitHub remote identification
+pub fn get_repo_slug() -> Result<String>
+
+// GitHub PR integration (requires gh CLI)
+pub fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
+pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>)
+pub fn open_url_in_browser(url: &str) -> Result<()>
+```
 
 **Classification Logic:**
 
@@ -302,6 +322,80 @@ const GREEN: Color = Color::Rgb(80, 250, 123);     // #50FA7B - Success
 - `Block`: Borders and titles
 - `Clear`: Modal backgrounds
 
+### 5. `cache.rs` — SQLite PR Cache
+
+**Responsibilities:**
+
+- Persist GitHub PR data between runs in a local SQLite database
+- Serve cached entries within the configured TTL (default: 1 hour)
+- Evict stale entries and invalidate individual branch entries on deletion
+- Expose session statistics (hits, misses, writes)
+
+**Key Types:**
+
+```rust
+/// Outcome of a cache lookup.
+pub enum CacheResult {
+    /// Valid non-expired entry found. None inner means "no PR for this branch".
+    Hit(Option<PrInfo>),
+    /// No valid entry — caller must fetch from the API.
+    Miss,
+}
+
+/// Session-level statistics.
+pub struct CacheStats {
+    pub hits: usize,
+    pub misses: usize,
+    pub writes: usize,
+    pub total_entries: usize,
+    pub oldest_entry_ts: Option<i64>,
+}
+
+/// The cache handle. One instance per run, opened in main().
+pub struct PrCache {
+    conn: rusqlite::Connection,
+    repo: String,   // "owner/repo" partition key
+    ttl: Duration,
+    stats: CacheStats,
+}
+```
+
+**Public API:**
+
+```rust
+// Open or create the on-disk database (XDG_CACHE_HOME/omni-scripts/pr-cache.db)
+pub fn PrCache::open(repository: &str, ttl: Duration) -> Result<Self>
+// Also: open_with_conn() for in-memory testing
+
+pub fn get(&mut self, branch_name: &str) -> CacheResult
+pub fn set(&mut self, branch_name: &str, pr_info: Option<&PrInfo>) -> Result<()>
+pub fn evict_stale(&self, max_age: Duration) -> Result<usize>
+pub fn invalidate(&self, branch_name: &str) -> Result<()>
+pub fn stats(&self) -> &CacheStats
+pub fn db_path() -> Option<PathBuf>
+```
+
+**Database Location:** `$XDG_CACHE_HOME/omni-scripts/pr-cache.db` (falls back to
+`$HOME/.cache/omni-scripts/pr-cache.db`)
+
+**Schema (v1):**
+
+```sql
+schema_migrations  -- tracks applied migration versions
+repositories       -- one row per "owner/repo" slug
+cached_prs         -- one row per (repository, branch); NULL pr_number = "no PR"
+```
+
+**Cache Logic:**
+
+- A `NULL pr_number` row means _"we asked GitHub and found no PR"_ — a cache hit that prevents a
+  redundant API call on the next run within TTL.
+- An absent row means _"never queried"_ — a miss, API call required.
+- Schema migrations run automatically on `open()`; the delta pattern means only new versions are
+  applied, never re-run.
+
+---
+
 ## Data Flow
 
 ### 1. Application Initialization
@@ -312,6 +406,17 @@ main() → verify_repo() → get_current_branch() → get_trunk_branch() → get
                                           classify_branch() ← for each branch
                                                    ↓
                                           App::new(branches, trunk, current)
+
+-- When --github is active: --
+main() → get_repo_slug()               → PrCache::open(slug, 1h TTL)
+              ↓                                      ↓
+    "owner/repo" string            evict_stale(30d) then for each branch:
+                                         ↓                    ↓
+                                   cache.get(branch)     ← Hit → use cached PrInfo
+                                         ↓ Miss
+                                   gh pr list --head <branch>
+                                         ↓
+                                   cache.set(branch, result)
 ```
 
 ### 2. User Interaction (TUI Mode)
@@ -498,13 +603,15 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 
 ### Core Dependencies
 
-| Crate        | Version | Purpose                           |
-| ------------ | ------- | --------------------------------- |
-| `ratatui`    | 0.30.0  | TUI framework                     |
-| `crossterm`  | 0.29.0  | Terminal backend (cross-platform) |
-| `clap`       | 4.5.57  | CLI argument parsing              |
-| `color-eyre` | 0.6.5   | Error handling and reporting      |
-| `chrono`     | 0.4.43  | Date/time formatting              |
+| Crate        | Version | Purpose                            |
+| ------------ | ------- | ---------------------------------- |
+| `ratatui`    | 0.30.0  | TUI framework                      |
+| `crossterm`  | 0.29.0  | Terminal backend (cross-platform)  |
+| `clap`       | 4.5.57  | CLI argument parsing               |
+| `color-eyre` | 0.6.5   | Error handling and reporting       |
+| `chrono`     | 0.4.43  | Date/time formatting               |
+| `rusqlite`   | 0.31    | SQLite client (bundled libsqlite3) |
+| `dirs`       | 5.0     | XDG-compliant cache directory      |
 
 ### Development Dependencies
 
@@ -520,12 +627,14 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 
 - **Startup time**: < 1s for repos with < 50 branches
 - **Memory usage**: ~5MB for typical repos
-- **Git command overhead**: Sequential execution (no parallelism yet)
+- **Git command overhead**: Sequential execution
+- **GitHub PR fetching (cold)**: ~1s per branch, sequential (Phase 2 will parallelise)
+- **GitHub PR fetching (warm)**: < 100ms total — served from SQLite cache (Phase 1 ✅)
 
 ### Optimization Opportunities
 
-1. **Parallel Git queries**: Use `rayon` to classify branches concurrently
-2. **Caching**: Cache Git command results between renders
+1. **Parallel `gh` calls** (Phase 2): Use `rayon` to fetch cache misses concurrently
+2. **Parallel Git queries**: Use `rayon` to classify branches concurrently
 3. **Lazy loading**: Only fetch commit details for visible branches
 4. **Pagination**: Limit displayed branches to viewport + buffer
 

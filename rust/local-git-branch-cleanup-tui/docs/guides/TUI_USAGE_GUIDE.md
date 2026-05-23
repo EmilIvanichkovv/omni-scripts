@@ -185,8 +185,32 @@ The details pane shows additional PR information:
 Press `o` when a branch with an associated PR is selected to open the PR URL in your default
 browser.
 
-> **Note:** GitHub integration requires additional API calls at startup, which may slow down the
-> initial load with many branches.
+### Cache Behaviour
+
+PR data is cached locally in a SQLite database (`~/.cache/omni-scripts/pr-cache.db`) for **1 hour**
+by default. This means:
+
+- **Second run within 1h**: instant — zero `gh` subprocess calls
+- **New PR opened**: will appear after the cache entry expires (up to 1h)
+- **PR closed or merged**: old state shown until cache expires
+
+At startup the cache reports how many branches were served from cache vs fetched live:
+
+```
+🔗 Fetching GitHub PR info...
+   42 from cache, 3 fetched from GitHub
+```
+
+**Inspecting the cache** (from the project dev shell):
+
+```bash
+just cache-show    # pretty-print all cached entries
+just cache-db      # open interactive sqlite3 REPL
+just cache-clear   # delete all cached rows (forces fresh fetch on next run)
+```
+
+> **Note:** GitHub integration requires additional API calls at startup for cache misses, which may
+> slow down the initial load with many branches. Subsequent runs within the TTL are instant.
 
 ## Understanding Branch Status
 

@@ -2,6 +2,7 @@
   lib,
   rustPlatform,
   git,
+  sqlite,
 }:
 
 rustPlatform.buildRustPackage rec {
@@ -38,6 +39,7 @@ rustPlatform.buildRustPackage rec {
   cargoHash = "sha256-Y8Wrv962vK6KD7W3iMZDtTZEzC1XT0XcsLSS+Uyab9w=";
 
   nativeBuildInputs = [ git ];
+  propagatedBuildInputs = [ sqlite ];
 
   doCheck = false; # Skip tests in Nix build (they require git repos)
 

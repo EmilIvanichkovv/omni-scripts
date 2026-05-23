@@ -36,6 +36,9 @@
 
             # Task runner
             just
+
+            # Database inspection
+            sqlite
           ];
 
           RUST_BACKTRACE = 1;
@@ -51,6 +54,7 @@
             clippy
             rust-analyzer
             git
+            sqlite
           ];
 
           RUST_BACKTRACE = 1;

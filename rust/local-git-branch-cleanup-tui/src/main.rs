@@ -83,12 +83,10 @@ fn main() -> Result<()> {
                     eprintln!("🔗 Fetching GitHub PR info...");
                     git::fetch_pr_info_for_branches(&mut branches, Some(&mut pr_cache));
                     let stats = pr_cache.stats();
-                    if stats.hits > 0 {
-                        eprintln!(
-                            "   {} from cache, {} fetched from GitHub",
-                            stats.hits, stats.misses
-                        );
-                    }
+                    eprintln!(
+                        "   {} from cache, {} fetched from GitHub",
+                        stats.hits, stats.misses
+                    );
                     true
                 }
                 Err(e) => {

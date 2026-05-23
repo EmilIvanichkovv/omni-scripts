@@ -66,9 +66,11 @@ pub struct CacheStats {
     pub misses: usize,
     /// Number of new entries written to the database this session.
     pub writes: usize,
-    /// Number of entries in the database for this repository.
+    /// Number of entries in the database for this repository **at the time the cache was opened**.
+    /// This count is not updated after subsequent `set()`, `evict_stale()`, or `invalidate()` calls.
     pub total_entries: usize,
-    /// Unix timestamp of the oldest cached entry for this repository.
+    /// Unix timestamp of the oldest cached entry for this repository **at the time the cache was opened**.
+    /// This value is not refreshed after mutations.
     pub oldest_entry_ts: Option<i64>,
 }
 
@@ -134,11 +136,9 @@ impl PrCache {
 
     /// Return cached PR info if a valid (non-expired) entry exists.
     ///
-    /// * Returns `Some(PrInfo)` on a cache hit with a known PR.
-    /// * Returns `None` on a cache hit for "no PR" (avoids a redundant API call).
-    /// * Returns `None` on a miss or expired entry (caller should fetch from API).
-    ///
-    /// To distinguish a "no PR" hit from a true miss, use `is_cached()`.
+    /// * Returns `CacheResult::Hit(Some(PrInfo))` on a cache hit with a known PR.
+    /// * Returns `CacheResult::Hit(None)` on a cache hit for "no PR" (avoids a redundant API call).
+    /// * Returns `CacheResult::Miss` on a miss or expired entry (caller should fetch from API).
     pub fn get(&mut self, branch_name: &str) -> CacheResult {
         let cutoff = unix_now() - self.ttl.as_secs() as i64;
 

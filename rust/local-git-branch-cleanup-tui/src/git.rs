@@ -497,17 +497,24 @@ pub fn get_repo_slug() -> Result<String> {
     let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
     // HTTPS: https://github.com/owner/repo.git
-    // SSH:   git@github.com:owner/repo.git
-    let slug = if let Some(path) = url.strip_prefix("https://") {
+    // HTTP:  http://github.com/owner/repo.git
+    // SSH:   git@github.com:owner/repo.git  (SCP-style, no "://")
+    let slug = if let Some(path) = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+    {
         // Drop host, keep "owner/repo[.git]"
         path.split_once('/')
             .map(|x| x.1)
-            .unwrap_or(&url)
+            .unwrap_or(path)
             .to_string()
-    } else if let Some(path) = url.split_once(':').map(|x| x.1) {
-        // SSH format — the part after the colon
-        path.to_string()
+    } else if !url.contains("://") {
+        // SCP-style SSH: git@github.com:owner/repo.git — take everything after the colon
+        url.split_once(':')
+            .map(|x| x.1.to_string())
+            .unwrap_or_else(|| url.clone())
     } else {
+        // Unknown format — fall back gracefully
         url.clone()
     };
 

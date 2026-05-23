@@ -372,7 +372,6 @@ pub fn set(&mut self, branch_name: &str, pr_info: Option<&PrInfo>) -> Result<()>
 pub fn evict_stale(&self, max_age: Duration) -> Result<usize>
 pub fn invalidate(&self, branch_name: &str) -> Result<()>
 pub fn stats(&self) -> &CacheStats
-pub fn db_path() -> Option<PathBuf>
 ```
 
 **Database Location:** `$XDG_CACHE_HOME/omni-scripts/pr-cache.db` (falls back to

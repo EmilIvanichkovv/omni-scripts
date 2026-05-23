@@ -187,8 +187,15 @@ browser.
 
 ### Cache Behaviour
 
-PR data is cached locally in a SQLite database (`~/.cache/omni-scripts/pr-cache.db`) for **1 hour**
-by default. This means:
+PR data is cached locally in a SQLite database for **1 hour** by default. The database location
+follows the platform cache directory convention:
+
+- **Linux / XDG:** `$XDG_CACHE_HOME/omni-scripts/pr-cache.db` (defaults to
+  `~/.cache/omni-scripts/pr-cache.db`)
+- **macOS:** `$HOME/Library/Caches/omni-scripts/pr-cache.db`
+
+To print the resolved path, run:
+`just cache-db --bail 2>/dev/null || echo "$XDG_CACHE_HOME/omni-scripts/pr-cache.db"` This means:
 
 - **Second run within 1h**: instant — zero `gh` subprocess calls
 - **New PR opened**: will appear after the cache entry expires (up to 1h)

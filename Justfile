@@ -21,11 +21,11 @@ check:
 
 # Inspect the PR cache database with sqlite3
 cache-db:
-    sqlite3 ~/.cache/omni-scripts/pr-cache.db
+    sqlite3 "${XDG_CACHE_HOME:-$HOME/.cache}/omni-scripts/pr-cache.db"
 
 # Show all cached PR entries for the current repo
 cache-show:
-    sqlite3 -column -header ~/.cache/omni-scripts/pr-cache.db \
+    sqlite3 -column -header "${XDG_CACHE_HOME:-$HOME/.cache}/omni-scripts/pr-cache.db" \
       "SELECT r.slug, c.branch_name, c.pr_number, c.pr_state, \
               datetime(c.cached_at, 'unixepoch', 'localtime') AS cached_at \
        FROM cached_prs c JOIN repositories r ON r.id = c.repository_id \
@@ -33,5 +33,5 @@ cache-show:
 
 # Clear all cached PR entries (keeps the database file)
 cache-clear:
-    sqlite3 ~/.cache/omni-scripts/pr-cache.db "DELETE FROM cached_prs;"
+    sqlite3 "${XDG_CACHE_HOME:-$HOME/.cache}/omni-scripts/pr-cache.db" "DELETE FROM cached_prs;"
     @echo "Cache cleared."

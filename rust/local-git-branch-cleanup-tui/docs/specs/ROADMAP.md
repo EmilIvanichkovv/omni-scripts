@@ -2,8 +2,8 @@
 
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh` **Target Name**:
 `local-git-branch-cleanup-tui` **Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace
-member) **Status**: 🎉 COMPLETE - All 9 Milestones Done! Production Ready! 🎉 **Version**: 0.3.0
-**Last Updated**: 2026-02-25
+member) **Status**: 🚀 Active Development — Post-MVP enhancements in progress **Version**: 0.3.0
+**Last Updated**: 2026-05-23
 
 ---
 
@@ -29,6 +29,7 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - ✅ Flexible sorting (status, name, activity, creation date)
 - ✅ Powerful search with `@author:` filter and autocomplete
 - ✅ GitHub PR integration (`--github` flag)
+- ✅ SQLite PR cache — zero redundant `gh` calls on warm runs (Phase 1, 2026-05-23)
 
 **Key Improvements Over Bash Script:**
 
@@ -1039,3 +1040,32 @@ touch src/app.rs src/git.rs src/ui.rs
     - Total code: ~2000 lines of Rust + 1400 lines of documentation
     - Test coverage: 43 tests, 80%+ coverage
     - Ready for production use
+
+---
+
+## Post-MVP Enhancements
+
+### ✅ Milestone 10: GitHub PR Cache — Phase 1 (SQLite layer)
+
+**Status**: ✅ Complete (2026-05-23) **Spec**: [GITHUB_PR_CACHE.md](GITHUB_PR_CACHE.md)
+
+#### Goal
+
+Eliminate redundant `gh` subprocess calls on repeated `--github` runs by persisting PR data in a
+local SQLite database. A cached entry is valid for 1 hour (configurable).
+
+#### Delivered
+
+- [x] `src/cache.rs` — new module: `PrCache`, `CacheStats`, `CacheResult`, schema migrations (v1)
+- [x] `git::get_repo_slug()` — parses HTTPS and SSH remote URLs to `owner/repo`
+- [x] `git::fetch_pr_info_for_branches()` — now cache-aware; `None` falls back to live fetch
+- [x] `main.rs` — opens cache, evicts entries older than 30 days, reports hit/miss counts
+- [x] `Cargo.toml` — `rusqlite` (bundled), `dirs` added as workspace deps
+- [x] `nix/` — `sqlite` added to dev shells and propagated with the package
+- [x] `Justfile` — `cache-db`, `cache-show`, `cache-clear` recipes added
+- [x] 9 unit tests covering hit, miss, no-PR hit, expiry, eviction, invalidation, migration
+
+#### Remaining (deferred to later phases)
+
+- [ ] Phase 2: Parallel `gh` execution via `rayon` (cache misses only)
+- [ ] Phase 3: `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags; TUI Ctrl+R keybinding

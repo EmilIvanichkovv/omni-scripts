@@ -343,14 +343,14 @@ Use the `bundled` feature so `libsqlite3` does not need to be present on the hos
 
 ### Acceptance Criteria for Phase 1
 
-- [ ] First run with `--github` behaves identically to the current implementation
-- [ ] Second run with `--github` (within TTL) makes zero `gh` subprocess calls
-- [ ] `pr-cache.db` is created at the XDG cache path on first run
-- [ ] Expired entries (older than TTL) are re-fetched and overwritten
-- [ ] "No PR" results are cached and don't trigger a re-fetch within TTL
-- [ ] Deleting a branch via the TUI calls `cache.invalidate()` for that branch
-- [ ] A corrupted or missing cache file falls back gracefully (no panic)
-- [ ] `cargo test` passes — unit tests cover `get()`, `set()`, `evict_stale()`, `invalidate()`
+- [x] First run with `--github` behaves identically to the current implementation
+- [x] Second run with `--github` (within TTL) makes zero `gh` subprocess calls
+- [x] `pr-cache.db` is created at the XDG cache path on first run
+- [x] Expired entries (older than TTL) are re-fetched and overwritten
+- [x] "No PR" results are cached and don't trigger a re-fetch within TTL
+- [ ] Deleting a branch via the TUI calls `cache.invalidate()` for that branch _(Phase 3)_
+- [x] A corrupted or missing cache file falls back gracefully (no panic)
+- [x] `cargo test` passes — unit tests cover `get()`, `set()`, `evict_stale()`, `invalidate()`
 
 ---
 

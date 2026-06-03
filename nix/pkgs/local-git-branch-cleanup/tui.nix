@@ -36,7 +36,7 @@ rustPlatform.buildRustPackage rec {
     "local-git-branch-cleanup-tui"
   ];
 
-  cargoHash = "sha256-+1xcMPtxKA1B/70IVFH351B6UY4UTJjyTXb5oMJR0Ns=";
+  cargoHash = "sha256-iPORrZ2KvkSwyHelplGRaYubg8+Isrrzj013e3d/SkE=";
 
   nativeBuildInputs = [ git ];
   propagatedBuildInputs = [ sqlite ];

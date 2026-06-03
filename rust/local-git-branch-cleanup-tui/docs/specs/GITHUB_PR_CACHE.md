@@ -1,7 +1,7 @@
 # GitHub PR Cache — Feature Specification
 
-**Status:** ✅ Phase 2 Complete **Created:** 2026-04-26 **Updated:** 2026-06-03 **Affects:**
-`git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
+**Status:** ✅ Phase 2.0 Complete · 🔬 Phase 2.1 Proposed **Created:** 2026-04-26 **Updated:**
+2026-06-03 **Affects:** `git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
 `scripts/bench-pr-fetch.sh` **New Docs:** `docs/BENCHMARK_PR_FETCH.md`,
 `docs/specs/PR_FETCH_BEHAVIOUR.md`
 
@@ -18,13 +18,14 @@ When `--github` / `-g` is passed, the application calls `gh pr list --head <bran
 
 This specification describes a three-phase improvement:
 
-| Phase | Goal                          | Primary Change          |
-| ----- | ----------------------------- | ----------------------- |
-| 1     | Eliminate redundant API calls | SQLite cache layer      |
-| 2     | Reduce first-run latency      | Parallel `gh` execution |
-| 3     | User control and transparency | CLI flags + TUI signals |
+| Phase | Goal                          | Primary Change                           |
+| ----- | ----------------------------- | ---------------------------------------- |
+| 1     | Eliminate redundant API calls | SQLite cache layer                       |
+| 2.0   | Reduce first-run latency      | Parallel `gh` execution via `rayon`      |
+| 2.1   | Better I/O concurrency        | Replace `rayon` with `tokio` async tasks |
+| 3     | User control and transparency | CLI flags + TUI signals                  |
 
-Each phase is self-contained and shippable. They must be implemented in order since Phase 2 builds
+Each phase is self-contained and shippable. They must be implemented in order since Phase 2.x builds
 on Phase 1's cache layer, and Phase 3 surfaces internal state introduced in both.
 
 ---
@@ -356,7 +357,7 @@ Use the `bundled` feature so `libsqlite3` does not need to be present on the hos
 
 ---
 
-## Phase 2 — Parallel `gh` Execution
+## Phase 2.0 — Parallel `gh` Execution (rayon)
 
 ### Goal
 
@@ -489,7 +490,7 @@ Benchmarked against `metacraft-labs/blocksense` monorepo (81 branches, cold cach
 With 8 workers and ~0.71 s/call, the theoretical floor is ⌈81/8⌉ × 0.71 ≈ 7.8 s. The measured ~6.7 s
 beats this because faster calls keep all 8 slots busy throughout.
 
-### Acceptance Criteria for Phase 2
+### Acceptance Criteria for Phase 2.0
 
 - [x] `fetch_pr_info_for_branches()` with 0 cache entries takes roughly `ceil(N / 8)` seconds for N
       branches, not N seconds _(measured: ~6.7 s for 81 branches; floor ≈ 7.8 s)_
@@ -507,6 +508,206 @@ beats this because faster calls keep all 8 slots busy throughout.
       script)
 - [x] `scripts/bench-pr-fetch.sh` — automated benchmark script comparing sequential vs parallel
 - [x] `docs/BENCHMARK_PR_FETCH.md` — recorded benchmark results
+
+---
+
+## Phase 2.1 — Async `gh` Execution (tokio)
+
+### Goal
+
+Replace the `rayon` thread pool with `tokio` async tasks. Each `gh` subprocess call is pure I/O — it
+spawns a process, sends an HTTP request to GitHub, and reads stdout. Blocking an OS thread while
+waiting for that I/O is wasteful. `tokio` multiplexes many concurrent tasks on a small number of OS
+threads via the kernel's async I/O mechanisms (epoll / io_uring on Linux).
+
+### Why tokio Is a Better Fit Than rayon Here
+
+| Property               | `rayon` (Phase 2.0)                     | `tokio` (Phase 2.1)                           |
+| ---------------------- | --------------------------------------- | --------------------------------------------- |
+| Concurrency model      | Thread pool (8 OS threads, all blocked) | Async tasks on a small thread pool            |
+| OS threads in use      | 8 (one per in-flight call)              | 2–4 (tokio default; tasks yield while idle)   |
+| In-flight calls        | Capped at 8 (worker count)              | Capped by `Semaphore` (tunable, e.g. 20–50)   |
+| Blocking while waiting | Yes — thread blocks on child stdout     | No — task yields; thread services other tasks |
+| `async/await` changes  | None required                           | `get_pr_info_for_branch` becomes `async fn`   |
+| Dependency             | `rayon = "1.10"`                        | `tokio` (likely already a transitive dep)     |
+
+**Key insight:** with `rayon` capped at 8 workers, 81 branches require ⌈81/8⌉ = 11 rounds even if
+every call returns instantly. With `tokio` + a semaphore of 20, ⌈81/20⌉ = 5 rounds, and threads are
+freed between rounds to handle other work.
+
+### Prerequisite
+
+Phase 2.0 must be complete. Phase 2.1 is a drop-in replacement for the parallelism layer only; the
+3-pass algorithm and `sequential: bool` flag are retained.
+
+### New Dependency
+
+```toml
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "process", "macros"] }
+```
+
+Remove `rayon = "1.10"` from both workspace and crate `Cargo.toml`.
+
+### Implementation Plan
+
+#### Step 1 — Convert `get_pr_info_for_branch()` to async
+
+```rust
+// Before (git.rs)
+fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
+    let output = std::process::Command::new("gh")
+        .args([...])
+        .output()
+        .ok()?;
+    // ...
+}
+
+// After (git.rs)
+async fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
+    let output = tokio::process::Command::new("gh")
+        .args([...])
+        .output()
+        .await
+        .ok()?;
+    // parsing logic unchanged
+}
+```
+
+`tokio::process::Command` is a drop-in async replacement for `std::process::Command`. The parsing
+logic inside the function is unchanged.
+
+#### Step 2 — Convert `fetch_pr_info_for_branches()` to async (pass 2 only)
+
+Pass 1 (cache hits) and pass 3 (write-back) remain synchronous. Only pass 2 changes:
+
+```rust
+use std::sync::Arc;
+use tokio::sync::Semaphore;
+
+/// Maximum number of concurrent `gh` subprocess calls.
+const MAX_CONCURRENT_GH_CALLS: usize = 20;
+
+pub async fn fetch_pr_info_for_branches(
+    branches: &mut [BranchInfo],
+    cache: Option<&mut PrCache>,
+    sequential: bool,
+) {
+    // ... pass 1 unchanged ...
+
+    // --- Pass 2: Fetch misses ---
+    let results: Vec<Option<PrInfo>> = if sequential {
+        // Sequential path unchanged — no async overhead
+        let mut out = Vec::with_capacity(names.len());
+        for name in &names {
+            out.push(get_pr_info_for_branch(name).await);
+        }
+        out
+    } else {
+        let sem = Arc::new(Semaphore::new(MAX_CONCURRENT_GH_CALLS));
+        let mut handles = tokio::task::JoinSet::new();
+
+        for name in names {
+            let sem = Arc::clone(&sem);
+            handles.spawn(async move {
+                let _permit = sem.acquire_owned().await.unwrap();
+                get_pr_info_for_branch(&name).await
+                // permit dropped here → slot freed for next task
+            });
+        }
+
+        // Collect in spawn order — JoinSet returns in completion order,
+        // so we pair results back to indices via a separate index map.
+        let mut result_map = std::collections::HashMap::new();
+        // (see full implementation note below)
+        todo!()
+    };
+
+    // ... pass 3 unchanged ...
+}
+```
+
+> **Implementation note on ordering:** `JoinSet::join_next()` returns tasks in completion order, not
+> spawn order. To correctly pair results back to `miss_indices`, spawn each task with its index:
+> `handles.spawn(async move { (i, get_pr_info_for_branch(&name).await) })` and collect into a
+> `HashMap<usize, Option<PrInfo>>` keyed by index. Pass 3 then iterates `miss_indices` and looks up
+> each result by index.
+
+#### Step 3 — Add `#[tokio::main]` to `main()`
+
+```rust
+// Before
+fn main() -> color_eyre::Result<()> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(MAX_PARALLEL_WORKERS)
+        .build_global()
+        .ok();
+    // ...
+}
+
+// After
+#[tokio::main]
+async fn main() -> color_eyre::Result<()> {
+    // No ThreadPoolBuilder needed — tokio manages its own thread pool
+    // ...
+    fetch_pr_info_for_branches(&mut branches, Some(&mut pr_cache), sequential).await;
+    // ...
+}
+```
+
+The tokio runtime uses `num_cpus` threads by default but tasks yield at `.await` points, so the
+actual OS thread count stays low regardless of concurrency.
+
+#### Step 4 — Update concurrency constant and remove rayon bootstrap
+
+```rust
+// Remove:
+const MAX_PARALLEL_WORKERS: usize = 8;
+rayon::ThreadPoolBuilder::new() ...
+
+// Add:
+const MAX_CONCURRENT_GH_CALLS: usize = 20;
+// (used inside fetch_pr_info_for_branches via Semaphore)
+```
+
+The semaphore of 20 stays well under GitHub's 5 000 req/hour burst limit while giving ⌈81/20⌉ = 5
+round-trips instead of ⌈81/8⌉ = 11.
+
+#### Step 5 — Update Nix `cargoHash`
+
+After updating `Cargo.lock` (rayon removed, tokio version pinned), set `cargoHash` in
+`nix/pkgs/local-git-branch-cleanup/tui.nix` to `lib.fakeHash`, run `nix build`, capture the correct
+hash from the error output, and replace.
+
+#### Step 6 — Extend benchmark
+
+Update `scripts/bench-pr-fetch.sh` to add a third run mode (`--tokio`) so the three modes can be
+compared side-by-side:
+
+```
+Mode         | Branches | Fetch time | Speedup
+-------------|----------|------------|--------
+Sequential   | 81       | ~55 s      | 1×
+rayon (2.0)  | 81       | ~6.7 s     | ~8.4×
+tokio (2.1)  | 81       | TBD        | TBD
+```
+
+Expected: with semaphore=20, theoretical floor = ⌈81/20⌉ × 0.71 ≈ 2.9 s. Actual will depend on
+GitHub API variance.
+
+### Acceptance Criteria for Phase 2.1
+
+- [ ] `get_pr_info_for_branch()` uses `tokio::process::Command` and is declared `async fn`
+- [ ] `fetch_pr_info_for_branches()` is declared `async fn`; internal pass 2 uses `JoinSet` +
+      `Semaphore`
+- [ ] `main()` is annotated `#[tokio::main]`
+- [ ] `rayon` is removed from all `Cargo.toml` files
+- [ ] `MAX_CONCURRENT_GH_CALLS` replaces `MAX_PARALLEL_WORKERS`; default value is 20
+- [ ] Results are identical to sequential and Phase 2.0 output (order-independent correctness)
+- [ ] `--sequential` flag still works (falls back to awaited sequential loop)
+- [ ] Nix `cargoHash` updated for new `Cargo.lock`
+- [ ] Benchmark script updated; new results recorded in `docs/BENCHMARK_PR_FETCH.md`
+- [ ] `cargo test` passes
 
 ---
 
@@ -720,21 +921,27 @@ Update `ARCHITECTURE.md` after Phase 1 is complete to:
 
 ## File Change Summary
 
-| File                                        | Phase | Change                                                                                              |
-| ------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------- |
-| `src/cache.rs`                              | 1     | New file — entire module                                                                            |
-| `src/git.rs`                                | 1     | Add `get_repo_slug()`, modify `fetch_pr_info_for_branches()`                                        |
-| `src/main.rs`                               | 1     | Initialize `PrCache`, wire into GitHub block                                                        |
-| `Cargo.toml`                                | 1     | Add `rusqlite` (bundled), `dirs`                                                                    |
-| `src/git.rs`                                | 2     | 3-pass parallel execution; `sequential: bool` param; `None`-cache path also parallelised            |
-| `Cargo.toml`                                | 2     | Add `rayon = "1.10"`                                                                                |
-| `src/main.rs`                               | 2     | `ThreadPoolBuilder` (8 workers); hidden `--sequential` and `--fetch-only` flags; inline fetch timer |
-| `nix/pkgs/local-git-branch-cleanup/tui.nix` | 2     | Update `cargoHash` for new `Cargo.lock`                                                             |
-| `scripts/bench-pr-fetch.sh`                 | 2     | New file — automated sequential vs parallel benchmark                                               |
-| `docs/BENCHMARK_PR_FETCH.md`                | 2     | New file — recorded results (81 branches, 8.4× speedup)                                             |
-| `docs/specs/PR_FETCH_BEHAVIOUR.md`          | 2     | New file — prose description of the fetch algorithm and cache behaviour                             |
-| `src/main.rs`                               | 3     | Add `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags                                         |
-| `src/app.rs`                                | 3     | Add `cache_stats`, `pr_cache`, `refresh_pr_data()` to `App`                                         |
-| `src/ui.rs`                                 | 3     | Header badge, details pane label, `Ctrl+R` keybinding                                               |
-| `src/git.rs`                                | 3     | Add `force_refresh` param to `fetch_pr_info_for_branches()`                                         |
-| `docs/specs/ARCHITECTURE.md`                | 3     | Update module diagram, types, dependencies table                                                    |
+| File                                        | Phase | Change                                                                                               |
+| ------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `src/cache.rs`                              | 1     | New file — entire module                                                                             |
+| `src/git.rs`                                | 1     | Add `get_repo_slug()`, modify `fetch_pr_info_for_branches()`                                         |
+| `src/main.rs`                               | 1     | Initialize `PrCache`, wire into GitHub block                                                         |
+| `Cargo.toml`                                | 1     | Add `rusqlite` (bundled), `dirs`                                                                     |
+| `src/git.rs`                                | 2.0   | 3-pass parallel execution; `sequential: bool` param; `None`-cache path also parallelised             |
+| `Cargo.toml`                                | 2.0   | Add `rayon = "1.10"`                                                                                 |
+| `src/main.rs`                               | 2.0   | `ThreadPoolBuilder` (8 workers); hidden `--sequential` and `--fetch-only` flags; inline fetch timer  |
+| `nix/pkgs/local-git-branch-cleanup/tui.nix` | 2.0   | Update `cargoHash` for new `Cargo.lock`                                                              |
+| `scripts/bench-pr-fetch.sh`                 | 2.0   | New file — automated sequential vs parallel benchmark                                                |
+| `docs/BENCHMARK_PR_FETCH.md`                | 2.0   | New file — recorded results (81 branches, 8.4× speedup)                                              |
+| `docs/specs/PR_FETCH_BEHAVIOUR.md`          | 2.0   | New file — prose description of the fetch algorithm and cache behaviour                              |
+| `src/git.rs`                                | 2.1   | `get_pr_info_for_branch` → `async fn`; pass 2 uses `JoinSet` + `Semaphore`                           |
+| `src/main.rs`                               | 2.1   | `#[tokio::main]`; remove `ThreadPoolBuilder`; `MAX_CONCURRENT_GH_CALLS = 20`                         |
+| `Cargo.toml`                                | 2.1   | Remove `rayon`; add `tokio = { version = "1", features = ["rt-multi-thread", "process", "macros"] }` |
+| `nix/pkgs/local-git-branch-cleanup/tui.nix` | 2.1   | Update `cargoHash` for new `Cargo.lock`                                                              |
+| `scripts/bench-pr-fetch.sh`                 | 2.1   | Add tokio run mode; record new results                                                               |
+| `docs/BENCHMARK_PR_FETCH.md`                | 2.1   | Add tokio column to results table                                                                    |
+| `src/main.rs`                               | 3     | Add `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags                                          |
+| `src/app.rs`                                | 3     | Add `cache_stats`, `pr_cache`, `refresh_pr_data()` to `App`                                          |
+| `src/ui.rs`                                 | 3     | Header badge, details pane label, `Ctrl+R` keybinding                                                |
+| `src/git.rs`                                | 3     | Add `force_refresh` param to `fetch_pr_info_for_branches()`                                          |
+| `docs/specs/ARCHITECTURE.md`                | 3     | Update module diagram, types, dependencies table                                                     |

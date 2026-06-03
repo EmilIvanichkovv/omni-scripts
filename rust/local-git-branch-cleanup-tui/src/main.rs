@@ -40,6 +40,14 @@ struct Args {
     /// Shows PR status for branches with associated pull requests
     #[arg(long, short = 'g')]
     github: bool,
+
+    /// Force sequential PR fetching (no rayon). For benchmarking only.
+    #[arg(long, hide = true)]
+    sequential: bool,
+
+    /// Fetch PR data and print timing stats, then exit. For benchmarking only.
+    #[arg(long, hide = true)]
+    fetch_only: bool,
 }
 
 fn main() -> Result<()> {
@@ -47,6 +55,13 @@ fn main() -> Result<()> {
     color_eyre::install()?;
 
     let args = Args::parse();
+
+    // Limit parallel workers to avoid overwhelming the GitHub API or local system.
+    const MAX_PARALLEL_WORKERS: usize = 8;
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(MAX_PARALLEL_WORKERS)
+        .build_global()
+        .ok();
 
     // Verify we're in a git repository
     let repo_path = match git::verify_repo() {
@@ -81,17 +96,32 @@ fn main() -> Result<()> {
                         .evict_stale(std::time::Duration::from_secs(30 * 24 * 60 * 60))
                         .ok();
                     eprintln!("🔗 Fetching GitHub PR info...");
-                    git::fetch_pr_info_for_branches(&mut branches, Some(&mut pr_cache));
+                    let t0 = std::time::Instant::now();
+                    git::fetch_pr_info_for_branches(
+                        &mut branches,
+                        Some(&mut pr_cache),
+                        args.sequential,
+                    );
+                    let elapsed = t0.elapsed();
                     let stats = pr_cache.stats();
                     eprintln!(
                         "   {} from cache, {} fetched from GitHub",
                         stats.hits, stats.misses
                     );
+                    eprintln!("   fetch completed in {:.2}s", elapsed.as_secs_f64());
+                    if stats.hits == 0 && stats.misses > 20 {
+                        eprintln!(
+                            "   (tip: subsequent runs will be instant — results are cached for 1h)"
+                        );
+                    }
+                    if args.fetch_only {
+                        std::process::exit(0);
+                    }
                     true
                 }
                 Err(e) => {
                     eprintln!("⚠️  PR cache unavailable ({}), fetching live data.", e);
-                    git::fetch_pr_info_for_branches(&mut branches, None);
+                    git::fetch_pr_info_for_branches(&mut branches, None, args.sequential);
                     true
                 }
             }

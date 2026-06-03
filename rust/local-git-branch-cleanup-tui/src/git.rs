@@ -596,38 +596,82 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
 
 /// Fetch PR information for multiple branches, consulting the cache first.
 ///
-/// For each branch:
-/// - If a valid cache entry exists, use it (no `gh` subprocess).
-/// - Otherwise, call the GitHub CLI and store the result in the cache.
+/// # Algorithm (Phase 2 — parallel execution)
 ///
-/// Passing a `cache` of `None` falls back to the original behaviour (no caching).
+/// **Pass 1** — Serve cache hits synchronously. Collect indices of misses.
+/// **Pass 2** — Fetch all misses in parallel using a `rayon` thread pool.
+/// **Pass 3** — Write the fetched results back into `branches` and the cache (single-threaded).
+///
+/// Passing `cache = None` falls back to the original sequential behaviour.
+/// Passing `sequential = true` disables rayon (used for benchmarking).
 pub fn fetch_pr_info_for_branches(
     branches: &mut [BranchInfo],
     cache: Option<&mut crate::cache::PrCache>,
+    sequential: bool,
 ) {
     use crate::cache::CacheResult;
+    use rayon::prelude::*;
 
     match cache {
         Some(pr_cache) => {
-            for branch in branches.iter_mut() {
+            // --- Pass 1: serve cache hits synchronously ---
+            let mut miss_indices: Vec<usize> = Vec::new();
+
+            for (i, branch) in branches.iter_mut().enumerate() {
                 match pr_cache.get(&branch.name) {
                     CacheResult::Hit(pr_info) => {
                         branch.pr_info = pr_info;
                     }
                     CacheResult::Miss => {
-                        let fetched = get_pr_info_for_branch(&branch.name);
-                        let _ = pr_cache.set(&branch.name, fetched.as_ref());
-                        branch.pr_info = fetched;
+                        miss_indices.push(i);
                     }
                 }
             }
+
+            if miss_indices.is_empty() {
+                return;
+            }
+
+            // --- Pass 2: fetch misses (parallel or sequential) ---
+            let names: Vec<String> = miss_indices
+                .iter()
+                .map(|&i| branches[i].name.clone())
+                .collect();
+
+            let results: Vec<Option<PrInfo>> = if sequential {
+                names
+                    .iter()
+                    .map(|name| get_pr_info_for_branch(name))
+                    .collect()
+            } else {
+                names
+                    .par_iter()
+                    .map(|name| get_pr_info_for_branch(name))
+                    .collect()
+            };
+
+            // --- Pass 3: write results back to branches and cache ---
+            for (&idx, result) in miss_indices.iter().zip(results.iter()) {
+                branches[idx].pr_info = result.clone();
+                let _ = pr_cache.set(&branches[idx].name, result.as_ref());
+            }
         }
         None => {
-            // No cache — original sequential behaviour.
-            for branch in branches.iter_mut() {
-                if let Some(pr_info) = get_pr_info_for_branch(&branch.name) {
-                    branch.pr_info = Some(pr_info);
-                }
+            // No cache path.
+            let names: Vec<String> = branches.iter().map(|b| b.name.clone()).collect();
+            let results: Vec<Option<PrInfo>> = if sequential {
+                names
+                    .iter()
+                    .map(|name| get_pr_info_for_branch(name))
+                    .collect()
+            } else {
+                names
+                    .par_iter()
+                    .map(|name| get_pr_info_for_branch(name))
+                    .collect()
+            };
+            for (branch, result) in branches.iter_mut().zip(results.into_iter()) {
+                branch.pr_info = result;
             }
         }
     }

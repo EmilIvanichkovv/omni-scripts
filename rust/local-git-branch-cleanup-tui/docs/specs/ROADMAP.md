@@ -24,7 +24,7 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - ✅ Dry run mode for previewing deletions
 - ✅ Help modal with keyboard shortcuts
 - ✅ CLI mode for bash-like behavior
-- ✅ Comprehensive test suite (43 tests, 80%+ coverage)
+- ✅ Comprehensive test suite (85 tests, 80%+ coverage)
 - ✅ Complete documentation (README, ARCHITECTURE, MIGRATION, TESTING)
 - ✅ Flexible sorting (status, name, activity, creation date)
 - ✅ Powerful search with `@author:` filter and autocomplete
@@ -1038,7 +1038,7 @@ touch src/app.rs src/git.rs src/ui.rs
     - Production ready: M9 (Documentation)
     - Total development time: ~1 day (February 11, 2026)
     - Total code: ~2000 lines of Rust + 1400 lines of documentation
-    - Test coverage: 43 tests, 80%+ coverage
+    - Test coverage: 85 tests, 80%+ coverage
     - Ready for production use
 
 ---
@@ -1067,5 +1067,7 @@ local SQLite database. A cached entry is valid for 1 hour (configurable).
 
 #### Remaining (deferred to later phases)
 
-- [ ] Phase 2: Parallel `gh` execution via `rayon` (cache misses only)
+- [x] Phase 2.0: Parallel `gh` execution via `rayon` — 8.4× speedup (2026-06-04) ✅
+- [x] Phase 2.1: Replace `rayon` with `tokio` JoinSet + Semaphore(20) — **17.6× speedup**, 60.7s →
+      3.5s for 81 branches (2026-06-04) ✅
 - [ ] Phase 3: `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags; TUI Ctrl+R keybinding

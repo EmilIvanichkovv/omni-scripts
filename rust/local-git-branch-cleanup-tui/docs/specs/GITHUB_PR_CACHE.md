@@ -709,7 +709,7 @@ GitHub API variance.
 - [x] `--sequential` flag still works (falls back to awaited sequential loop)
 - [x] Nix build passes _(migrated to `crane` in `fa08e27`, bypassing `cargoHash` entirely)_
 - [x] Benchmark script updated; new results recorded in `docs/BENCHMARK_PR_FETCH.md`
-- [x] `cargo test` passes _(62 tests: 50 unit + 12 integration)_
+- [x] `cargo test` passes _(85 tests total)_
 
 ---
 

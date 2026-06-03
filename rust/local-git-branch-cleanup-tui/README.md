@@ -35,7 +35,8 @@ _Coming soon: Video demonstration of the TUI in action_
   `@author:"Name With Spaces"`)
 - **Smart Autocomplete** - Suggestions for `@author:` with scrollable dropdown and auto-quoting
 - **GitHub PR Integration** - See PR status for each branch with `--github` flag (requires GitHub
-  CLI)
+  CLI); results cached in SQLite for 1 hour — concurrent tokio fetch gives **17.6× speedup** on cold
+  runs
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -234,14 +235,16 @@ local-git-branch-cleanup-tui/
 │   ├── specs/          # Technical specifications
 │   │   ├── ARCHITECTURE.md
 │   │   ├── ROADMAP.md
+│   │   ├── GITHUB_PR_CACHE.md
 │   │   └── SEARCH_FEATURE.md
 │   └── testing/        # Testing docs
 │       ├── TESTING.md
 │       └── TEST_SUMMARY.md
 ├── src/
-│   ├── main.rs         # Entry point, CLI parsing, event loop
+│   ├── main.rs         # Entry point, CLI parsing, async tokio runtime
 │   ├── app.rs          # Application state management
-│   ├── git.rs          # Git integration and branch classification
+│   ├── git.rs          # Git integration, branch classification, async PR fetch
+│   ├── cache.rs        # SQLite PR cache (XDG_CACHE_HOME/omni-scripts/pr-cache.db)
 │   └── ui.rs           # TUI rendering with Ratatui
 └── tests/
     └── integration_test.rs

@@ -1,7 +1,7 @@
 # GitHub PR Cache — Feature Specification
 
-**Status:** ✅ Phase 2.0 Complete · 🔬 Phase 2.1 Proposed **Created:** 2026-04-26 **Updated:**
-2026-06-03 **Affects:** `git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
+**Status:** ✅ Phase 2.0 Complete · ✅ Phase 2.1 Complete **Created:** 2026-04-26 **Updated:**
+2026-06-04 **Affects:** `git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
 `scripts/bench-pr-fetch.sh` **New Docs:** `docs/BENCHMARK_PR_FETCH.md`,
 `docs/specs/PR_FETCH_BEHAVIOUR.md`
 
@@ -699,17 +699,17 @@ GitHub API variance.
 
 ### Acceptance Criteria for Phase 2.1
 
-- [ ] `get_pr_info_for_branch()` uses `tokio::process::Command` and is declared `async fn`
-- [ ] `fetch_pr_info_for_branches()` is declared `async fn`; internal pass 2 uses `JoinSet` +
+- [x] `get_pr_info_for_branch()` uses `tokio::process::Command` and is declared `async fn`
+- [x] `fetch_pr_info_for_branches()` is declared `async fn`; internal pass 2 uses `JoinSet` +
       `Semaphore`
-- [ ] `main()` is annotated `#[tokio::main]`
-- [ ] `rayon` is removed from all `Cargo.toml` files
-- [ ] `MAX_CONCURRENT_GH_CALLS` replaces `MAX_PARALLEL_WORKERS`; default value is 20
-- [ ] Results are identical to sequential and Phase 2.0 output (order-independent correctness)
-- [ ] `--sequential` flag still works (falls back to awaited sequential loop)
-- [ ] Nix `cargoHash` updated for new `Cargo.lock`
-- [ ] Benchmark script updated; new results recorded in `docs/BENCHMARK_PR_FETCH.md`
-- [ ] `cargo test` passes
+- [x] `main()` is annotated `#[tokio::main]`
+- [x] `rayon` is removed from all `Cargo.toml` files
+- [x] `MAX_CONCURRENT_GH_CALLS` replaces `MAX_PARALLEL_WORKERS`; default value is 20
+- [x] Results are identical to sequential and Phase 2.0 output (order-independent correctness)
+- [x] `--sequential` flag still works (falls back to awaited sequential loop)
+- [x] Nix build passes _(migrated to `crane` in `fa08e27`, bypassing `cargoHash` entirely)_
+- [x] Benchmark script updated; new results recorded in `docs/BENCHMARK_PR_FETCH.md`
+- [x] `cargo test` passes _(62 tests: 50 unit + 12 integration)_
 
 ---
 

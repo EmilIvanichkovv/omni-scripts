@@ -481,14 +481,16 @@ hint:
 Benchmarked against `metacraft-labs/blocksense` monorepo (81 branches, cold cache). Full results in
 `docs/BENCHMARK_PR_FETCH.md`. Average `gh` round-trip for this repo: ~0.71 s.
 
-| Run                      | Mode                 | Branches | Fetch time | Speedup   |
-| ------------------------ | -------------------- | -------- | ---------- | --------- |
-| Sequential (pre-Phase-2) | `--sequential`       | 81       | 53–57 s    | 1×        |
-| Parallel (Phase-2, cold) | default              | 81       | ~6.6–6.8 s | **~8.4×** |
-| Parallel (Phase-2, warm) | default + full cache | 81       | < 0.01 s   | —         |
+| Run                      | Mode                 | Branches | Fetch time | Speedup    |
+| ------------------------ | -------------------- | -------- | ---------- | ---------- |
+| Sequential (pre-Phase-2) | `--sequential`       | 81       | 57–61 s    | 1×         |
+| rayon (Phase-2.0, cold)  | rayon ≤ 8 workers    | 81       | ~6.8 s     | **~8.4×**  |
+| tokio (Phase-2.1, cold)  | default              | 81       | **3.46 s** | **~17.6×** |
+| tokio (Phase-2.1, warm)  | default + full cache | 81       | < 0.01 s   | —          |
 
-With 8 workers and ~0.71 s/call, the theoretical floor is ⌈81/8⌉ × 0.71 ≈ 7.8 s. The measured ~6.7 s
-beats this because faster calls keep all 8 slots busy throughout.
+With 8 workers and ~0.75 s/call, the theoretical floor is ⌈81/8⌉ × 0.75 ≈ 8.4 s. The measured ~6.8 s
+beats this because faster calls keep all 8 slots busy throughout. See Phase 2.1 for the tokio
+replacement which achieves ~3.5 s with a semaphore of 20.
 
 ### Acceptance Criteria for Phase 2.0
 

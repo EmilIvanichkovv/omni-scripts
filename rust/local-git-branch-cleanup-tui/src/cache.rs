@@ -491,4 +491,97 @@ mod tests {
         assert_eq!(s.misses, 1);
         assert_eq!(s.writes, 2);
     }
+
+    #[test]
+    fn set_overwrites_existing_entry() {
+        let mut cache = open_in_memory(Duration::from_secs(3600));
+        let pr_v1 = make_pr(1);
+        let pr_v2 = make_pr(2);
+
+        cache.set("feature/x", Some(&pr_v1)).unwrap();
+        cache.set("feature/x", Some(&pr_v2)).unwrap(); // overwrite
+
+        match cache.get("feature/x") {
+            CacheResult::Hit(Some(info)) => assert_eq!(info.number, 2),
+            other => panic!("expected Hit(Some(2)), got {other:?}"),
+        }
+        // Writes counter should reflect both inserts.
+        assert_eq!(cache.stats().writes, 2);
+    }
+
+    #[test]
+    fn multi_repo_isolation() {
+        // Two caches pointing at different repos sharing the same in-memory DB
+        // are impossible (each gets its own connection), but we can test that
+        // two PrCache instances with different repo slugs don't bleed into each other
+        // by using separate connections.
+        let conn_a = Connection::open_in_memory().unwrap();
+        let conn_b = Connection::open_in_memory().unwrap();
+        let mut cache_a =
+            PrCache::open_with_conn(conn_a, "owner/repo-a", Duration::from_secs(3600)).unwrap();
+        let mut cache_b =
+            PrCache::open_with_conn(conn_b, "owner/repo-b", Duration::from_secs(3600)).unwrap();
+
+        cache_a
+            .set("feature/shared-name", Some(&make_pr(10)))
+            .unwrap();
+
+        // repo-b should have no knowledge of repo-a's entry.
+        assert!(matches!(
+            cache_b.get("feature/shared-name"),
+            CacheResult::Miss
+        ));
+    }
+
+    #[test]
+    fn total_entries_stat_reflects_write_count() {
+        // total_entries is a snapshot taken at open_with_conn time; it is NOT
+        // updated after subsequent set() calls (documented behaviour).
+        let mut cache = open_in_memory(Duration::from_secs(3600));
+        assert_eq!(cache.stats().total_entries, 0, "empty cache at open");
+
+        cache.set("branch-1", Some(&make_pr(1))).unwrap();
+        cache.set("branch-2", None).unwrap();
+
+        // Within a session, writes is the authoritative counter.
+        assert_eq!(cache.stats().writes, 2);
+        // total_entries stays at the value captured at open time.
+        assert_eq!(
+            cache.stats().total_entries,
+            0,
+            "snapshot is not updated on set()"
+        );
+    }
+
+    #[test]
+    fn evict_stale_does_not_remove_fresh_entries() {
+        let mut cache = open_in_memory(Duration::from_secs(3600));
+        cache.set("fresh", Some(&make_pr(5))).unwrap();
+
+        // evict with a 1-hour max_age — the entry was just written, so it should survive.
+        let removed = cache.evict_stale(Duration::from_secs(3600)).unwrap();
+        assert_eq!(removed, 0);
+        assert!(matches!(cache.get("fresh"), CacheResult::Hit(Some(_))));
+    }
+
+    #[test]
+    fn expired_entry_is_miss_but_row_still_exists_until_evicted() {
+        let mut cache = open_in_memory(Duration::ZERO); // TTL=0 → get() always returns Miss
+        cache.set("stale", Some(&make_pr(3))).unwrap();
+
+        // get() treats it as a miss because TTL=0.
+        assert!(matches!(cache.get("stale"), CacheResult::Miss));
+
+        // evict_stale deletes rows where `cached_at < unix_now() - max_age`.
+        // An entry written *this second* has cached_at == unix_now(), so it is
+        // not strictly less-than the cutoff when max_age=0. Back-date the row
+        // by 2 seconds so the delete predicate fires.
+        cache
+            .conn
+            .execute("UPDATE cached_prs SET cached_at = cached_at - 2", [])
+            .unwrap();
+
+        let removed = cache.evict_stale(Duration::ZERO).unwrap();
+        assert_eq!(removed, 1);
+    }
 }

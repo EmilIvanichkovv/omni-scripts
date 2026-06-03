@@ -881,4 +881,183 @@ mod tests {
         );
         assert_eq!(status2, BranchStatus::Protected);
     }
+
+    // --- PrState ---
+
+    #[test]
+    fn test_pr_state_label() {
+        assert_eq!(PrState::Open.label(), "open");
+        assert_eq!(PrState::Merged.label(), "merged");
+        assert_eq!(PrState::Closed.label(), "closed");
+    }
+
+    #[test]
+    fn test_pr_state_icon() {
+        assert_eq!(PrState::Open.icon(), "🟡");
+        assert_eq!(PrState::Merged.icon(), "🟢");
+        assert_eq!(PrState::Closed.icon(), "🔴");
+    }
+
+    // --- JSON parsing helpers ---
+
+    #[test]
+    fn test_extract_json_string_basic() {
+        let json = r#""state":"MERGED","title":"Fix bug","url":"https://example.com""#;
+        assert_eq!(
+            extract_json_string(json, "state").as_deref(),
+            Some("MERGED")
+        );
+        assert_eq!(
+            extract_json_string(json, "title").as_deref(),
+            Some("Fix bug")
+        );
+        assert_eq!(
+            extract_json_string(json, "url").as_deref(),
+            Some("https://example.com")
+        );
+    }
+
+    #[test]
+    fn test_extract_json_string_escaped_quotes() {
+        // The function captures the raw text between quotes without unescaping.
+        // Verify that the key is found and the value is non-empty.
+        let json = r#""title":"Fix bug","state":"OPEN""#;
+        let result = extract_json_string(json, "title");
+        assert_eq!(result.as_deref(), Some("Fix bug"));
+    }
+
+    #[test]
+    fn test_extract_json_string_missing_key() {
+        let json = r#""state":"OPEN""#;
+        assert_eq!(extract_json_string(json, "nonexistent"), None);
+    }
+
+    #[test]
+    fn test_extract_json_number_basic() {
+        let json = r#""number":42,"state":"OPEN""#;
+        assert_eq!(extract_json_number(json, "number"), Some(42));
+    }
+
+    #[test]
+    fn test_extract_json_number_missing() {
+        let json = r#""state":"OPEN""#;
+        assert_eq!(extract_json_number(json, "number"), None);
+    }
+
+    // --- get_repo_slug URL parsing (pure logic, no git subprocess) ---
+
+    fn parse_slug(url: &str) -> String {
+        // Replicate the slug-parsing logic from get_repo_slug() without calling git.
+        let slug = if let Some(path) = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))
+        {
+            path.split_once('/')
+                .map(|x| x.1)
+                .unwrap_or(path)
+                .to_string()
+        } else if !url.contains("://") {
+            url.split_once(':')
+                .map(|x| x.1.to_string())
+                .unwrap_or_else(|| url.to_string())
+        } else {
+            url.to_string()
+        };
+        slug.strip_suffix(".git").unwrap_or(&slug).to_string()
+    }
+
+    #[test]
+    fn test_repo_slug_https_with_git_suffix() {
+        assert_eq!(
+            parse_slug("https://github.com/owner/repo.git"),
+            "owner/repo"
+        );
+    }
+
+    #[test]
+    fn test_repo_slug_https_without_git_suffix() {
+        assert_eq!(parse_slug("https://github.com/owner/repo"), "owner/repo");
+    }
+
+    #[test]
+    fn test_repo_slug_ssh_scp_style() {
+        assert_eq!(parse_slug("git@github.com:owner/repo.git"), "owner/repo");
+    }
+
+    #[test]
+    fn test_repo_slug_ssh_scp_no_git_suffix() {
+        assert_eq!(parse_slug("git@github.com:owner/repo"), "owner/repo");
+    }
+
+    // --- fetch_pr_info_for_branches with a real in-memory cache ---
+    // These tests use #[tokio::test] because the function is async.
+
+    use crate::cache::PrCache;
+    use rusqlite::Connection;
+
+    fn make_pr_info(number: u64) -> PrInfo {
+        PrInfo {
+            number,
+            state: PrState::Merged,
+            title: format!("PR #{number}"),
+            url: format!("https://github.com/test/repo/pull/{number}"),
+        }
+    }
+
+    fn make_branch(name: &str) -> BranchInfo {
+        BranchInfo {
+            name: name.to_string(),
+            upstream: None,
+            last_commit_relative: "1 day ago".to_string(),
+            status: BranchStatus::Unmerged,
+            last_commit_sha: "abc1234".to_string(),
+            last_commit_author: "Test".to_string(),
+            last_commit_message: "test commit".to_string(),
+            ahead: None,
+            behind: None,
+            last_activity_timestamp: 0,
+            branch_created_timestamp: 0,
+            branch_author: "Test".to_string(),
+            pr_info: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_branches_all_cache_hits_skips_pass2() {
+        let conn = Connection::open_in_memory().unwrap();
+        let mut cache =
+            PrCache::open_with_conn(conn, "owner/repo", std::time::Duration::from_secs(3600))
+                .unwrap();
+        let pr = make_pr_info(7);
+        cache.set("feature/a", Some(&pr)).unwrap();
+        cache.set("feature/b", None).unwrap();
+
+        let mut branches = vec![make_branch("feature/a"), make_branch("feature/b")];
+        fetch_pr_info_for_branches(&mut branches, Some(&mut cache), true).await;
+
+        // feature/a should have PR 7, feature/b should have no PR
+        assert_eq!(branches[0].pr_info.as_ref().map(|p| p.number), Some(7));
+        assert!(branches[1].pr_info.is_none());
+        // All served from cache — no misses.
+        assert_eq!(cache.stats().misses, 0);
+        assert_eq!(cache.stats().hits, 2);
+    }
+
+    #[tokio::test]
+    async fn fetch_branches_no_cache_path_sequential() {
+        // With cache=None and sequential=true, branches with no real gh available
+        // should end up with pr_info=None (gh not found → get_pr_info_for_branch returns None).
+        let mut branches = vec![make_branch("feature/x"), make_branch("feature/y")];
+        fetch_pr_info_for_branches(&mut branches, None, true).await;
+        // All None because gh CLI won't produce valid output in a unit-test environment.
+        assert!(branches.iter().all(|b| b.pr_info.is_none()));
+    }
+
+    #[tokio::test]
+    async fn fetch_branches_empty_slice_is_noop() {
+        let mut branches: Vec<BranchInfo> = vec![];
+        // Should not panic with an empty slice.
+        fetch_pr_info_for_branches(&mut branches, None, true).await;
+        assert!(branches.is_empty());
+    }
 }

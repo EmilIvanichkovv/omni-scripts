@@ -313,3 +313,88 @@ fn test_branch_count_summary() {
         "Output should indicate number of branches found"
     );
 }
+
+#[test]
+fn test_github_flag_without_gh_cli() {
+    // --github is a valid flag; running it in a repo where gh is not
+    // available should not cause a panic or a CLI parse error.
+    // We just verify the binary exits (any status) without crashing.
+    let repo = TestRepo::new();
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).arg("--cli").arg("--github");
+
+    // The binary may exit 0 (no PRs found) or non-zero (gh not found / API
+    // error), but it must not hard-crash (signal / panic).
+    let output = cmd.output().expect("binary failed to start");
+    // Status code 0 or 1 are both acceptable; what we rule out is a signal.
+    assert!(
+        output.status.code().is_some(),
+        "--github without real gh should exit with a code, not a signal"
+    );
+}
+
+#[test]
+fn test_sequential_flag_accepted() {
+    // --sequential is a hidden flag; the binary must accept it without error.
+    let repo = TestRepo::new();
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .arg("--cli")
+        .arg("--sequential");
+
+    cmd.assert().success();
+}
+
+#[test]
+fn test_multiple_protected_branch_names() {
+    // All of main / master / develop / development should be shown as protected.
+    for protected in &["main", "master", "develop", "development"] {
+        let repo = TestRepo::new();
+        // Rename the initial 'main' branch to the protected name.
+        TestRepo::run_git(repo.path(), &["branch", "-m", "master", protected]);
+        // Create a feature branch so there's something to list.
+        repo.create_branch("feature/test", "test");
+        // Checkout 'feature/test' branch
+        TestRepo::run_git(repo.path(), &["checkout", "feature/test"]);
+
+        let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+        cmd.current_dir(repo.path())
+            .arg("--cli")
+            .arg("--trunk")
+            .arg(*protected);
+
+        let output = cmd.output().expect("Failed to execute command");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let line = stdout
+            .lines()
+            .find(|l| l.contains(protected) && l.contains('['))
+            .unwrap_or("");
+        assert!(
+            line.contains("protected"),
+            "Branch '{}' should be marked protected",
+            protected
+        );
+    }
+}
+
+#[test]
+fn test_dry_run_does_not_delete_branches() {
+    let repo = TestRepo::new();
+    repo.create_branch("feature/merged", "Merged feature");
+    repo.merge_branch("feature/merged");
+
+    // Run with --dry-run — the branch should still exist afterwards.
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
+    cmd.assert().success();
+
+    // Verify feature/merged still exists.
+    let branches_out = TestRepo::run_git(repo.path(), &["branch"]);
+    let branches = String::from_utf8_lossy(&branches_out.stdout);
+    assert!(
+        branches.contains("feature/merged"),
+        "--dry-run must not delete any branch"
+    );
+}

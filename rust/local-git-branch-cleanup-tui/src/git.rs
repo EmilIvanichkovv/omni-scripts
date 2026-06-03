@@ -534,10 +534,10 @@ pub fn is_gh_cli_available() -> bool {
 
 /// Fetch PR information for a branch using GitHub CLI
 /// Returns None if no PR is associated with the branch or if gh CLI is not available
-pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
+pub async fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
     // Try to get PR info using gh CLI
     // gh pr list --head <branch> --json number,state,title,url --limit 1
-    let output = Command::new("gh")
+    let output = tokio::process::Command::new("gh")
         .args([
             "pr",
             "list",
@@ -551,6 +551,7 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
             "all", // Include open, closed, and merged PRs
         ])
         .output()
+        .await
         .ok()?;
 
     if !output.status.success() {
@@ -596,21 +597,69 @@ pub fn get_pr_info_for_branch(branch_name: &str) -> Option<PrInfo> {
 
 /// Fetch PR information for multiple branches, consulting the cache first.
 ///
-/// # Algorithm (Phase 2 — parallel execution)
+/// # Algorithm (Phase 2.1 — async tokio execution)
 ///
 /// **Pass 1** — Serve cache hits synchronously. Collect indices of misses.
-/// **Pass 2** — Fetch all misses in parallel using a `rayon` thread pool.
+/// **Pass 2** — Fetch all misses concurrently using `tokio::task::JoinSet` and a
+///              `Semaphore` to cap the number of in-flight `gh` calls.
 /// **Pass 3** — Write the fetched results back into `branches` and the cache (single-threaded).
 ///
-/// Passing `cache = None` falls back to the original sequential behaviour.
-/// Passing `sequential = true` disables rayon (used for benchmarking).
-pub fn fetch_pr_info_for_branches(
+/// `cache = None` fetches all branches without consulting the cache.
+/// `sequential = true` disables concurrency (one call at a time) — for benchmarking.
+pub async fn fetch_pr_info_for_branches(
     branches: &mut [BranchInfo],
     cache: Option<&mut crate::cache::PrCache>,
     sequential: bool,
 ) {
     use crate::cache::CacheResult;
-    use rayon::prelude::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::Semaphore;
+    use tokio::task::JoinSet;
+
+    /// Maximum number of concurrent `gh` subprocess calls.
+    const MAX_CONCURRENT_GH_CALLS: usize = 20;
+
+    // Helper: run pass 2 — fetch a list of branch names, returning results indexed
+    // by position so pass 3 can pair them back to `miss_indices`.
+    async fn fetch_all(names: Vec<String>, sequential: bool) -> Vec<Option<PrInfo>> {
+        if sequential {
+            let mut out = Vec::with_capacity(names.len());
+            for name in &names {
+                out.push(get_pr_info_for_branch(name).await);
+            }
+            return out;
+        }
+
+        let sem = Arc::new(Semaphore::new(MAX_CONCURRENT_GH_CALLS));
+        let expected = names.len();
+        let mut handles: JoinSet<(usize, Option<PrInfo>)> = JoinSet::new();
+
+        for (i, name) in names.into_iter().enumerate() {
+            let sem = Arc::clone(&sem);
+            handles.spawn(async move {
+                let _permit = sem.acquire_owned().await.expect("semaphore closed");
+                (i, get_pr_info_for_branch(&name).await)
+            });
+        }
+
+        let mut map: HashMap<usize, Option<PrInfo>> = HashMap::with_capacity(expected);
+        while let Some(res) = handles.join_next().await {
+            match res {
+                Ok((i, result)) => {
+                    map.insert(i, result);
+                }
+                Err(_) => {
+                    // Task panicked/cancelled; treat as "no PR info" for that entry.
+                }
+            }
+        }
+
+        // Reconstruct in original order.
+        (0..expected)
+            .map(|i| map.remove(&i).unwrap_or(None))
+            .collect()
+    }
 
     match cache {
         Some(pr_cache) => {
@@ -632,23 +681,13 @@ pub fn fetch_pr_info_for_branches(
                 return;
             }
 
-            // --- Pass 2: fetch misses (parallel or sequential) ---
+            // --- Pass 2: fetch misses concurrently ---
             let names: Vec<String> = miss_indices
                 .iter()
                 .map(|&i| branches[i].name.clone())
                 .collect();
 
-            let results: Vec<Option<PrInfo>> = if sequential {
-                names
-                    .iter()
-                    .map(|name| get_pr_info_for_branch(name))
-                    .collect()
-            } else {
-                names
-                    .par_iter()
-                    .map(|name| get_pr_info_for_branch(name))
-                    .collect()
-            };
+            let results = fetch_all(names, sequential).await;
 
             // --- Pass 3: write results back to branches and cache ---
             for (&idx, result) in miss_indices.iter().zip(results.iter()) {
@@ -657,19 +696,9 @@ pub fn fetch_pr_info_for_branches(
             }
         }
         None => {
-            // No cache path.
+            // No cache — fetch all branches.
             let names: Vec<String> = branches.iter().map(|b| b.name.clone()).collect();
-            let results: Vec<Option<PrInfo>> = if sequential {
-                names
-                    .iter()
-                    .map(|name| get_pr_info_for_branch(name))
-                    .collect()
-            } else {
-                names
-                    .par_iter()
-                    .map(|name| get_pr_info_for_branch(name))
-                    .collect()
-            };
+            let results = fetch_all(names, sequential).await;
             for (branch, result) in branches.iter_mut().zip(results.into_iter()) {
                 branch.pr_info = result;
             }

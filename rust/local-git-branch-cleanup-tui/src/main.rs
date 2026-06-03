@@ -41,7 +41,7 @@ struct Args {
     #[arg(long, short = 'g')]
     github: bool,
 
-    /// Force sequential PR fetching (no rayon). For benchmarking only.
+    /// Force sequential PR fetching (no tokio concurrency). For benchmarking only.
     #[arg(long, hide = true)]
     sequential: bool,
 
@@ -50,18 +50,12 @@ struct Args {
     fetch_only: bool,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize error handling
     color_eyre::install()?;
 
     let args = Args::parse();
-
-    // Limit parallel workers to avoid overwhelming the GitHub API or local system.
-    const MAX_PARALLEL_WORKERS: usize = 8;
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(MAX_PARALLEL_WORKERS)
-        .build_global()
-        .ok();
 
     // Verify we're in a git repository
     let repo_path = match git::verify_repo() {
@@ -101,7 +95,8 @@ fn main() -> Result<()> {
                         &mut branches,
                         Some(&mut pr_cache),
                         args.sequential,
-                    );
+                    )
+                    .await;
                     let elapsed = t0.elapsed();
                     let stats = pr_cache.stats();
                     eprintln!(
@@ -121,7 +116,7 @@ fn main() -> Result<()> {
                 }
                 Err(e) => {
                     eprintln!("⚠️  PR cache unavailable ({}), fetching live data.", e);
-                    git::fetch_pr_info_for_branches(&mut branches, None, args.sequential);
+                    git::fetch_pr_info_for_branches(&mut branches, None, args.sequential).await;
                     true
                 }
             }

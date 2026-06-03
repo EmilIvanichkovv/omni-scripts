@@ -14,7 +14,7 @@ crossterm.workspace = true
 ratatui.workspace = true
 rusqlite.workspace = true
 dirs.workspace = true
-rayon.workspace = true
+tokio.workspace = true
 # omni-lib.workspace = true  # Uncomment when extracting shared code
 
 [dev-dependencies]

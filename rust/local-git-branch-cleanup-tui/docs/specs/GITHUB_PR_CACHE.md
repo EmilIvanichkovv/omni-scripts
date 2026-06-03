@@ -1,7 +1,9 @@
 # GitHub PR Cache — Feature Specification
 
-**Status:** ✅ Phase 1 Complete **Created:** 2026-04-26 **Affects:** `git.rs`, `app.rs`, `main.rs`,
-`Cargo.toml` **New Files:** `src/cache.rs`
+**Status:** ✅ Phase 2 Complete **Created:** 2026-04-26 **Updated:** 2026-06-03 **Affects:**
+`git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
+`scripts/bench-pr-fetch.sh` **New Docs:** `docs/BENCHMARK_PR_FETCH.md`,
+`docs/specs/PR_FETCH_BEHAVIOUR.md`
 
 ---
 
@@ -380,40 +382,57 @@ rayon = "1.10"
 ```rust
 use rayon::prelude::*;
 
-pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: &mut PrCache) {
-    // --- Pass 1: Serve cache hits synchronously ---
-    // Collect indices of branches that still need an API call.
-    let mut miss_indices: Vec<usize> = Vec::new();
+/// `sequential = true` disables rayon and forces one-at-a-time execution.
+/// Used by the hidden `--sequential` CLI flag for benchmarking only.
+pub fn fetch_pr_info_for_branches(
+    branches: &mut [BranchInfo],
+    cache: Option<&mut PrCache>,
+    sequential: bool,
+) {
+    match cache {
+        Some(pr_cache) => {
+            // --- Pass 1: Serve cache hits synchronously ---
+            let mut miss_indices: Vec<usize> = Vec::new();
 
-    for (i, branch) in branches.iter_mut().enumerate() {
-        if let Some(pr_info) = cache.get(&branch.name) {
-            branch.pr_info = Some(pr_info);
-        } else {
-            miss_indices.push(i);
+            for (i, branch) in branches.iter_mut().enumerate() {
+                match pr_cache.get(&branch.name) {
+                    CacheResult::Hit(pr_info) => { branch.pr_info = pr_info; }
+                    CacheResult::Miss         => { miss_indices.push(i); }
+                }
+            }
+
+            if miss_indices.is_empty() { return; }
+
+            // --- Pass 2: Fetch misses (parallel or sequential) ---
+            let names: Vec<String> = miss_indices
+                .iter()
+                .map(|&i| branches[i].name.clone())
+                .collect();
+
+            let results: Vec<Option<PrInfo>> = if sequential {
+                names.iter().map(|n| get_pr_info_for_branch(n)).collect()
+            } else {
+                names.par_iter().map(|n| get_pr_info_for_branch(n)).collect()
+            };
+
+            // --- Pass 3: Write results back to branches and cache ---
+            for (&idx, result) in miss_indices.iter().zip(results.iter()) {
+                branches[idx].pr_info = result.clone();
+                let _ = pr_cache.set(&branches[idx].name, result.as_ref());
+            }
         }
-    }
-
-    if miss_indices.is_empty() {
-        return;
-    }
-
-    // --- Pass 2: Fetch misses in parallel ---
-    // Collect branch names to avoid borrow conflicts.
-    let names: Vec<String> = miss_indices
-        .iter()
-        .map(|&i| branches[i].name.clone())
-        .collect();
-
-    // Parallel fetch: returns Vec<Option<PrInfo>> aligned with `miss_indices`.
-    let results: Vec<Option<PrInfo>> = names
-        .par_iter()
-        .map(|name| get_pr_info_for_branch(name))
-        .collect();
-
-    // --- Pass 3: Write results back to branches and cache ---
-    for (&idx, result) in miss_indices.iter().zip(results.iter()) {
-        branches[idx].pr_info = result.clone();
-        cache.set(&branches[idx].name, result.as_ref()).ok();
+        None => {
+            // No cache — fetch all branches (parallel or sequential).
+            let names: Vec<String> = branches.iter().map(|b| b.name.clone()).collect();
+            let results: Vec<Option<PrInfo>> = if sequential {
+                names.iter().map(|n| get_pr_info_for_branch(n)).collect()
+            } else {
+                names.par_iter().map(|n| get_pr_info_for_branch(n)).collect()
+            };
+            for (branch, result) in branches.iter_mut().zip(results) {
+                branch.pr_info = result;
+            }
+        }
     }
 }
 ```
@@ -456,27 +475,38 @@ hint:
    (tip: subsequent runs will be instant — results are cached for 1h)
 ```
 
-### Expected Latency Improvement
+### Measured Latency Improvement
 
-Assuming ~1 s per `gh` call and 8 parallel workers:
+Benchmarked against `metacraft-labs/blocksense` monorepo (81 branches, cold cache). Full results in
+`docs/BENCHMARK_PR_FETCH.md`. Average `gh` round-trip for this repo: ~0.71 s.
 
-| Branches | Phase 0 (current) | Phase 1 (cache warm) | Phase 2 (parallel, cold) |
-| -------- | ----------------- | -------------------- | ------------------------ |
-| 10       | ~10s              | ~0.1s                | ~2s                      |
-| 50       | ~50s              | ~0.1s                | ~7s                      |
-| 100      | ~100s             | ~0.1s                | ~13s                     |
+| Run                      | Mode                 | Branches | Fetch time | Speedup   |
+| ------------------------ | -------------------- | -------- | ---------- | --------- |
+| Sequential (pre-Phase-2) | `--sequential`       | 81       | 53–57 s    | 1×        |
+| Parallel (Phase-2, cold) | default              | 81       | ~6.6–6.8 s | **~8.4×** |
+| Parallel (Phase-2, warm) | default + full cache | 81       | < 0.01 s   | —         |
+
+With 8 workers and ~0.71 s/call, the theoretical floor is ⌈81/8⌉ × 0.71 ≈ 7.8 s. The measured ~6.7 s
+beats this because faster calls keep all 8 slots busy throughout.
 
 ### Acceptance Criteria for Phase 2
 
-- [ ] `fetch_pr_info_for_branches()` with 0 cache entries takes roughly `ceil(N / 8)` seconds for N
-      branches, not N seconds
-- [ ] Cache hits are still served without any parallelism overhead
-- [ ] Results are identical to sequential execution (order does not matter for correctness)
-- [ ] No data races: `PrCache::set()` is safe to call from multiple threads (use `Mutex<PrCache>` or
-      move writes to pass 3 as shown above)
-- [ ] Rate-limit errors from `gh` (exit code non-zero) are handled gracefully — the branch simply
-      gets no PR info, and nothing is cached for that branch
-- [ ] `cargo test` passes
+- [x] `fetch_pr_info_for_branches()` with 0 cache entries takes roughly `ceil(N / 8)` seconds for N
+      branches, not N seconds _(measured: ~6.7 s for 81 branches; floor ≈ 7.8 s)_
+- [x] Cache hits are still served without any parallelism overhead
+- [x] Results are identical to sequential execution (order does not matter for correctness)
+- [x] No data races: all SQLite writes happen in pass 3 on the main thread; rayon tasks receive only
+      `String` clones and spawn independent `gh` subprocesses
+- [x] Rate-limit errors from `gh` (exit code non-zero) are handled gracefully —
+      `get_pr_info_for_branch()` returns `None`, the branch gets no PR info, and nothing is written
+      to the cache
+- [x] `cargo test` passes
+- [x] Nix `cargoHash` in `tui.nix` updated to account for `rayon` in `Cargo.lock`
+- [x] Hidden `--sequential` flag added for benchmarking (restores pre-Phase-2 behaviour on demand)
+- [x] Hidden `--fetch-only` flag added; exits after fetch with timing stats (used by benchmark
+      script)
+- [x] `scripts/bench-pr-fetch.sh` — automated benchmark script comparing sequential vs parallel
+- [x] `docs/BENCHMARK_PR_FETCH.md` — recorded benchmark results
 
 ---
 
@@ -690,16 +720,21 @@ Update `ARCHITECTURE.md` after Phase 1 is complete to:
 
 ## File Change Summary
 
-| File                         | Phase | Change                                                       |
-| ---------------------------- | ----- | ------------------------------------------------------------ |
-| `src/cache.rs`               | 1     | New file — entire module                                     |
-| `src/git.rs`                 | 1     | Add `get_repo_slug()`, modify `fetch_pr_info_for_branches()` |
-| `src/main.rs`                | 1     | Initialize `PrCache`, wire into GitHub block                 |
-| `Cargo.toml`                 | 1     | Add `rusqlite` (bundled), `dirs`                             |
-| `src/git.rs`                 | 2     | Parallel execution in `fetch_pr_info_for_branches()`         |
-| `Cargo.toml`                 | 2     | Add `rayon`                                                  |
-| `src/main.rs`                | 3     | Add `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags  |
-| `src/app.rs`                 | 3     | Add `cache_stats`, `pr_cache`, `refresh_pr_data()` to `App`  |
-| `src/ui.rs`                  | 3     | Header badge, details pane label, `Ctrl+R` keybinding        |
-| `src/git.rs`                 | 3     | Add `force_refresh` param to `fetch_pr_info_for_branches()`  |
-| `docs/specs/ARCHITECTURE.md` | 3     | Update module diagram, types, dependencies table             |
+| File                                        | Phase | Change                                                                                              |
+| ------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------- |
+| `src/cache.rs`                              | 1     | New file — entire module                                                                            |
+| `src/git.rs`                                | 1     | Add `get_repo_slug()`, modify `fetch_pr_info_for_branches()`                                        |
+| `src/main.rs`                               | 1     | Initialize `PrCache`, wire into GitHub block                                                        |
+| `Cargo.toml`                                | 1     | Add `rusqlite` (bundled), `dirs`                                                                    |
+| `src/git.rs`                                | 2     | 3-pass parallel execution; `sequential: bool` param; `None`-cache path also parallelised            |
+| `Cargo.toml`                                | 2     | Add `rayon = "1.10"`                                                                                |
+| `src/main.rs`                               | 2     | `ThreadPoolBuilder` (8 workers); hidden `--sequential` and `--fetch-only` flags; inline fetch timer |
+| `nix/pkgs/local-git-branch-cleanup/tui.nix` | 2     | Update `cargoHash` for new `Cargo.lock`                                                             |
+| `scripts/bench-pr-fetch.sh`                 | 2     | New file — automated sequential vs parallel benchmark                                               |
+| `docs/BENCHMARK_PR_FETCH.md`                | 2     | New file — recorded results (81 branches, 8.4× speedup)                                             |
+| `docs/specs/PR_FETCH_BEHAVIOUR.md`          | 2     | New file — prose description of the fetch algorithm and cache behaviour                             |
+| `src/main.rs`                               | 3     | Add `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags                                         |
+| `src/app.rs`                                | 3     | Add `cache_stats`, `pr_cache`, `refresh_pr_data()` to `App`                                         |
+| `src/ui.rs`                                 | 3     | Header badge, details pane label, `Ctrl+R` keybinding                                               |
+| `src/git.rs`                                | 3     | Add `force_refresh` param to `fetch_pr_info_for_branches()`                                         |
+| `docs/specs/ARCHITECTURE.md`                | 3     | Update module diagram, types, dependencies table                                                    |

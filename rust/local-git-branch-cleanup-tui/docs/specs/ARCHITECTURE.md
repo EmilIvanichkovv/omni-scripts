@@ -204,8 +204,8 @@ pub fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(usize, u
 pub fn delete_branch(name: &str, force: bool) -> Result<String>
 
 // GitHub PR integration (requires gh CLI)
-pub fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
-pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo])
+pub async fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
+pub async fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>, sequential: bool)
 pub fn open_url_in_browser(url: &str) -> Result<()>
 ```
 
@@ -232,8 +232,8 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 pub fn get_repo_slug() -> Result<String>
 
 // GitHub PR integration (requires gh CLI)
-pub fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
-pub fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>)
+pub async fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
+pub async fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>, sequential: bool)
 pub fn open_url_in_browser(url: &str) -> Result<()>
 ```
 
@@ -409,13 +409,16 @@ main() → verify_repo() → get_current_branch() → get_trunk_branch() → get
 -- When --github is active: --
 main() → get_repo_slug()               → PrCache::open(slug, 1h TTL)
               ↓                                      ↓
-    "owner/repo" string            evict_stale(30d) then for each branch:
-                                         ↓                    ↓
-                                   cache.get(branch)     ← Hit → use cached PrInfo
-                                         ↓ Miss
-                                   gh pr list --head <branch>
+    "owner/repo" string            evict_stale(30d) then:
+                                   Pass 1 — sync cache hits (no I/O)
                                          ↓
-                                   cache.set(branch, result)
+                                   Pass 2 — tokio JoinSet + Semaphore(20)
+                                           spawn one task per cache miss
+                                           each task: gh pr list --head <branch>
+                                         ↓
+                                   Pass 3 — write results back via cache.set()
+                                         ↓
+                                   results ordered by original branch index
 ```
 
 ### 2. User Interaction (TUI Mode)
@@ -579,7 +582,9 @@ pub fn get_trunk_branch(override_trunk: Option<String>, remote: &str) -> Result<
 
 Located in each module's `#[cfg(test)]` section:
 
-- **git.rs**: Branch status classification, Git command parsing
+- **git.rs**: Branch status classification, Git command parsing, PrState display, JSON helpers,
+  repo-slug URL parsing, async `fetch_pr_info_for_branches` (via `#[tokio::test]`)
+- **cache.rs**: Cache hit/miss/expiry, multi-repo isolation, overwrite, eviction, schema migration
 - **app.rs**: State transitions, filtering, selection logic
 
 Run: `cargo test`
@@ -588,11 +593,13 @@ Run: `cargo test`
 
 Located in `tests/integration_test.rs`:
 
-- CLI flag handling
-- Real Git repository scenarios
-- Error handling
+- CLI flag handling (`--sequential`, `--github`, `--dry-run`, `--trunk`, `--force`)
+- Real Git repository scenarios (merged/unmerged/protected branches)
+- Error handling (non-git directory, empty repo)
 
 Run: `cargo test --test integration_test`
+
+**Current coverage: 85 tests (69 unit + 16 integration)**
 
 ### Manual Testing
 
@@ -602,15 +609,16 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 
 ### Core Dependencies
 
-| Crate        | Version | Purpose                            |
-| ------------ | ------- | ---------------------------------- |
-| `ratatui`    | 0.30.0  | TUI framework                      |
-| `crossterm`  | 0.29.0  | Terminal backend (cross-platform)  |
-| `clap`       | 4.5.57  | CLI argument parsing               |
-| `color-eyre` | 0.6.5   | Error handling and reporting       |
-| `chrono`     | 0.4.43  | Date/time formatting               |
-| `rusqlite`   | 0.31    | SQLite client (bundled libsqlite3) |
-| `dirs`       | 5.0     | XDG-compliant cache directory      |
+| Crate        | Version | Purpose                                              |
+| ------------ | ------- | ---------------------------------------------------- |
+| `ratatui`    | 0.30.0  | TUI framework                                        |
+| `crossterm`  | 0.29.0  | Terminal backend (cross-platform)                    |
+| `clap`       | 4.5.57  | CLI argument parsing                                 |
+| `color-eyre` | 0.6.5   | Error handling and reporting                         |
+| `chrono`     | 0.4.43  | Date/time formatting                                 |
+| `tokio`      | 1       | Async runtime (`rt-multi-thread`, `process`, `sync`) |
+| `rusqlite`   | 0.31    | SQLite client (bundled libsqlite3)                   |
+| `dirs`       | 5.0     | XDG-compliant cache directory                        |
 
 ### Development Dependencies
 
@@ -627,30 +635,32 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 - **Startup time**: < 1s for repos with < 50 branches
 - **Memory usage**: ~5MB for typical repos
 - **Git command overhead**: Sequential execution
-- **GitHub PR fetching (cold)**: ~1s per branch, sequential (Phase 2 will parallelise)
-- **GitHub PR fetching (warm)**: < 100ms total — served from SQLite cache (Phase 1 ✅)
+- **GitHub PR fetching (cold, sequential)**: ~0.75s per branch (~60s for 81 branches)
+- **GitHub PR fetching (cold, tokio concurrent)**: ~3.5s for 81 branches (**17.6× faster** — Phase
+  2.1 ✅)
+- **GitHub PR fetching (warm cache)**: < 100ms total — served from SQLite (Phase 1 ✅)
 
 ### Optimization Opportunities
 
-1. **Parallel `gh` calls** (Phase 2): Use `rayon` to fetch cache misses concurrently
-2. **Parallel Git queries**: Use `rayon` to classify branches concurrently
-3. **Lazy loading**: Only fetch commit details for visible branches
-4. **Pagination**: Limit displayed branches to viewport + buffer
+1. **Parallel Git queries**: Use `tokio` to classify branches concurrently
+2. **Lazy loading**: Only fetch commit details for visible branches
+3. **Pagination**: Limit displayed branches to viewport + buffer
 
 Example parallel classification:
 
 ```rust
-use rayon::prelude::*;
+use tokio::task::JoinSet;
 
-pub fn get_branches() -> Result<Vec<BranchInfo>> {
-    let branch_names = get_all_branch_names()?;
-
-    let branches: Vec<BranchInfo> = branch_names
-        .par_iter()  // Parallel iterator
-        .map(|name| get_branch_info(name))
-        .collect::<Result<Vec<_>>>()?;
-
-    Ok(branches)
+pub async fn classify_branches_concurrent(names: Vec<String>) -> Vec<BranchInfo> {
+    let mut set = JoinSet::new();
+    for name in names {
+        set.spawn(async move { get_branch_info(name).await });
+    }
+    let mut results = vec![];
+    while let Some(res) = set.join_next().await {
+        if let Ok(Ok(info)) = res { results.push(info); }
+    }
+    results
 }
 ```
 

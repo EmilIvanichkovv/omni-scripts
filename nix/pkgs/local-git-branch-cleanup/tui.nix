@@ -1,53 +1,58 @@
 {
   lib,
-  rustPlatform,
+  craneLib,
   git,
   sqlite,
+  pkg-config,
 }:
 
-rustPlatform.buildRustPackage rec {
-  pname = "local-git-branch-cleanup-tui";
-  version = "0.2.0";
-
-  # Use lib.fileset to explicitly include only needed files from workspace
-  src = lib.fileset.toSource {
+let
+  src = craneLib.cleanCargoSource (lib.fileset.toSource {
     root = ../../../rust;
     fileset = lib.fileset.unions [
-      # Workspace manifest
       ../../../rust/Cargo.toml
       ../../../rust/Cargo.lock
-      # App crate
       ../../../rust/local-git-branch-cleanup-tui/Cargo.toml
       ../../../rust/local-git-branch-cleanup-tui/src
       ../../../rust/local-git-branch-cleanup-tui/tests
-      # Library crate (dependency)
       ../../../rust/omni-lib/Cargo.toml
       ../../../rust/omni-lib/src
     ];
+  });
+
+  commonArgs = {
+    inherit src;
+
+    pname = "local-git-branch-cleanup-tui";
+    version = "0.2.0";
+
+    cargoExtraArgs = "-p local-git-branch-cleanup-tui";
+
+    nativeBuildInputs = [
+      git
+      pkg-config
+    ];
+
+    buildInputs = [ sqlite ];
+
+    doCheck = false;
   };
 
-  # Build only the specific package from workspace
-  cargoBuildFlags = [
-    "-p"
-    "local-git-branch-cleanup-tui"
-  ];
-  cargoTestFlags = [
-    "-p"
-    "local-git-branch-cleanup-tui"
-  ];
+  # Build and cache dependencies separately (speeds up rebuilds)
+  cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-  cargoHash = "sha256-iPORrZ2KvkSwyHelplGRaYubg8+Isrrzj013e3d/SkE=";
+in
+craneLib.buildPackage (
+  commonArgs
+  // {
+    inherit cargoArtifacts;
 
-  nativeBuildInputs = [ git ];
-  propagatedBuildInputs = [ sqlite ];
-
-  doCheck = false; # Skip tests in Nix build (they require git repos)
-
-  meta = with lib; {
-    description = "Interactive TUI for cleaning up local Git branches";
-    homepage = "https://github.com/EmilIvanichkovv/omni-scripts";
-    license = licenses.mit;
-    maintainers = [ ];
-    mainProgram = "local-git-branch-cleanup-tui";
-  };
-}
+    meta = with lib; {
+      description = "Interactive TUI for cleaning up local Git branches";
+      homepage = "https://github.com/EmilIvanichkovv/omni-scripts";
+      license = licenses.mit;
+      maintainers = [ ];
+      mainProgram = "local-git-branch-cleanup-tui";
+    };
+  }
+)

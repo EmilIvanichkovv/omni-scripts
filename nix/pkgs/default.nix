@@ -1,4 +1,4 @@
-{ ... }:
+{ inputs, ... }:
 {
   perSystem =
     {
@@ -6,6 +6,9 @@
       self',
       ...
     }:
+    let
+      craneLib = inputs.crane.mkLib pkgs;
+    in
     {
       packages = {
         # Bash script version (original)
@@ -13,8 +16,8 @@
 
         # Rust TUI version (interactive)
         local-git-branch-cleanup-tui = pkgs.callPackage ./local-git-branch-cleanup/tui.nix {
-          inherit (pkgs) lib git sqlite;
-          inherit (pkgs) rustPlatform;
+          inherit (pkgs) lib git sqlite pkg-config;
+          inherit craneLib;
         };
 
         # Default to TUI version

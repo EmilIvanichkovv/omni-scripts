@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bench-pr-fetch.sh — Benchmark sequential vs parallel PR fetching
+# bench-pr-fetch.sh — Benchmark sequential vs tokio PR fetching
 #
 # Usage:
 #   ./bench-pr-fetch.sh <repo-path>
@@ -10,9 +10,9 @@
 # What it does:
 #   1. Builds a release binary of local-git-branch-cleanup-tui
 #   2. Clears the PR cache
-#   3. Times a sequential (pre-Phase-2) cold run
+#   3. Times a sequential (pre-Phase-2) cold run       [--sequential]
 #   4. Clears the cache again
-#   5. Times a parallel (Phase-2) cold run
+#   5. Times a tokio (Phase-2.1) cold run              [default]
 #   6. Times a warm-cache run (no cache clear)
 #   7. Prints a summary table
 
@@ -124,14 +124,14 @@ clear_cache
 run_bench "Sequential" --sequential
 SEQ_TIME=$(cat "$TMPFILE")
 
-# Run 2: parallel, cold cache
-header "Run 2 — Parallel / rayon (after), cold cache"
+# Run 2: tokio, cold cache
+header "Run 2 — Tokio async (Phase-2.1), cold cache"
 clear_cache
-run_bench "Parallel"
-PAR_TIME=$(cat "$TMPFILE")
+run_bench "Tokio"
+TOK_TIME=$(cat "$TMPFILE")
 
-# Run 3: parallel, warm cache (no clear)
-header "Run 3 — Parallel, warm cache"
+# Run 3: warm cache (no clear)
+header "Run 3 — Warm cache"
 run_bench "Warm cache"
 WARM_TIME=$(cat "$TMPFILE")
 
@@ -142,8 +142,8 @@ WARM_TIME=$(cat "$TMPFILE")
 header "Summary"
 
 # Compute speedup (integer arithmetic via awk)
-if [[ -n "$SEQ_TIME" && -n "$PAR_TIME" && "$PAR_TIME" != "0.00" ]]; then
-    SPEEDUP=$(awk "BEGIN { printf \"%.1f\", $SEQ_TIME / $PAR_TIME }")
+if [[ -n "$SEQ_TIME" && -n "$TOK_TIME" && "$TOK_TIME" != "0.00" ]]; then
+    SPEEDUP=$(awk "BEGIN { printf \"%.1f\", $SEQ_TIME / $TOK_TIME }")
 else
     SPEEDUP="N/A"
 fi
@@ -152,8 +152,8 @@ printf '\n'
 printf '%-30s %12s %12s %12s\n' "Run"              "Fetch time" "Branches" "Speedup vs seq"
 printf '%-30s %12s %12s %12s\n' "---"              "----------" "--------" "--------------"
 printf '%-30s %11ss %12s %12s\n' "Sequential (cold)" "$SEQ_TIME"  "$BRANCH_COUNT"  "1.0×"
-printf '%-30s %11ss %12s %12s\n' "Parallel   (cold)" "$PAR_TIME"  "$BRANCH_COUNT"  "${SPEEDUP}×"
-printf '%-30s %11ss %12s %12s\n' "Parallel   (warm)" "$WARM_TIME" "$BRANCH_COUNT"  "—"
+printf '%-30s %11ss %12s %12s\n' "Tokio      (cold)" "$TOK_TIME"  "$BRANCH_COUNT"  "${SPEEDUP}×"
+printf '%-30s %11ss %12s %12s\n' "Tokio      (warm)" "$WARM_TIME" "$BRANCH_COUNT"  "—"
 printf '\n'
 
-green "Done. Parallel is ${SPEEDUP}× faster than sequential on a cold cache."
+green "Done. Tokio is ${SPEEDUP}× faster than sequential on a cold cache."

@@ -34,9 +34,10 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` /
   `@author:"Name With Spaces"`)
 - **Smart Autocomplete** - Suggestions for `@author:` with scrollable dropdown and auto-quoting
-- **GitHub PR Integration** - See PR status for each branch with `--github` flag (requires GitHub
-  CLI); results cached in SQLite for 1 hour — concurrent tokio fetch gives **17.6× speedup** on cold
-  runs
+- **PR Integration** - See PR status for each branch: GitHub with the `--github` flag (requires
+  GitHub CLI) or Bitbucket Data Center with the `--bitbucket` flag (requires an HTTP access token in
+  `BITBUCKET_TOKEN`); results cached in SQLite for 1 hour — concurrent tokio fetch gives **17.6×
+  speedup** on cold runs
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
@@ -103,13 +104,33 @@ cargo run -p local-git-branch-cleanup-tui --release -- --cli
 Usage: local-git-branch-cleanup-tui [OPTIONS]
 
 Options:
-      --trunk <TRUNK>  Override the default trunk branch
-  -f, --force          Force delete unmerged branches (use with caution!)
-      --cli            Use CLI mode instead of TUI
-      --dry-run        Dry run mode - preview actions without executing
-  -g, --github         Enable GitHub PR integration (requires gh CLI)
-  -h, --help           Print help
+      --trunk <TRUNK>                Override the default trunk branch
+  -f, --force                        Force delete unmerged branches (use with caution!)
+      --cli                          Use CLI mode instead of TUI
+      --dry-run                      Dry run mode - preview actions without executing
+  -g, --github                       Enable GitHub PR integration (requires gh CLI)
+  -b, --bitbucket                    Enable Bitbucket Data Center PR integration
+                                     (requires BITBUCKET_TOKEN)
+      --bitbucket-base-url <URL>     Override the derived Bitbucket base URL
+      --bitbucket-project <PROJECT>  Override the derived Bitbucket project key
+      --bitbucket-repo <REPO>        Override the derived Bitbucket repository slug
+  -h, --help                         Print help
 ```
+
+`--github` and `--bitbucket` are mutually exclusive, and each `--bitbucket-*` override requires
+`--bitbucket`.
+
+### Environment Variables (Bitbucket)
+
+| Variable             | Required                | Purpose                                                          |
+| -------------------- | ----------------------- | ---------------------------------------------------------------- |
+| `BITBUCKET_TOKEN`    | Yes, with `--bitbucket` | Bitbucket Data Center HTTP access token (sent as a Bearer token) |
+| `BITBUCKET_BASE_URL` | No                      | Base URL fallback when `--bitbucket-base-url` is absent          |
+| `BITBUCKET_PROJECT`  | No                      | Project-key fallback when `--bitbucket-project` is absent        |
+| `BITBUCKET_REPO`     | No                      | Repository-slug fallback when `--bitbucket-repo` is absent       |
+
+Precedence for base URL, project, and repository: CLI flag > environment variable > value derived
+from the `origin` remote. The token is environment-only and is never accepted as a CLI argument.
 
 ### Examples
 
@@ -132,11 +153,24 @@ Options:
 # Enable GitHub PR integration
 ./target/release/local-git-branch-cleanup-tui --github
 
+# Enable Bitbucket Data Center PR integration
+export BITBUCKET_TOKEN='<HTTP_ACCESS_TOKEN>'
+./target/release/local-git-branch-cleanup-tui --bitbucket
+
+# Bitbucket with explicit overrides (when origin cannot be parsed)
+./target/release/local-git-branch-cleanup-tui --bitbucket \
+  --bitbucket-base-url 'https://bitbucket.example.com' \
+  --bitbucket-project 'PROJ' \
+  --bitbucket-repo 'my-repo'
+
 # Using cargo run (from rust/ directory)
 cargo run --release -- --cli
 cargo run --release -- --trunk develop
 cargo run --release -- --github
 ```
+
+> **Tip:** Prefer a hidden prompt over pasting the token into your shell history:
+> `read -rs BITBUCKET_TOKEN && export BITBUCKET_TOKEN`
 
 ### Adding to PATH (Optional)
 
@@ -157,21 +191,21 @@ interactive interface.
 
 ### Quick Reference
 
-| Key                | Action                              |
-| ------------------ | ----------------------------------- |
-| `↑`/`↓` or `j`/`k` | Navigate branches                   |
-| `Space`            | Toggle selection                    |
-| `a`                | Select all safe branches            |
-| `c`                | Clear selections                    |
-| `1`-`4` or `Tab`   | Switch filter tabs                  |
-| `/`                | Search branches                     |
-| `s`                | Cycle sort mode                     |
-| `f`                | Toggle force mode                   |
-| `d`                | Toggle dry run mode                 |
-| `Enter`            | Delete selected (with confirmation) |
-| `o`                | Open PR in browser (with --github)  |
-| `?`                | Show help                           |
-| `q` / `Esc`        | Quit                                |
+| Key                | Action                                           |
+| ------------------ | ------------------------------------------------ |
+| `↑`/`↓` or `j`/`k` | Navigate branches                                |
+| `Space`            | Toggle selection                                 |
+| `a`                | Select all safe branches                         |
+| `c`                | Clear selections                                 |
+| `1`-`4` or `Tab`   | Switch filter tabs                               |
+| `/`                | Search branches                                  |
+| `s`                | Cycle sort mode                                  |
+| `f`                | Toggle force mode                                |
+| `d`                | Toggle dry run mode                              |
+| `Enter`            | Delete selected (with confirmation)              |
+| `o`                | Open PR in browser (with --github / --bitbucket) |
+| `?`                | Show help                                        |
+| `q` / `Esc`        | Quit                                             |
 
 ### Search Syntax
 
@@ -204,6 +238,8 @@ interactive interface.
 
 - Rust 1.75+ (or use Nix)
 - Git
+- GitHub CLI (`gh`) — only for `--github` PR integration
+- Bitbucket Data Center HTTP access token — only for `--bitbucket` PR integration
 
 ### Building
 
@@ -236,6 +272,7 @@ local-git-branch-cleanup-tui/
 │   │   ├── ARCHITECTURE.md
 │   │   ├── ROADMAP.md
 │   │   ├── GITHUB_PR_CACHE.md
+│   │   ├── BITBUCKET_SUPPORT.md
 │   │   └── SEARCH_FEATURE.md
 │   └── testing/        # Testing docs
 │       ├── TESTING.md
@@ -243,9 +280,14 @@ local-git-branch-cleanup-tui/
 ├── src/
 │   ├── main.rs         # Entry point, CLI parsing, async tokio runtime
 │   ├── app.rs          # Application state management
-│   ├── git.rs          # Git integration, branch classification, async PR fetch
+│   ├── git.rs          # Local Git integration and branch classification
+│   ├── remote.rs       # Parse the origin remote into a normalized identity
 │   ├── cache.rs        # SQLite PR cache (XDG_CACHE_HOME/omni-scripts/pr-cache.db)
-│   └── ui.rs           # TUI rendering with Ratatui
+│   ├── ui.rs           # TUI rendering with Ratatui
+│   └── pr/
+│       ├── mod.rs      # Shared PR types, provider trait, fetch coordinator
+│       ├── github.rs   # GitHub provider (gh CLI)
+│       └── bitbucket.rs # Bitbucket Data Center provider (REST API)
 └── tests/
     └── integration_test.rs
 ```

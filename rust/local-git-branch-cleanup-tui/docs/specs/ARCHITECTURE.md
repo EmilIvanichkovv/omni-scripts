@@ -19,20 +19,31 @@ clear separation of concerns.
 │  │  - Event loop management                              │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-           │                    │                    │
-           ▼                    ▼                    ▼
-    ┌──────────┐         ┌──────────┐         ┌──────────┐
-    │  app.rs  │         │  git.rs  │         │  ui.rs   │
-    └──────────┘         └──────────┘         └──────────┘
-    Application          Git Integration      UI Rendering
-    State Logic          & Classification     (Ratatui)
-                               │
-                               ▼
-                        ┌──────────┐
-                        │ cache.rs │
-                        └──────────┘
-                        SQLite PR Cache
-                        (rusqlite)
+      │             │             │             │             │
+      ▼             ▼             ▼             ▼             ▼
+ ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+ │ app.rs  │   │ git.rs  │   │remote.rs│   │   pr/   │   │  ui.rs  │
+ └─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+ Application   Local Git     Origin        PR Providers  UI Rendering
+ State Logic   Commands &    Remote        (GitHub /     (Ratatui)
+               Classification Parsing      Bitbucket)
+                                                │
+                                                ▼
+                                          ┌─────────┐
+                                          │cache.rs │
+                                          └─────────┘
+                                          SQLite PR Cache
+                                          (rusqlite)
+```
+
+The `pr/` module is the provider layer:
+
+```
+pr/
+├── mod.rs        # Shared types (PrInfo, PrState, PrProviderKind, PrProviderError),
+│                 # the PullRequestProvider trait, and the shared fetch coordinator
+├── github.rs     # GitHub provider — wraps the gh CLI
+└── bitbucket.rs  # Bitbucket Data Center provider — REST API over reqwest
 ```
 
 ## Module Responsibilities
@@ -131,15 +142,16 @@ Enter Key → Check selections   → show_confirmation = true     → Re-render 
 y Key     → delete_branches()  → Update action_log            → Refresh branches
 ```
 
-### 3. `git.rs` - Git Integration & Branch Classification
+### 3. `git.rs` - Local Git Integration & Branch Classification
 
-**Responsibilities:**
+**Responsibilities (local Git only — hosting-provider logic lives in `pr/`):**
 
 - Execute Git commands via `std::process::Command`
 - Parse Git output into structured data
 - Classify branches by status
 - Determine trunk branch
 - Perform branch deletions
+- Open URLs in the default browser (`open_url_in_browser`)
 
 **Key Types:**
 
@@ -153,22 +165,7 @@ pub enum BranchStatus {
     Current,         // Currently checked out
 }
 
-/// Pull Request state (GitHub integration)
-pub enum PrState {
-    Open,            // PR is open
-    Merged,          // PR was merged
-    Closed,          // PR was closed without merging
-}
-
-/// Pull Request information
-pub struct PrInfo {
-    pub number: u64,
-    pub state: PrState,
-    pub title: String,
-    pub url: String,
-}
-
-/// Complete branch information
+/// Complete branch information (PrInfo is imported from crate::pr)
 pub struct BranchInfo {
     pub name: String,
     pub status: BranchStatus,
@@ -179,7 +176,7 @@ pub struct BranchInfo {
     pub commit_message: String,
     pub ahead: Option<usize>,
     pub behind: Option<usize>,
-    pub pr_info: Option<PrInfo>,  // GitHub PR info (when --github enabled)
+    pub pr_info: Option<PrInfo>,  // PR info (when a PR provider is enabled)
 }
 ```
 
@@ -203,16 +200,14 @@ pub fn get_ahead_behind_counts(branch: &str, upstream: &str) -> Result<(usize, u
 // Branch operations
 pub fn delete_branch(name: &str, force: bool) -> Result<String>
 
-// GitHub PR integration (requires gh CLI)
-pub async fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
-pub async fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>, sequential: bool)
+// Browser integration (used by the provider-neutral `o` shortcut)
 pub fn open_url_in_browser(url: &str) -> Result<()>
 ```
 
 **Git Command Usage:**
 
 | Purpose         | Git Command                                               |
-| --------------- | --------------------------------------------------------- | --- | ---------------- | ---------------------------------------------------------- |
+| --------------- | --------------------------------------------------------- |
 | Verify repo     | `git rev-parse --show-toplevel`                           |
 | Current branch  | `git branch --show-current`                               |
 | Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD`       |
@@ -221,21 +216,8 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 | Gone check      | Parse `[gone]` from `git for-each-ref`                    |
 | Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                  |
 | Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>` |
-| Delete          | `git branch -d/-D <branch>`                               |     | PR info (GitHub) | `gh pr list --head <branch> --json number,state,title,url` |
+| Delete          | `git branch -d/-D <branch>`                               |
 | Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)   |
-| Remote URL      | `git remote get-url origin`                               |
-
-**Key Functions (PR-related):**
-
-```rust
-// GitHub remote identification
-pub fn get_repo_slug() -> Result<String>
-
-// GitHub PR integration (requires gh CLI)
-pub async fn get_pr_info_for_branch(branch: &str) -> Option<PrInfo>
-pub async fn fetch_pr_info_for_branches(branches: &mut [BranchInfo], cache: Option<&mut PrCache>, sequential: bool)
-pub fn open_url_in_browser(url: &str) -> Result<()>
-```
 
 **Classification Logic:**
 
@@ -247,7 +229,78 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 5. Default               → BranchStatus::Unmerged
 ```
 
-### 4. `ui.rs` - Terminal User Interface Rendering
+### 4. `remote.rs` - Origin Remote Parsing
+
+**Responsibilities:**
+
+- Read the `origin` remote URL (`git remote get-url origin`)
+- Parse HTTP(S), `ssh://`, and SCP-like remote URLs into a normalized identity
+- Infer the Bitbucket Data Center base URL, project key, and repository slug from `origin`
+- Sanitize credentials from remote URLs in diagnostics
+
+**Key Types & Functions:**
+
+```rust
+pub struct GitRemote {
+    pub name: String,
+    pub raw_url: String,
+    pub host: Option<String>,
+    pub path_segments: Vec<String>,
+    pub transport: RemoteTransport, // Http | Https | Ssh | ScpLike | Local
+}
+
+pub fn read_origin() -> Result<GitRemote>
+pub fn parse_remote_url(name: &str, url: &str) -> GitRemote
+pub fn infer_bitbucket_repository(remote: &GitRemote) -> Result<InferredBitbucketRepo, String>
+```
+
+### 5. `pr/` - Pull Request Provider Layer
+
+**Responsibilities:**
+
+- `pr/mod.rs`: shared domain types (`PrInfo`, `PrState`, `PrProviderKind`, `PrProviderError`), the
+  `PullRequestProvider` trait, and the shared fetch coordinator (`fetch_pr_info_for_branches`)
+- `pr/github.rs`: GitHub provider — wraps the `gh` CLI (existing behavior moved behind the trait)
+- `pr/bitbucket.rs`: Bitbucket Data Center provider — configuration resolution, `reqwest` HTTP
+  client, typed `serde` DTOs, state mapping, and REST calls
+
+**Provider Interface:**
+
+```rust
+#[async_trait::async_trait]
+pub trait PullRequestProvider: Send + Sync {
+    fn kind(&self) -> PrProviderKind;       // GitHub | BitbucketDataCenter
+    fn cache_key(&self) -> String;          // provider-aware cache partition key
+    fn max_concurrency(&self) -> usize;     // GitHub: 20, Bitbucket: 8
+
+    async fn validate(&self) -> Result<(), PrProviderError>;
+
+    async fn get_pr_for_branch(&self, branch_name: &str)
+        -> Result<Option<PrInfo>, PrProviderError>;
+}
+```
+
+**Contract:**
+
+- `Ok(Some(pr))` — lookup succeeded and found a PR (cached).
+- `Ok(None)` — lookup succeeded and found no PR (negatively cached).
+- `Err(PrProviderError)` — lookup failed; **never** written to the cache.
+- `validate()` runs before any branch lookups. Bitbucket validation failures (configuration,
+  authentication, repository access) are fatal before the TUI opens; a missing `gh` CLI under
+  `--github` remains a non-fatal warning.
+
+**Fetch Coordinator (three passes):**
+
+1. Pass 1 — serve cache hits synchronously, collect miss indices.
+2. Pass 2 — fetch misses via `tokio::task::JoinSet` + `Semaphore` capped at the provider's
+   `max_concurrency()` (1 with `--sequential`).
+3. Pass 3 — write results back in original branch order; successful results go to the cache, failed
+   lookups only to the `FetchReport`.
+
+**State Mapping (Bitbucket):** `OPEN` → `Open`, `MERGED` → `Merged`, `DECLINED` → `Closed`. Unknown
+states are `InvalidResponse` errors, never cached.
+
+### 6. `ui.rs` - Terminal User Interface Rendering
 
 **Responsibilities:**
 
@@ -322,11 +375,11 @@ const GREEN: Color = Color::Rgb(80, 250, 123);     // #50FA7B - Success
 - `Block`: Borders and titles
 - `Clear`: Modal backgrounds
 
-### 5. `cache.rs` — SQLite PR Cache
+### 7. `cache.rs` — SQLite PR Cache
 
 **Responsibilities:**
 
-- Persist GitHub PR data between runs in a local SQLite database
+- Persist PR data between runs in a local SQLite database (provider-neutral)
 - Serve cached entries within the configured TTL (default: 1 hour)
 - Evict stale entries and invalidate individual branch entries on deletion
 - Expose session statistics (hits, misses, writes)
@@ -354,11 +407,22 @@ pub struct CacheStats {
 /// The cache handle. One instance per run, opened in main().
 pub struct PrCache {
     conn: rusqlite::Connection,
-    repo: String,   // "owner/repo" partition key
+    repo: String,   // provider-aware partition key (see below)
     ttl: Duration,
     stats: CacheStats,
 }
 ```
+
+**Cache Partition Key:**
+
+The partition key comes from the provider's `cache_key()`, so entries from different providers and
+hosts never collide:
+
+- GitHub: `owner/repo` (unchanged, preserves existing cache data)
+- Bitbucket: `bitbucket-dc|<normalized-base-url>|<UPPERCASE_PROJECT_KEY>|<repository-slug>`, e.g.
+  `bitbucket-dc|https://bitbucket.example.com|PROJ|my-repo`
+
+The key never contains the token, username, or query parameters.
 
 **Public API:**
 
@@ -381,15 +445,16 @@ pub fn stats(&self) -> &CacheStats
 
 ```sql
 schema_migrations  -- tracks applied migration versions
-repositories       -- one row per "owner/repo" slug
+repositories       -- one row per provider-aware cache key
 cached_prs         -- one row per (repository, branch); NULL pr_number = "no PR"
 ```
 
 **Cache Logic:**
 
-- A `NULL pr_number` row means _"we asked GitHub and found no PR"_ — a cache hit that prevents a
-  redundant API call on the next run within TTL.
+- A `NULL pr_number` row means _"we asked the provider and found no PR"_ — a cache hit that prevents
+  a redundant API call on the next run within TTL.
 - An absent row means _"never queried"_ — a miss, API call required.
+- Failed lookups are **never** cached — only successful results are written.
 - Schema migrations run automatically on `open()`; the delta pattern means only new versions are
   applied, never re-run.
 
@@ -406,19 +471,21 @@ main() → verify_repo() → get_current_branch() → get_trunk_branch() → get
                                                    ↓
                                           App::new(branches, trunk, current)
 
--- When --github is active: --
-main() → get_repo_slug()               → PrCache::open(slug, 1h TTL)
-              ↓                                      ↓
-    "owner/repo" string            evict_stale(30d) then:
-                                   Pass 1 — sync cache hits (no I/O)
-                                         ↓
-                                   Pass 2 — tokio JoinSet + Semaphore(20)
-                                           spawn one task per cache miss
-                                           each task: gh pr list --head <branch>
-                                         ↓
-                                   Pass 3 — write results back via cache.set()
-                                         ↓
-                                   results ordered by original branch index
+-- When --github or --bitbucket is active: --
+main() → build provider → provider.validate() → PrCache::open(provider.cache_key(), 1h TTL)
+              ↓                                              ↓
+   GitHubProvider (gh CLI)  or             evict_stale(30d) then:
+   BitbucketProvider (REST)                Pass 1 — sync cache hits (no I/O)
+                                                 ↓
+                                           Pass 2 — tokio JoinSet + Semaphore
+                                                   (GitHub: 20, Bitbucket: 8)
+                                                   spawn one task per cache miss
+                                                   each task: provider.get_pr_for_branch()
+                                                 ↓
+                                           Pass 3 — write results back via cache.set()
+                                                   (failed lookups are never cached)
+                                                 ↓
+                                           results ordered by original branch index
 ```
 
 ### 2. User Interaction (TUI Mode)
@@ -582,9 +649,16 @@ pub fn get_trunk_branch(override_trunk: Option<String>, remote: &str) -> Result<
 
 Located in each module's `#[cfg(test)]` section:
 
-- **git.rs**: Branch status classification, Git command parsing, PrState display, JSON helpers,
-  repo-slug URL parsing, async `fetch_pr_info_for_branches` (via `#[tokio::test]`)
-- **cache.rs**: Cache hit/miss/expiry, multi-repo isolation, overwrite, eviction, schema migration
+- **git.rs**: Branch status classification, Git command parsing
+- **remote.rs**: Remote URL parsing (HTTP(S), `ssh://`, SCP-like), Bitbucket repository inference,
+  credential sanitization
+- **pr/mod.rs**: PrState display, fetch coordinator ordering, cache hits, negative caching, and
+  error handling via a fake provider (via `#[tokio::test]`)
+- **pr/github.rs**: `gh` output parsing and error/no-result separation
+- **pr/bitbucket.rs**: DTO deserialization, state mapping, and `wiremock`-based HTTP mock tests
+  (auth headers, query parameters, HTTP status handling, retries — no real network)
+- **cache.rs**: Cache hit/miss/expiry, multi-repo isolation (including the namespaced Bitbucket
+  key), overwrite, eviction, schema migration
 - **app.rs**: State transitions, filtering, selection logic
 
 Run: `cargo test`
@@ -593,7 +667,8 @@ Run: `cargo test`
 
 Located in `tests/integration_test.rs`:
 
-- CLI flag handling (`--sequential`, `--github`, `--dry-run`, `--trunk`, `--force`)
+- CLI flag handling (`--sequential`, `--github`, `--bitbucket` and its overrides, `--dry-run`,
+  `--trunk`, `--force`)
 - Real Git repository scenarios (merged/unmerged/protected branches)
 - Error handling (non-git directory, empty repo)
 
@@ -609,24 +684,30 @@ See [TESTING.md](TESTING.md) for comprehensive manual testing checklist.
 
 ### Core Dependencies
 
-| Crate        | Version | Purpose                                              |
-| ------------ | ------- | ---------------------------------------------------- |
-| `ratatui`    | 0.30.0  | TUI framework                                        |
-| `crossterm`  | 0.29.0  | Terminal backend (cross-platform)                    |
-| `clap`       | 4.5.57  | CLI argument parsing                                 |
-| `color-eyre` | 0.6.5   | Error handling and reporting                         |
-| `chrono`     | 0.4.43  | Date/time formatting                                 |
-| `tokio`      | 1       | Async runtime (`rt-multi-thread`, `process`, `sync`) |
-| `rusqlite`   | 0.31    | SQLite client (bundled libsqlite3)                   |
-| `dirs`       | 5.0     | XDG-compliant cache directory                        |
+| Crate         | Version | Purpose                                                       |
+| ------------- | ------- | ------------------------------------------------------------- |
+| `ratatui`     | 0.30.0  | TUI framework                                                 |
+| `crossterm`   | 0.29.0  | Terminal backend (cross-platform)                             |
+| `clap`        | 4.5.57  | CLI argument parsing                                          |
+| `color-eyre`  | 0.6.5   | Error handling and reporting                                  |
+| `chrono`      | 0.4.43  | Date/time formatting                                          |
+| `tokio`       | 1       | Async runtime (`rt-multi-thread`, `process`, `sync`)          |
+| `rusqlite`    | 0.31    | SQLite client (bundled libsqlite3)                            |
+| `dirs`        | 5.0     | XDG-compliant cache directory                                 |
+| `async-trait` | 0.1     | Object-safe async provider trait                              |
+| `reqwest`     | 0.12    | HTTP client for the Bitbucket provider (rustls, native roots) |
+| `serde`       | 1       | Typed deserialization of Bitbucket responses                  |
+| `serde_json`  | 1       | JSON support                                                  |
+| `url`         | 2       | Base URL normalization and query encoding                     |
 
 ### Development Dependencies
 
-| Crate        | Purpose                         |
-| ------------ | ------------------------------- |
-| `tempfile`   | Temporary Git repos for testing |
-| `assert_cmd` | CLI testing                     |
-| `predicates` | Assertion helpers               |
+| Crate        | Purpose                                    |
+| ------------ | ------------------------------------------ |
+| `tempfile`   | Temporary Git repos for testing            |
+| `assert_cmd` | CLI testing                                |
+| `predicates` | Assertion helpers                          |
+| `wiremock`   | Local HTTP mock server for Bitbucket tests |
 
 ## Performance Considerations
 

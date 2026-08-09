@@ -1,7 +1,8 @@
 // TUI rendering module
 
 use crate::app::{App, FilterMode, SortMode};
-use crate::git::{BranchStatus, PrState};
+use crate::git::BranchStatus;
+use crate::pr::PrState;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -540,7 +541,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     let filtered_branches = app.filtered_branches();
 
     // Create table header (conditionally include PR column)
-    let header_labels: Vec<&str> = if app.github_enabled {
+    let header_labels: Vec<&str> = if app.pr_provider.is_some() {
         vec!["", "☑", "Branch", "Last Commit", "Status", "PR"]
     } else {
         vec!["", "☑", "Branch", "Last Commit", "Status"]
@@ -619,8 +620,8 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 .style(status_style),
             ];
 
-            // Add PR column if GitHub integration is enabled
-            if app.github_enabled {
+            // Add PR column if PR integration is enabled
+            if app.pr_provider.is_some() {
                 let (pr_text, pr_style) = match &branch.pr_info {
                     Some(pr) => {
                         let color = get_pr_state_color(&pr.state);
@@ -646,7 +647,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         .collect();
 
     // Column widths (conditionally include PR column)
-    let widths: Vec<Constraint> = if app.github_enabled {
+    let widths: Vec<Constraint> = if app.pr_provider.is_some() {
         vec![
             Constraint::Length(2),  // Cursor indicator
             Constraint::Length(4),  // Checkbox
@@ -705,8 +706,8 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
     ];
 
-    // Add PR legend items when GitHub integration is enabled
-    if app.github_enabled {
+    // Add PR legend items when PR integration is enabled
+    if app.pr_provider.is_some() {
         legend_spans.push(Span::styled("  │  PR: ", Style::default().fg(COLOR_MUTED)));
         legend_spans.push(Span::styled("🟢 ", Style::default().fg(COLOR_PR_MERGED)));
         legend_spans.push(Span::styled("merged  ", Style::default().fg(COLOR_MUTED)));
@@ -874,8 +875,8 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
             )));
         }
 
-        // GitHub PR info (if available and GitHub integration enabled)
-        if app.github_enabled {
+        // PR info (if available and PR integration enabled)
+        if app.pr_provider.is_some() {
             lines.push(Line::from(""));
             if let Some(pr) = &branch.pr_info {
                 lines.push(Line::from(vec![Span::styled(
@@ -1133,8 +1134,8 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         ])
     };
 
-    // Add GitHub PR shortcut if enabled
-    let key_hints = if app.github_enabled && !app.branches.is_empty() {
+    // Add PR shortcut if enabled
+    let key_hints = if app.pr_provider.is_some() && !app.branches.is_empty() {
         let mut spans = key_hints.spans;
         // Insert "o pr" before the quit
         let quit_idx = spans.len() - 2; // Position before "q" and " quit"
@@ -1677,7 +1678,7 @@ fn render_help_modal(frame: &mut Frame) {
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "  GitHub Integration (--github / -g)",
+            "  PR Integration (--github / --bitbucket)",
             Style::default()
                 .fg(COLOR_ACCENT)
                 .add_modifier(Modifier::BOLD),

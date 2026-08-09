@@ -1,6 +1,7 @@
 // Application state management
 
 use crate::git::{self, BranchInfo, BranchStatus};
+use crate::pr::PrProviderKind;
 use std::collections::HashSet;
 
 /// Sort mode for branch list
@@ -150,8 +151,8 @@ pub struct App {
     pub suggestion_index: Option<usize>,
     /// Whether to show suggestions dropdown
     pub show_suggestions: bool,
-    /// Whether GitHub PR integration is enabled
-    pub github_enabled: bool,
+    /// Which PR provider is enabled (None = PR integration disabled)
+    pub pr_provider: Option<PrProviderKind>,
 }
 
 impl App {
@@ -197,7 +198,7 @@ impl App {
             suggestions: Vec::new(),
             suggestion_index: None,
             show_suggestions: false,
-            github_enabled: false,
+            pr_provider: None,
         }
     }
 

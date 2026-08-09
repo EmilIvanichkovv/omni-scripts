@@ -165,6 +165,25 @@ Compare behavior with the original bash script:
 - [ ] Error handling when `gh` CLI not installed
 - [ ] Works without --github (PR column hidden, no extra API calls)
 
+#### 3.11 Bitbucket PR Integration (with --bitbucket flag)
+
+Bitbucket HTTP behavior is covered by automated `wiremock`-based mock tests (auth headers, query
+parameters, status handling, retries) — no real network access is needed in CI. Manual testing
+against a real Bitbucket Data Center instance follows the acceptance checklist in the spec:
+
+📋
+**[Manual acceptance test — BITBUCKET_SUPPORT.md §13.6](../specs/BITBUCKET_SUPPORT.md#136-manual-acceptance-test)**
+
+Quick smoke checks:
+
+- [ ] `--bitbucket` flag enables Bitbucket integration (requires `BITBUCKET_TOKEN` in environment)
+- [ ] Missing/empty `BITBUCKET_TOKEN` fails with a clear error before the TUI opens
+- [ ] `--github --bitbucket` together is rejected
+- [ ] `--bitbucket-*` overrides without `--bitbucket` are rejected
+- [ ] PR column, details pane, and `o` (open in browser) work the same as with `--github`
+- [ ] Second run within 1h reports cache hits and is materially faster
+- [ ] No token ever appears in output, errors, or the cache
+
 ### 4. CLI Mode Tests
 
 #### 4.1 Basic CLI
@@ -181,6 +200,7 @@ Compare behavior with the original bash script:
 - [ ] `--force` - shows "FORCE MODE" indicator
 - [ ] `--dry-run` - shows "DRY RUN" indicator
 - [ ] `--github` - enables GitHub PR integration
+- [ ] `--bitbucket` - enables Bitbucket Data Center PR integration
 - [ ] `--help` - shows comprehensive help
 - [ ] `--version` - shows version number
 

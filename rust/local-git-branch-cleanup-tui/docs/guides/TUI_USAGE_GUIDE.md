@@ -14,7 +14,7 @@ The TUI is divided into several sections:
 ├───────────────────────────────────────────┬─────────────────────────────┤
 │                                           │                             │
 │            Branch List (70%)              │    Details Pane (30%)       │
-│   (includes PR column with --github)      │    (includes PR info)       │
+│   (PR column with --github/--bitbucket)   │    (includes PR info)       │
 │                                           │                             │
 ├───────────────────────────────────────────┴─────────────────────────────┤
 │ Action Log: Deletion results (appears after deletions)                  │
@@ -124,26 +124,30 @@ When a non-default sort mode is active, the header displays a sort indicator: `�
 
 ### Actions
 
-| Key     | Action                                        |
-| ------- | --------------------------------------------- |
-| `Enter` | Delete selected branches (opens confirmation) |
-| `f`     | Toggle force mode                             |
-| `d`     | Toggle dry run mode                           |
-| `s`     | Cycle sort mode                               |
-| `o`     | Open PR in browser (when --github enabled)    |
-| `i`     | Show info modal (about the tool)              |
-| `?`     | Show help modal                               |
+| Key     | Action                                           |
+| ------- | ------------------------------------------------ |
+| `Enter` | Delete selected branches (opens confirmation)    |
+| `f`     | Toggle force mode                                |
+| `d`     | Toggle dry run mode                              |
+| `s`     | Cycle sort mode                                  |
+| `o`     | Open PR in browser (when PR integration enabled) |
+| `i`     | Show info modal (about the tool)                 |
+| `?`     | Show help modal                                  |
 
 ---
 
-## GitHub PR Integration
+## PR Integration (GitHub & Bitbucket)
 
-When started with the `--github` flag, the TUI shows Pull Request information for each branch.
+When started with the `--github` or `--bitbucket` flag, the TUI shows Pull Request information for
+each branch. The PR column, the details pane, and the `o` (open in browser) shortcut behave the same
+for both providers. The two flags are mutually exclusive.
 
-### Requirements
+### GitHub Requirements
 
 - **GitHub CLI (`gh`)** must be installed and authenticated
 - Repository must have a GitHub remote
+
+If `gh` is not installed, the tool prints a warning and continues without PR integration.
 
 ### Enabling GitHub Integration
 
@@ -154,6 +158,43 @@ local-git-branch-cleanup-tui --github
 # Or with cargo
 cargo run -- --github
 ```
+
+### Bitbucket Requirements
+
+- A **Bitbucket Data Center** instance (Bitbucket Cloud / `bitbucket.org` is not supported)
+- A Bitbucket **HTTP access token** with repository read permission, exported as `BITBUCKET_TOKEN`
+- Repository must have an `origin` remote pointing at the Bitbucket instance (or use the explicit
+  overrides below)
+
+### Enabling Bitbucket Integration
+
+```bash
+# Prefer a hidden prompt so the token never lands in your shell history
+read -rs BITBUCKET_TOKEN && export BITBUCKET_TOKEN
+
+# Start with Bitbucket PR integration
+local-git-branch-cleanup-tui --bitbucket
+```
+
+The Bitbucket base URL, project key, and repository slug are derived from the `origin` remote. When
+derivation fails (nonstandard remote, context path, custom HTTP port), supply explicit overrides:
+
+```bash
+local-git-branch-cleanup-tui --bitbucket \
+  --bitbucket-base-url 'https://bitbucket.example.com' \
+  --bitbucket-project 'PROJ' \
+  --bitbucket-repo 'my-repo'
+```
+
+Each override also has an environment-variable fallback (`BITBUCKET_BASE_URL`, `BITBUCKET_PROJECT`,
+`BITBUCKET_REPO`). Precedence: CLI flag > environment variable > value derived from `origin`.
+
+**Token guidance:**
+
+- The token is read from the environment only — it is never accepted as a CLI argument and is never
+  written to the cache, logs, or error messages.
+- Bitbucket configuration, authentication, or repository-access failures are fatal and reported
+  before the TUI opens.
 
 ### PR Status Icons
 
@@ -197,15 +238,20 @@ follows the platform cache directory convention:
 To print the resolved path, run:
 `just cache-db --bail 2>/dev/null || echo "$XDG_CACHE_HOME/omni-scripts/pr-cache.db"` This means:
 
-- **Second run within 1h**: instant — zero `gh` subprocess calls
+- **Second run within 1h**: instant — zero provider calls (`gh` subprocesses or Bitbucket API
+  requests)
 - **New PR opened**: will appear after the cache entry expires (up to 1h)
 - **PR closed or merged**: old state shown until cache expires
+
+GitHub and Bitbucket entries never collide: Bitbucket entries are namespaced by provider, host,
+project, and repository, while GitHub keeps its `owner/repo` key. Failed lookups are never cached —
+only successful results (including "no PR") are stored.
 
 At startup the cache reports how many branches were served from cache vs fetched live:
 
 ```
 🔗 Fetching GitHub PR info...
-   42 from cache, 3 fetched from GitHub
+   42 from cache, 3 fetched, 0 failed
 ```
 
 **Inspecting the cache** (from the project dev shell):
@@ -216,8 +262,8 @@ just cache-db      # open interactive sqlite3 REPL
 just cache-clear   # delete all cached rows (forces fresh fetch on next run)
 ```
 
-> **Note:** GitHub integration requires additional API calls at startup for cache misses, which may
-> slow down the initial load with many branches. Subsequent runs within the TTL are instant.
+> **Note:** PR integration requires additional API calls at startup for cache misses, which may slow
+> down the initial load with many branches. Subsequent runs within the TTL are instant.
 
 ## Understanding Branch Status
 

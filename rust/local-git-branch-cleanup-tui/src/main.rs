@@ -1,6 +1,8 @@
 mod app;
 mod cache;
 mod git;
+mod pr;
+mod remote;
 mod ui;
 
 use app::App;
@@ -12,6 +14,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use git::BranchStatus;
+use pr::PullRequestProvider;
 use ratatui::prelude::*;
 use std::io::{self, Write};
 
@@ -38,8 +41,25 @@ struct Args {
 
     /// Enable GitHub PR integration (requires gh CLI)
     /// Shows PR status for branches with associated pull requests
-    #[arg(long, short = 'g')]
+    #[arg(long, short = 'g', conflicts_with = "bitbucket")]
     github: bool,
+
+    /// Enable Bitbucket Data Center PR integration (requires BITBUCKET_TOKEN)
+    /// Shows PR status for branches with associated pull requests
+    #[arg(long, short = 'b', conflicts_with = "github")]
+    bitbucket: bool,
+
+    /// Override the Bitbucket base URL derived from origin (may include a context path)
+    #[arg(long, requires = "bitbucket")]
+    bitbucket_base_url: Option<String>,
+
+    /// Override the Bitbucket project key derived from origin
+    #[arg(long, requires = "bitbucket")]
+    bitbucket_project: Option<String>,
+
+    /// Override the Bitbucket repository slug derived from origin
+    #[arg(long, requires = "bitbucket")]
+    bitbucket_repo: Option<String>,
 
     /// Force sequential PR fetching (no tokio concurrency). For benchmarking only.
     #[arg(long, hide = true)]
@@ -78,60 +98,72 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Fetch GitHub PR info if --github flag is enabled
-    let github_enabled = if args.github {
-        if git::is_gh_cli_available() {
-            let repo_slug = git::get_repo_slug().unwrap_or_else(|_| "unknown/unknown".to_string());
+    // Select the PR provider (exactly zero or one; clap enforces the conflict)
+    let provider: Option<std::sync::Arc<dyn pr::PullRequestProvider>> = if args.github {
+        let provider = pr::github::GitHubProvider::new();
+        match provider.validate().await {
+            Err(e) => {
+                // A missing gh CLI is non-fatal: warn, disable PR integration,
+                // and continue with local-only behavior (backward compatible).
+                eprintln!("⚠️  {}", e);
+                None
+            }
+            Ok(()) => Some(std::sync::Arc::new(provider) as _),
+        }
+    } else if args.bitbucket {
+        // Bitbucket configuration/authentication/validation failures are fatal
+        // before any UI is drawn (spec sections 4.4 and 9.4).
+        match build_bitbucket_provider(&args).await {
+            Ok(provider) => Some(provider),
+            Err(e) => {
+                eprintln!("❌ {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+
+    // Fetch PR info if a provider is enabled
+    let pr_provider = match provider {
+        None => None,
+        Some(provider) => {
+            let cache_key = provider.cache_key();
+            let kind = provider.kind();
             let ttl = std::time::Duration::from_secs(3600);
 
-            match cache::PrCache::open(&repo_slug, ttl) {
+            eprintln!("🔗 Fetching {} PR info...", kind.label());
+            let t0 = std::time::Instant::now();
+            let report = match cache::PrCache::open(&cache_key, ttl) {
                 Ok(mut pr_cache) => {
                     pr_cache
                         .evict_stale(std::time::Duration::from_secs(30 * 24 * 60 * 60))
                         .ok();
-                    eprintln!("🔗 Fetching GitHub PR info...");
-                    let t0 = std::time::Instant::now();
-                    git::fetch_pr_info_for_branches(
+                    pr::fetch_pr_info_for_branches(
+                        provider,
                         &mut branches,
                         Some(&mut pr_cache),
                         args.sequential,
                     )
-                    .await;
-                    let elapsed = t0.elapsed();
-                    let stats = pr_cache.stats();
-                    eprintln!(
-                        "   {} from cache, {} fetched from GitHub",
-                        stats.hits, stats.misses
-                    );
-                    eprintln!("   fetch completed in {:.2}s", elapsed.as_secs_f64());
-                    if stats.hits == 0 && stats.misses > 20 {
-                        eprintln!(
-                            "   (tip: subsequent runs will be instant — results are cached for 1h)"
-                        );
-                    }
-                    if args.fetch_only {
-                        std::process::exit(0);
-                    }
-                    true
+                    .await
                 }
                 Err(e) => {
                     eprintln!("⚠️  PR cache unavailable ({}), fetching live data.", e);
-                    git::fetch_pr_info_for_branches(&mut branches, None, args.sequential).await;
-                    true
+                    pr::fetch_pr_info_for_branches(provider, &mut branches, None, args.sequential)
+                        .await
                 }
+            };
+            print_fetch_summary(&report, t0.elapsed());
+            if args.fetch_only {
+                std::process::exit(if report.failed > 0 { 1 } else { 0 });
             }
-        } else {
-            eprintln!("⚠️  GitHub CLI (gh) not found. Install it to enable PR integration.");
-            eprintln!("   See: https://cli.github.com/");
-            false
+            Some(kind)
         }
-    } else {
-        false
     };
 
     // Use CLI mode if --cli flag is set
     if args.cli {
-        return run_cli_mode(&branches, &trunk, args.force, args.dry_run, github_enabled);
+        return run_cli_mode(&branches, &trunk, args.force, args.dry_run, pr_provider);
     }
 
     // Run TUI mode
@@ -141,8 +173,76 @@ async fn main() -> Result<()> {
         trunk,
         args.force,
         args.dry_run,
-        github_enabled,
+        pr_provider,
     )
+}
+
+/// Resolve Bitbucket configuration (CLI > env > derived-from-origin), require
+/// a non-empty `BITBUCKET_TOKEN`, construct the HTTP client, and validate
+/// repository access with one metadata request.
+async fn build_bitbucket_provider(
+    args: &Args,
+) -> Result<std::sync::Arc<dyn pr::PullRequestProvider>, pr::PrProviderError> {
+    use pr::bitbucket::{self, BitbucketConfigInput};
+
+    // Derivation failures are not fatal by themselves: explicit CLI/env values
+    // may fill every gap. resolve_repository reports what is still missing.
+    let derived = remote::read_origin()
+        .ok()
+        .and_then(|r| remote::infer_bitbucket_repository(&r).ok());
+
+    let repository = bitbucket::resolve_repository(BitbucketConfigInput {
+        cli_base_url: args.bitbucket_base_url.clone(),
+        cli_project: args.bitbucket_project.clone(),
+        cli_repo: args.bitbucket_repo.clone(),
+        env_base_url: std::env::var("BITBUCKET_BASE_URL").ok(),
+        env_project: std::env::var("BITBUCKET_PROJECT").ok(),
+        env_repo: std::env::var("BITBUCKET_REPO").ok(),
+        derived_base_url: derived.as_ref().map(|d| d.base_url.clone()),
+        derived_project: derived.as_ref().map(|d| d.project_key.clone()),
+        derived_repo: derived.as_ref().map(|d| d.repository_slug.clone()),
+    })?;
+
+    // The token is env-only and never part of Args (Args derives Debug).
+    let token = std::env::var("BITBUCKET_TOKEN")
+        .ok()
+        .filter(|t| !t.trim().is_empty())
+        .ok_or_else(|| {
+            pr::PrProviderError::Configuration(
+                "BITBUCKET_TOKEN is not set. Export a Bitbucket Data Center HTTP access token \
+                 with repository read permission."
+                    .to_string(),
+            )
+        })?;
+
+    let provider = bitbucket::BitbucketProvider::new(repository, token)?;
+    provider.validate().await?;
+    Ok(std::sync::Arc::new(provider))
+}
+
+/// Print the user-visible PR fetch summary.
+///
+/// Failed lookups are listed (up to five examples) and are never cached, so
+/// they will be retried on the next run.
+fn print_fetch_summary(report: &pr::FetchReport, elapsed: std::time::Duration) {
+    let fetched = report.fetched_with_pr + report.fetched_without_pr;
+    eprintln!(
+        "   {} from cache, {} fetched, {} failed",
+        report.cache_hits, fetched, report.failed
+    );
+    eprintln!("   fetch completed in {:.2}s", elapsed.as_secs_f64());
+    if report.failed > 0 {
+        eprintln!(
+            "   ⚠️  {} PR lookup(s) failed and were not cached:",
+            report.failed
+        );
+        for err in report.errors.iter().take(5) {
+            eprintln!("      {}: {}", err.branch, err.error);
+        }
+    }
+    if report.cache_hits == 0 && report.cache_misses > 20 {
+        eprintln!("   (tip: subsequent runs will be instant — results are cached for 1h)");
+    }
 }
 
 /// Run the interactive TUI mode
@@ -152,7 +252,7 @@ fn run_tui_mode(
     trunk: String,
     force_mode: bool,
     dry_run: bool,
-    github_enabled: bool,
+    pr_provider: Option<pr::PrProviderKind>,
 ) -> Result<()> {
     // Set up terminal
     enable_raw_mode()?;
@@ -168,7 +268,7 @@ fn run_tui_mode(
     let mut app = App::new(branches, repo_path, trunk, current_git_user);
     app.force_mode = force_mode;
     app.dry_run = dry_run;
-    app.github_enabled = github_enabled;
+    app.pr_provider = pr_provider;
 
     // Main loop
     loop {
@@ -414,8 +514,8 @@ fn run_tui_mode(
                                     app.set_filter(app::FilterMode::All);
                                 }
                                 KeyCode::Char('o') => {
-                                    // Open PR URL in browser (if GitHub integration enabled and PR exists)
-                                    if app.github_enabled {
+                                    // Open PR URL in browser (if PR integration enabled and PR exists)
+                                    if app.pr_provider.is_some() {
                                         app.open_selected_pr();
                                     }
                                 }
@@ -452,7 +552,7 @@ fn run_cli_mode(
     trunk: &str,
     force: bool,
     dry_run: bool,
-    github_enabled: bool,
+    pr_provider: Option<pr::PrProviderKind>,
 ) -> Result<()> {
     println!("🌳 Trunk branch: {}", trunk);
 
@@ -463,8 +563,8 @@ fn run_cli_mode(
     if dry_run {
         println!("🔍 DRY RUN: Preview mode - no branches will be deleted");
     }
-    if github_enabled {
-        println!("🔗 GitHub PR integration enabled");
+    if let Some(kind) = pr_provider {
+        println!("🔗 {} PR integration enabled", kind.label());
     }
 
     println!();
@@ -493,7 +593,7 @@ fn run_cli_mode(
     println!();
 
     // Print legend
-    let legend = if github_enabled {
+    let legend = if pr_provider.is_some() {
         "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
     } else {
         "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current"
@@ -503,7 +603,7 @@ fn run_cli_mode(
 
     for branch in branches {
         let status_indicator = format!("{} {}", branch.status.icon(), branch.status.label());
-        let pr_indicator = if github_enabled {
+        let pr_indicator = if pr_provider.is_some() {
             match &branch.pr_info {
                 Some(pr) => format!(" {} PR #{}", pr.state.icon(), pr.number),
                 None => "".to_string(),

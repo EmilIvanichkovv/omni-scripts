@@ -1,8 +1,8 @@
-/// SQLite-backed cache for GitHub PR data.
+/// SQLite-backed cache for PR data.
 ///
 /// This module is the single owner of all cache I/O. No other module reads from
 /// or writes to the SQLite file directly.
-use crate::git::{PrInfo, PrState};
+use crate::pr::{PrInfo, PrState};
 use color_eyre::Result;
 use rusqlite::{params, Connection};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -267,6 +267,8 @@ impl PrCache {
     }
 
     /// Read-only snapshot of session statistics.
+    /// (User-visible reporting now comes from `pr::FetchReport`; retained for tests.)
+    #[allow(dead_code)]
     pub fn stats(&self) -> &CacheStats {
         &self.stats
     }
@@ -531,6 +533,32 @@ mod tests {
             cache_b.get("feature/shared-name"),
             CacheResult::Miss
         ));
+    }
+
+    #[test]
+    fn bitbucket_namespaced_keys_do_not_collide() {
+        // Same project/repo on different hosts, and a GitHub-style slug, all
+        // sharing one database file — entries must stay isolated per key.
+        let dir = tempfile::TempDir::new().unwrap();
+        let db = dir.path().join("pr-cache.db");
+        let ttl = Duration::from_secs(3600);
+
+        let key_a = "bitbucket-dc|https://bitbucket.example.com|PROJ|demo-repo";
+        let key_b = "bitbucket-dc|https://other-host.example.com|PROJ|demo-repo";
+        let key_gh = "proj/demo-repo";
+
+        let mut a = PrCache::open_with_conn(Connection::open(&db).unwrap(), key_a, ttl).unwrap();
+        let mut b = PrCache::open_with_conn(Connection::open(&db).unwrap(), key_b, ttl).unwrap();
+        let mut gh = PrCache::open_with_conn(Connection::open(&db).unwrap(), key_gh, ttl).unwrap();
+
+        a.set("feature/x", Some(&make_pr(11))).unwrap();
+
+        match a.get("feature/x") {
+            CacheResult::Hit(Some(pr)) => assert_eq!(pr.number, 11),
+            other => panic!("expected Hit(Some(11)), got {other:?}"),
+        }
+        assert!(matches!(b.get("feature/x"), CacheResult::Miss));
+        assert!(matches!(gh.get("feature/x"), CacheResult::Miss));
     }
 
     #[test]

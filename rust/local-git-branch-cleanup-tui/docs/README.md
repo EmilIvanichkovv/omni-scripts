@@ -17,6 +17,8 @@ Technical documentation for developers and contributors:
 - **[Architecture](specs/ARCHITECTURE.md)** — System design and module responsibilities
 - **[Roadmap](specs/ROADMAP.md)** — Project milestones and development history
 - **[Search Feature](specs/SEARCH_FEATURE.md)** — Branch search functionality specification
+- **[Bitbucket Support](specs/BITBUCKET_SUPPORT.md)** — Bitbucket Data Center PR integration
+  specification
 
 ## 🧪 Testing
 
@@ -33,10 +35,10 @@ Testing documentation and reports:
 
 ## Quick Links
 
-| What you want                | Where to go                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| Learn how to use the TUI     | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md)                                |
-| Coming from the bash script? | [Migration Guide](guides/MIGRATION.md)                                      |
-| Understand the codebase      | [Architecture](specs/ARCHITECTURE.md)                                       |
-| Run or write tests           | [Testing Checklist](testing/TESTING.md)                                     |
-| Enable GitHub PR integration | [TUI Usage Guide - GitHub](guides/TUI_USAGE_GUIDE.md#github-pr-integration) |
+| What you want                              | Where to go                                                                                    |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Learn how to use the TUI                   | [TUI Usage Guide](guides/TUI_USAGE_GUIDE.md)                                                   |
+| Coming from the bash script?               | [Migration Guide](guides/MIGRATION.md)                                                         |
+| Understand the codebase                    | [Architecture](specs/ARCHITECTURE.md)                                                          |
+| Run or write tests                         | [Testing Checklist](testing/TESTING.md)                                                        |
+| Enable PR integration (GitHub / Bitbucket) | [TUI Usage Guide - PR Integration](guides/TUI_USAGE_GUIDE.md#pr-integration-github--bitbucket) |

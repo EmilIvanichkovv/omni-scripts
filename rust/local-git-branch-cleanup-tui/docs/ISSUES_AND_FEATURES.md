@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-03-25 16:40
+**Last Updated:** 2026-08-13 18:25
 
 ---
 
@@ -24,7 +24,23 @@ application.
 
 ## Critical Issues
 
-_No open critical issues._
+### Issue #13: Squash-merged branches with live upstream show as unmerged
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-08-13
+- **Category:** Critical / Bug
+- **Description:**
+  - QA found branches whose PR was already merged showing as `! unmerged`. Squash/rebase merges
+    produce a new commit on trunk, so git ancestry cannot see the merge; a stale local trunk hides
+    normal merges the same way. The branch remains force-gated even though its content is merged.
+- **Steps to Reproduce:**
+  1. Merge a branch's PR with squash (remote branch kept)
+  2. Run the tool with `--github` or `--bitbucket`
+  3. The branch shows `! unmerged` although the PR is merged
+- **Expected Behavior:** The branch should be recognized as merged and safe to delete
+- **Actual Behavior:** Shows `! unmerged`, requires force mode
+
+---
 
 ---
 

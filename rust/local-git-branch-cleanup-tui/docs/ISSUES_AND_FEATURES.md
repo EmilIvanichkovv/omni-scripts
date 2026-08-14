@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-14 12:02
+**Last Updated:** 2026-08-14 15:22
 
 ---
 
@@ -24,7 +24,22 @@ application.
 
 ## Critical Issues
 
-_No open critical issues._
+### Issue #14: pr-merged status lost when the list refreshes after deletion
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-08-14
+- **Category:** Critical / Bug
+- **Description:**
+  - After deleting any branch, the branch list re-renders and the remaining branches marked
+    `pr-merged` revert to `! unmerged` and lose their PR badges.
+- **Steps to Reproduce:**
+  1. Run with `--github` or `--bitbucket` so some branches show `↑ pr-merged`
+  2. Delete any branch
+  3. The remaining pr-merged branches now show `! unmerged` with no PR column
+- **Expected Behavior:** pr-merged branches keep their status and PR info after a refresh
+- **Actual Behavior:** They revert to `! unmerged` and the PR badges disappear
+
+---
 
 ---
 

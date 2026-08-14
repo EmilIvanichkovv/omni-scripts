@@ -292,7 +292,9 @@ impl App {
             FilterMode::SafeMerged => self
                 .branches
                 .iter()
-                .filter(|b| b.status == BranchStatus::SafeMerged)
+                .filter(|b| {
+                    b.status == BranchStatus::SafeMerged || b.status == BranchStatus::PrMerged
+                })
                 .collect(),
             FilterMode::GoneUpstream => self
                 .branches
@@ -399,7 +401,9 @@ impl App {
             FilterMode::SafeMerged => self
                 .branches
                 .iter()
-                .filter(|b| b.status == BranchStatus::SafeMerged)
+                .filter(|b| {
+                    b.status == BranchStatus::SafeMerged || b.status == BranchStatus::PrMerged
+                })
                 .count(),
             FilterMode::GoneUpstream => self
                 .branches
@@ -448,8 +452,9 @@ impl App {
                         BranchStatus::Current => 0,
                         BranchStatus::Protected => 1,
                         BranchStatus::SafeMerged => 2,
-                        BranchStatus::GoneUpstream => 3,
-                        BranchStatus::Unmerged => 4,
+                        BranchStatus::PrMerged => 3,
+                        BranchStatus::GoneUpstream => 4,
+                        BranchStatus::Unmerged => 5,
                     };
                     order(&a.status).cmp(&order(&b.status))
                 });

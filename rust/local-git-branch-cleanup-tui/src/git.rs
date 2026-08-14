@@ -13,6 +13,10 @@ const PROTECTED_BRANCHES: &[&str] = &["main", "master", "develop", "development"
 pub enum BranchStatus {
     /// Merged into trunk - safe to delete with `git branch -d`
     SafeMerged,
+    /// PR was merged (squash/rebase) but the remote branch still exists, so
+    /// git ancestry cannot see the merge. The branch is in sync with its live
+    /// upstream (ahead == 0), so `git branch -d` deletes it safely.
+    PrMerged,
     /// Remote tracking branch was deleted (shows as [gone] in git branch -vv)
     GoneUpstream,
     /// Has unmerged commits - requires force delete with `git branch -D`
@@ -28,6 +32,7 @@ impl BranchStatus {
     pub fn label(&self) -> &'static str {
         match self {
             BranchStatus::SafeMerged => "merged",
+            BranchStatus::PrMerged => "pr-merged",
             BranchStatus::GoneUpstream => "gone",
             BranchStatus::Unmerged => "unmerged",
             BranchStatus::Protected => "protected",
@@ -39,6 +44,7 @@ impl BranchStatus {
     pub fn icon(&self) -> &'static str {
         match self {
             BranchStatus::SafeMerged => "✓",
+            BranchStatus::PrMerged => "↑",
             BranchStatus::GoneUpstream => "↗",
             BranchStatus::Unmerged => "!",
             BranchStatus::Protected => "⊘",
@@ -49,7 +55,10 @@ impl BranchStatus {
     /// Check if this branch can be safely deleted (without force)
     #[allow(dead_code)]
     pub fn is_safe_to_delete(&self) -> bool {
-        matches!(self, BranchStatus::SafeMerged | BranchStatus::GoneUpstream)
+        matches!(
+            self,
+            BranchStatus::SafeMerged | BranchStatus::PrMerged | BranchStatus::GoneUpstream
+        )
     }
 
     /// Check if this branch can be deleted at all
@@ -245,7 +254,14 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
     // Get context for classification
     let current_branch = get_current_branch()?;
     let trunk = get_default_branch(trunk_override)?;
-    let merged_branches = get_merged_branches(&trunk)?;
+    // Also consider origin/<trunk>: a branch merged remotely while the local
+    // trunk is stale would otherwise be misclassified as unmerged.
+    let mut merged_branches = get_merged_branches(&trunk)?;
+    for branch in get_merged_branches(&format!("origin/{trunk}"))? {
+        if !merged_branches.contains(&branch) {
+            merged_branches.push(branch);
+        }
+    }
     let gone_branches = get_gone_branches()?;
 
     // Get all local branches
@@ -363,13 +379,39 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             BranchStatus::Current => 0,
             BranchStatus::Protected => 1,
             BranchStatus::SafeMerged => 2,
-            BranchStatus::GoneUpstream => 3,
-            BranchStatus::Unmerged => 4,
+            BranchStatus::PrMerged => 3,
+            BranchStatus::GoneUpstream => 4,
+            BranchStatus::Unmerged => 5,
         };
         order(&a.status).cmp(&order(&b.status))
     });
 
     Ok(branches)
+}
+
+/// Upgrade `Unmerged` branches to `PrMerged` when the fetched PR data proves
+/// the merge that git ancestry cannot see (squash/rebase merges).
+///
+/// Conditions (all required):
+/// - currently classified `Unmerged` (gone branches are already deletable);
+/// - the upstream branch still exists;
+/// - no unpushed local commits (`ahead == 0`), so nothing can be lost and
+///   `git branch -d` succeeds against the upstream;
+/// - the newest PR for the branch is merged.
+///
+/// Call after PR info has been fetched.
+pub fn apply_pr_merge_status(branches: &mut [BranchInfo]) {
+    use crate::pr::PrState;
+
+    for branch in branches.iter_mut() {
+        if branch.status == BranchStatus::Unmerged
+            && branch.upstream.is_some()
+            && branch.ahead == Some(0)
+            && matches!(&branch.pr_info, Some(pr) if pr.state == PrState::Merged)
+        {
+            branch.status = BranchStatus::PrMerged;
+        }
+    }
 }
 
 /// Classify a branch based on its relationship to trunk and current state
@@ -458,6 +500,7 @@ mod tests {
     #[test]
     fn test_branch_status_label() {
         assert_eq!(BranchStatus::SafeMerged.label(), "merged");
+        assert_eq!(BranchStatus::PrMerged.label(), "pr-merged");
         assert_eq!(BranchStatus::GoneUpstream.label(), "gone");
         assert_eq!(BranchStatus::Unmerged.label(), "unmerged");
         assert_eq!(BranchStatus::Protected.label(), "protected");
@@ -467,6 +510,7 @@ mod tests {
     #[test]
     fn test_branch_status_icon() {
         assert_eq!(BranchStatus::SafeMerged.icon(), "✓");
+        assert_eq!(BranchStatus::PrMerged.icon(), "↑");
         assert_eq!(BranchStatus::GoneUpstream.icon(), "↗");
         assert_eq!(BranchStatus::Unmerged.icon(), "!");
         assert_eq!(BranchStatus::Protected.icon(), "⊘");
@@ -476,6 +520,7 @@ mod tests {
     #[test]
     fn test_branch_status_is_safe_to_delete() {
         assert!(BranchStatus::SafeMerged.is_safe_to_delete());
+        assert!(BranchStatus::PrMerged.is_safe_to_delete());
         assert!(BranchStatus::GoneUpstream.is_safe_to_delete());
         assert!(!BranchStatus::Unmerged.is_safe_to_delete());
         assert!(!BranchStatus::Protected.is_safe_to_delete());
@@ -485,6 +530,7 @@ mod tests {
     #[test]
     fn test_branch_status_is_deletable() {
         assert!(BranchStatus::SafeMerged.is_deletable());
+        assert!(BranchStatus::PrMerged.is_deletable());
         assert!(BranchStatus::GoneUpstream.is_deletable());
         assert!(BranchStatus::Unmerged.is_deletable());
         assert!(!BranchStatus::Protected.is_deletable());
@@ -568,5 +614,113 @@ mod tests {
             false,
         );
         assert_eq!(status2, BranchStatus::Protected);
+    }
+
+    // --- apply_pr_merge_status ---
+
+    use crate::pr::{PrInfo, PrState};
+
+    fn branch_with(
+        status: BranchStatus,
+        upstream: Option<&str>,
+        ahead: Option<usize>,
+        pr_state: Option<PrState>,
+    ) -> BranchInfo {
+        BranchInfo {
+            name: "feature/x".to_string(),
+            upstream: upstream.map(|s| s.to_string()),
+            last_commit_relative: "1 day ago".to_string(),
+            status,
+            last_commit_sha: "abc1234".to_string(),
+            last_commit_author: "Test".to_string(),
+            last_commit_message: "test".to_string(),
+            ahead,
+            behind: None,
+            last_activity_timestamp: 0,
+            branch_created_timestamp: 0,
+            branch_author: "Test".to_string(),
+            pr_info: pr_state.map(|state| PrInfo {
+                number: 1,
+                state,
+                title: "PR".to_string(),
+                url: "https://example.com/pr/1".to_string(),
+            }),
+        }
+    }
+
+    #[test]
+    fn pr_merge_status_upgrades_unmerged_with_merged_pr() {
+        let mut branches = vec![branch_with(
+            BranchStatus::Unmerged,
+            Some("origin/feature/x"),
+            Some(0),
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::PrMerged);
+    }
+
+    #[test]
+    fn pr_merge_status_keeps_unmerged_with_unpushed_commits() {
+        // ahead > 0: local commits would be lost — must stay unmerged.
+        let mut branches = vec![branch_with(
+            BranchStatus::Unmerged,
+            Some("origin/feature/x"),
+            Some(2),
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::Unmerged);
+    }
+
+    #[test]
+    fn pr_merge_status_keeps_unmerged_without_upstream() {
+        let mut branches = vec![branch_with(
+            BranchStatus::Unmerged,
+            None,
+            None,
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::Unmerged);
+    }
+
+    #[test]
+    fn pr_merge_status_ignores_open_and_closed_prs() {
+        for state in [PrState::Open, PrState::Closed] {
+            let mut branches = vec![branch_with(
+                BranchStatus::Unmerged,
+                Some("origin/feature/x"),
+                Some(0),
+                Some(state),
+            )];
+            apply_pr_merge_status(&mut branches);
+            assert_eq!(branches[0].status, BranchStatus::Unmerged);
+        }
+    }
+
+    #[test]
+    fn pr_merge_status_ignores_branches_without_pr() {
+        let mut branches = vec![branch_with(
+            BranchStatus::Unmerged,
+            Some("origin/feature/x"),
+            Some(0),
+            None,
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::Unmerged);
+    }
+
+    #[test]
+    fn pr_merge_status_leaves_gone_branches_alone() {
+        // A gone branch is already deletable; its status must not change.
+        let mut branches = vec![branch_with(
+            BranchStatus::GoneUpstream,
+            None,
+            None,
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::GoneUpstream);
     }
 }

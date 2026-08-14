@@ -594,3 +594,62 @@ async fn test_bitbucket_fetch_only_exits_nonzero_on_lookup_failure() {
         .failure()
         .stderr(predicate::str::contains("failed"));
 }
+
+#[tokio::test]
+async fn test_pr_merged_status_for_squash_merged_branch() {
+    // A branch whose PR is merged (squash) has a live upstream and ahead == 0,
+    // but its tip is not an ancestor of trunk. Git ancestry says "unmerged";
+    // the PR data must upgrade it to "pr-merged".
+    let repo = TestRepo::new();
+
+    // Give the repo a real (file-based) origin so the branch has an upstream.
+    let remote_dir = TempDir::new().expect("Failed to create remote dir");
+    let remote_path = remote_dir.path().to_str().unwrap().to_string();
+    TestRepo::run_git(repo.path(), &["init", "--bare", &remote_path]);
+    TestRepo::run_git(repo.path(), &["remote", "add", "origin", &remote_path]);
+    repo.create_branch("feature/squashed", "Feature commit");
+    TestRepo::run_git(repo.path(), &["push", "-u", "origin", "feature/squashed"]);
+
+    let server = wiremock::MockServer::start().await;
+    mount_valid_repo(&server).await;
+
+    use wiremock::matchers::{method, path, query_param};
+    use wiremock::{Mock, ResponseTemplate};
+    let pr_path = "/rest/api/latest/projects/PROJ/repos/demo-repo/pull-requests";
+    Mock::given(method("GET"))
+        .and(path(pr_path))
+        .and(query_param("at", "refs/heads/feature/squashed"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "values": [{
+                "id": 7,
+                "title": "Squashed feature",
+                "state": "MERGED",
+                "fromRef": {
+                    "id": "refs/heads/feature/squashed",
+                    "displayId": "feature/squashed",
+                    "repository": {"slug": "demo-repo", "project": {"key": "PROJ"}}
+                },
+                "links": {"self": [{"href": "https://bitbucket.example.com/pr/7"}]}
+            }],
+            "size": 1, "limit": 1, "isLastPage": true
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(pr_path))
+        .and(query_param("at", "refs/heads/main"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "values": [], "size": 0, "limit": 1, "isLastPage": true
+        })))
+        .mount(&server)
+        .await;
+
+    let mut cmd = bitbucket_cmd(&repo);
+    cmd.env("BITBUCKET_TOKEN", "fake-test-token");
+    cmd.arg("--cli").args(bitbucket_mock_args(&server.uri()));
+    cmd.write_stdin("n\n"); // decline the deletion prompt
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("pr-merged"))
+        .stdout(predicate::str::contains("PR #7"));
+}

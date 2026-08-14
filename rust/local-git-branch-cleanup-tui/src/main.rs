@@ -153,6 +153,9 @@ async fn main() -> Result<()> {
                         .await
                 }
             };
+            // PR data can prove merges that git ancestry cannot see
+            // (squash/rebase merges with a still-existing remote branch).
+            git::apply_pr_merge_status(&mut branches);
             print_fetch_summary(&report, t0.elapsed());
             if args.fetch_only {
                 std::process::exit(if report.failed > 0 { 1 } else { 0 });
@@ -594,7 +597,7 @@ fn run_cli_mode(
 
     // Print legend
     let legend = if pr_provider.is_some() {
-        "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
+        "   Legend: ✓ merged  ↑ pr-merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
     } else {
         "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current"
     };

@@ -696,6 +696,18 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("Legend: ", Style::default().fg(COLOR_MUTED)),
         Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
         Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
+    ];
+
+    // pr-merged can only occur when a PR provider supplied merge evidence
+    if app.pr_provider.is_some() {
+        legend_spans.push(Span::styled("↑ ", Style::default().fg(COLOR_ACCENT)));
+        legend_spans.push(Span::styled(
+            "pr-merged  ",
+            Style::default().fg(COLOR_MUTED),
+        ));
+    }
+
+    legend_spans.extend([
         Span::styled("↗ ", Style::default().fg(COLOR_WARNING)),
         Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("! ", Style::default().fg(COLOR_WARNING)),
@@ -704,7 +716,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
-    ];
+    ]);
 
     // Add PR legend items when PR integration is enabled
     if app.pr_provider.is_some() {
@@ -758,6 +770,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
         // Status explanation
         let explanation = match branch.status {
             BranchStatus::SafeMerged => "Merged into trunk, safe to delete",
+            BranchStatus::PrMerged => "PR merged; remote branch still exists",
             BranchStatus::GoneUpstream => "Remote branch deleted",
             BranchStatus::Unmerged => "Has unmerged commits",
             BranchStatus::Protected => "Protected branch",
@@ -1322,6 +1335,7 @@ fn get_status_style(status: &BranchStatus) -> Style {
 fn get_status_color(status: &BranchStatus) -> Color {
     match status {
         BranchStatus::SafeMerged => COLOR_SUCCESS,
+        BranchStatus::PrMerged => COLOR_ACCENT,
         BranchStatus::GoneUpstream => COLOR_WARNING,
         BranchStatus::Unmerged => COLOR_WARNING,
         BranchStatus::Protected => COLOR_DANGER,

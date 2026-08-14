@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-13 18:25
+**Last Updated:** 2026-08-14 12:02
 
 ---
 
@@ -24,23 +24,7 @@ application.
 
 ## Critical Issues
 
-### Issue #13: Squash-merged branches with live upstream show as unmerged
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-08-13
-- **Category:** Critical / Bug
-- **Description:**
-  - QA found branches whose PR was already merged showing as `! unmerged`. Squash/rebase merges
-    produce a new commit on trunk, so git ancestry cannot see the merge; a stale local trunk hides
-    normal merges the same way. The branch remains force-gated even though its content is merged.
-- **Steps to Reproduce:**
-  1. Merge a branch's PR with squash (remote branch kept)
-  2. Run the tool with `--github` or `--bitbucket`
-  3. The branch shows `! unmerged` although the PR is merged
-- **Expected Behavior:** The branch should be recognized as merged and safe to delete
-- **Actual Behavior:** Shows `! unmerged`, requires force mode
-
----
+_No open critical issues._
 
 ---
 
@@ -63,6 +47,30 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #13: Squash-merged branches with live upstream show as unmerged
+
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-08-13
+- **Resolved:** 2026-08-14
+- **Category:** Critical / Bug
+- **Description:**
+  - QA found branches whose PR was already merged showing as `! unmerged`. Squash/rebase merges
+    produce a new commit on trunk, so git ancestry cannot see the merge; a stale local trunk hides
+    normal merges the same way. The branch remained force-gated even though its content is merged.
+- **Steps to Reproduce:**
+  1. Merge a branch's PR with squash (remote branch kept)
+  2. Run the tool with `--github` or `--bitbucket`
+  3. The branch shows `! unmerged` although the PR is merged
+- **Expected Behavior:** The branch should be recognized as merged and safe to delete
+- **Actual Behavior:** Showed `! unmerged`, required force mode
+- **Fix:**
+  - New `BranchStatus::PrMerged` (label `pr-merged`, icon ↑): applied after PR fetch when the newest
+    PR is merged, the upstream still exists, and `ahead == 0`, so `git branch -d` is safe
+  - Merged-ancestry check now also considers `origin/<trunk>` (works without a PR provider)
+- **Commit:** `✨(tui): Add pr-merged status for squash-merged branches with live upstream`
+
+---
 
 ### Issue #12: Cannot edit search query text with left/right arrow keys
 

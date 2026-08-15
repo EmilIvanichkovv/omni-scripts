@@ -26,6 +26,8 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Interactive TUI** - Navigate and select branches with keyboard controls
 - **Smart Classification** - Automatically categorizes branches:
   - ✓ **Merged** - Safely merged into trunk (safe to delete)
+  - ↑ **PR-Merged** - Squash/rebase-merged via PR, remote branch still exists (safe to delete; needs
+    `--github` or `--bitbucket`)
   - ↗ **Gone** - Remote tracking branch was deleted
   - ! **Unmerged** - Has commits not in trunk (requires `--force`)
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
@@ -217,13 +219,14 @@ interactive interface.
 
 ## Branch Status Legend
 
-| Icon | Status    | Description             | Deletable             |
-| ---- | --------- | ----------------------- | --------------------- |
-| ✓    | merged    | Fully merged into trunk | ✅ Safe (`-d`)        |
-| ↗   | gone      | Remote was deleted      | ✅ Safe (`-d`)        |
-| !    | unmerged  | Has unmerged commits    | ⚠️ Requires `--force` |
-| ⊘    | protected | main/master/develop     | ❌ Never              |
-| ◉    | current   | Currently checked out   | ❌ Never              |
+| Icon | Status    | Description                                    | Deletable             |
+| ---- | --------- | ---------------------------------------------- | --------------------- |
+| ✓    | merged    | Fully merged into trunk                        | ✅ Safe (`-d`)        |
+| ↑    | pr-merged | PR merged (squash/rebase), remote still exists | ✅ Safe (`-d`)        |
+| ↗   | gone      | Remote was deleted                             | ✅ Safe (`-d`)        |
+| !    | unmerged  | Has unmerged commits                           | ⚠️ Requires `--force` |
+| ⊘    | protected | main/master/develop                            | ❌ Never              |
+| ◉    | current   | Currently checked out                          | ❌ Never              |
 
 ## Safety Features
 

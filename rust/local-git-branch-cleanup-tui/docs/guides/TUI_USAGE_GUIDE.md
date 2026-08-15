@@ -43,13 +43,13 @@ The TUI is divided into several sections:
 
 ### Filtering Branches
 
-| Key        | Action                           |
-| ---------- | -------------------------------- |
-| `1` / `F1` | Show only safe merged branches   |
-| `2` / `F2` | Show only upstream gone branches |
-| `3` / `F3` | Show only unmerged branches      |
-| `4` / `F4` | Show all branches                |
-| `Tab`      | Cycle through filters            |
+| Key        | Action                                              |
+| ---------- | --------------------------------------------------- |
+| `1` / `F1` | Show only safe merged branches (includes pr-merged) |
+| `2` / `F2` | Show only upstream gone branches                    |
+| `3` / `F3` | Show only unmerged branches                         |
+| `4` / `F4` | Show all branches                                   |
+| `Tab`      | Cycle through filters                               |
 
 The active filter tab is highlighted in cyan, and each tab displays the branch count for that
 category.
@@ -103,14 +103,14 @@ When search is active, the search box appears below the filters. The search is c
 
 **Available Sort Modes:**
 
-| Mode       | Label     | Description                                                          |
-| ---------- | --------- | -------------------------------------------------------------------- |
-| Status     | (default) | Groups by branch status (current, protected, merged, gone, unmerged) |
-| Name       | Name      | Alphabetical by branch name (case-insensitive)                       |
-| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                 |
-| Activity ↑ | Active ↑  | Least recently active branches first                                 |
-| Created ↓  | Created ↓ | Most recently created branches first                                 |
-| Created ↑  | Created ↑ | Oldest branches first (by creation date)                             |
+| Mode       | Label     | Description                                                                     |
+| ---------- | --------- | ------------------------------------------------------------------------------- |
+| Status     | (default) | Groups by branch status (current, protected, merged, pr-merged, gone, unmerged) |
+| Name       | Name      | Alphabetical by branch name (case-insensitive)                                  |
+| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                            |
+| Activity ↑ | Active ↑  | Least recently active branches first                                            |
+| Created ↓  | Created ↓ | Most recently created branches first                                            |
+| Created ↑  | Created ↑ | Oldest branches first (by creation date)                                        |
 
 When a non-default sort mode is active, the header displays a sort indicator: `🔀 Active ↓`
 
@@ -269,13 +269,14 @@ just cache-clear   # delete all cached rows (forces fresh fetch on next run)
 
 Each branch displays a status icon indicating its state:
 
-| Icon | Status    | Description                        | Deletable?             |
-| ---- | --------- | ---------------------------------- | ---------------------- |
-| ✓    | Merged    | Fully merged into trunk            | ✅ Safe (`-d`)         |
-| ↗   | Gone      | Remote tracking branch was deleted | ✅ Safe (`-d`)         |
-| !    | Unmerged  | Has commits not in trunk           | ⚠️ Requires force mode |
-| ⊘    | Protected | main/master/develop branches       | ❌ Never               |
-| ◉    | Current   | Currently checked out branch       | ❌ Never               |
+| Icon | Status    | Description                                           | Deletable?             |
+| ---- | --------- | ----------------------------------------------------- | ---------------------- |
+| ✓    | Merged    | Fully merged into trunk                               | ✅ Safe (`-d`)         |
+| ↑    | PR-Merged | PR merged (squash/rebase), remote branch still exists | ✅ Safe (`-d`)         |
+| ↗   | Gone      | Remote tracking branch was deleted                    | ✅ Safe (`-d`)         |
+| !    | Unmerged  | Has commits not in trunk                              | ⚠️ Requires force mode |
+| ⊘    | Protected | main/master/develop branches                          | ❌ Never               |
+| ◉    | Current   | Currently checked out branch                          | ❌ Never               |
 
 ---
 
@@ -303,7 +304,7 @@ The checkbox state indicates whether a branch can be selected:
 
 ### Bulk Selection
 
-- Press `a` to select **all safe branches** (merged and gone)
+- Press `a` to select **all safe branches** (merged, pr-merged, and gone)
 - Press `a` again to deselect all
 - Press `c` to clear all selections
 
@@ -412,7 +413,7 @@ Press any key to close the help modal.
 Press `i` at any time to display information about the tool:
 
 - Tool name and description
-- Explanation of all branch status types (merged, gone, unmerged, protected, current)
+- Explanation of all branch status types (merged, pr-merged, gone, unmerged, protected, current)
 - Hint to press `?` for keyboard shortcuts
 
 Press any key to close the info modal.

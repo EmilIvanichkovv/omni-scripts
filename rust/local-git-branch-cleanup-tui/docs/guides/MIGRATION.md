@@ -41,23 +41,23 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 
 ## Feature Comparison
 
-| Feature                   | Bash Script       | Rust TUI               | Notes                                              |
-| ------------------------- | ----------------- | ---------------------- | -------------------------------------------------- |
-| **Interface**             | Static list       | Interactive TUI        | TUI is default, use `--cli` for bash-like behavior |
-| **Branch Selection**      | All-or-nothing    | Individual selection   | Select with Space, confirm with Enter              |
-| **Delete Mode**           | Force (`-D`) only | Safe (`-d`) by default | Use `--force` for unmerged branches                |
-| **Branch Classification** | No remote only    | 5 status types         | Merged, gone, unmerged, protected, current         |
-| **Safety**                | No protection     | Protected branches     | Never deletes main/master/develop/current          |
-| **Filtering**             | None              | 4 filter modes         | Safe merged, upstream gone, unmerged, all          |
-| **Details**               | Last commit time  | Full branch info       | Commit SHA, author, message, ahead/behind          |
-| **Confirmation**          | Yes               | Yes (with preview)     | Shows which branches will be deleted               |
-| **Dry Run**               | No                | Yes (`--dry-run`)      | Preview deletions without executing                |
-| **Trunk Override**        | No                | Yes (`--trunk`)        | Override default branch detection                  |
-| **Action Log**            | Summary only      | Per-branch log         | Shows success/failure for each branch              |
-| **Help**                  | None              | Press `?`              | Comprehensive keyboard shortcuts                   |
-| **Navigation**            | N/A               | Vim-style or arrows    | j/k or ↑/↓                                         |
-| **Performance**           | Fast              | Fast                   | Both handle <200 branches easily                   |
-| **Dependencies**          | bash, git         | git only               | Statically linked binary                           |
+| Feature                   | Bash Script       | Rust TUI               | Notes                                                 |
+| ------------------------- | ----------------- | ---------------------- | ----------------------------------------------------- |
+| **Interface**             | Static list       | Interactive TUI        | TUI is default, use `--cli` for bash-like behavior    |
+| **Branch Selection**      | All-or-nothing    | Individual selection   | Select with Space, confirm with Enter                 |
+| **Delete Mode**           | Force (`-D`) only | Safe (`-d`) by default | Use `--force` for unmerged branches                   |
+| **Branch Classification** | No remote only    | 6 status types         | Merged, pr-merged, gone, unmerged, protected, current |
+| **Safety**                | No protection     | Protected branches     | Never deletes main/master/develop/current             |
+| **Filtering**             | None              | 4 filter modes         | Safe merged, upstream gone, unmerged, all             |
+| **Details**               | Last commit time  | Full branch info       | Commit SHA, author, message, ahead/behind             |
+| **Confirmation**          | Yes               | Yes (with preview)     | Shows which branches will be deleted                  |
+| **Dry Run**               | No                | Yes (`--dry-run`)      | Preview deletions without executing                   |
+| **Trunk Override**        | No                | Yes (`--trunk`)        | Override default branch detection                     |
+| **Action Log**            | Summary only      | Per-branch log         | Shows success/failure for each branch                 |
+| **Help**                  | None              | Press `?`              | Comprehensive keyboard shortcuts                      |
+| **Navigation**            | N/A               | Vim-style or arrows    | j/k or ↑/↓                                            |
+| **Performance**           | Fast              | Fast                   | Both handle <200 branches easily                      |
+| **Dependencies**          | bash, git         | git only               | Statically linked binary                              |
 
 ## Command Equivalents
 
@@ -176,7 +176,7 @@ TUI mode.
 
 **Rust TUI:**
 
-- Classifies: merged, gone, unmerged, protected, current
+- Classifies: merged, pr-merged, gone, unmerged, protected, current
 - Shows status icon, last commit time, commit details
 - Filters by status type
 

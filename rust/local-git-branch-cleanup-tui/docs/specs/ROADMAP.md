@@ -16,7 +16,7 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 **Delivered Features:**
 
 - ✅ Interactive TUI with keyboard navigation (Ratatui + Crossterm)
-- ✅ Smart branch classification (merged, gone, unmerged, protected, current)
+- ✅ Smart branch classification (merged, pr-merged, gone, unmerged, protected, current)
 - ✅ Safe delete by default (uses `-d`, protects unmerged work)
 - ✅ Individual branch selection with checkboxes
 - ✅ Filtering by branch status (4 filter modes)

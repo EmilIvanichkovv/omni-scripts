@@ -159,6 +159,7 @@ y Key     → delete_branches()  → Update action_log            → Refresh br
 /// Branch status classification
 pub enum BranchStatus {
     SafeMerged,      // Merged into trunk
+    PrMerged,        // PR merged (squash/rebase), remote branch still exists
     GoneUpstream,    // Remote was deleted
     Unmerged,        // Has unmerged commits
     Protected,       // main/master/develop
@@ -206,18 +207,18 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 
 **Git Command Usage:**
 
-| Purpose         | Git Command                                               |
-| --------------- | --------------------------------------------------------- |
-| Verify repo     | `git rev-parse --show-toplevel`                           |
-| Current branch  | `git branch --show-current`                               |
-| Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD`       |
-| Branch list     | `git for-each-ref refs/heads/`                            |
-| Merged check    | `git branch --format='%(refname:short)' --merged <trunk>` |
-| Gone check      | Parse `[gone]` from `git for-each-ref`                    |
-| Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                  |
-| Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>` |
-| Delete          | `git branch -d/-D <branch>`                               |
-| Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)   |
+| Purpose         | Git Command                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Verify repo     | `git rev-parse --show-toplevel`                                                                                            |
+| Current branch  | `git branch --show-current`                                                                                                |
+| Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD`                                                                        |
+| Branch list     | `git for-each-ref refs/heads/`                                                                                             |
+| Merged check    | `git branch --format='%(refname:short)' --merged <trunk>` (also run against `origin/<trunk>` to catch a stale local trunk) |
+| Gone check      | Parse `[gone]` from `git for-each-ref`                                                                                     |
+| Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                                                                                   |
+| Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>`                                                                  |
+| Delete          | `git branch -d/-D <branch>`                                                                                                |
+| Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)                                                                    |
 
 **Classification Logic:**
 
@@ -228,6 +229,12 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 4. Gone upstream check   → BranchStatus::GoneUpstream
 5. Default               → BranchStatus::Unmerged
 ```
+
+After PR info is fetched (`--github`/`--bitbucket`), `apply_pr_merge_status` upgrades `Unmerged` →
+`PrMerged` when the branch's newest PR is merged, the upstream still exists, and `ahead == 0` (no
+unpushed work). This catches squash/rebase merges that git ancestry cannot see. The same upgrade is
+re-applied by `App::refresh_branches` after deletions, which carries the already-fetched `pr_info`
+over to the re-classified list.
 
 ### 4. `remote.rs` - Origin Remote Parsing
 

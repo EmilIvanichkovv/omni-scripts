@@ -827,7 +827,15 @@ impl App {
 
     /// Refresh the branch list (after deletion)
     pub fn refresh_branches(&mut self) {
-        if let Ok(branches) = git::get_branches_with_classification(None) {
+        if let Ok(mut branches) = git::get_branches_with_classification(None) {
+            // Carry over PR info fetched at startup; a refresh only re-reads
+            // git, so without this PrMerged branches revert to Unmerged.
+            for branch in branches.iter_mut() {
+                if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
+                    branch.pr_info = old.pr_info.clone();
+                }
+            }
+            git::apply_pr_merge_status(&mut branches);
             self.branches = branches;
             // Reset selection index if out of bounds
             if self.selected_index >= self.branches.len() {

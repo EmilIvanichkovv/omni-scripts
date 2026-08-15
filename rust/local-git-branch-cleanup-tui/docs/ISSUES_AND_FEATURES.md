@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-14 15:22
+**Last Updated:** 2026-08-15 10:07
 
 ---
 
@@ -24,22 +24,7 @@ application.
 
 ## Critical Issues
 
-### Issue #14: pr-merged status lost when the list refreshes after deletion
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-08-14
-- **Category:** Critical / Bug
-- **Description:**
-  - After deleting any branch, the branch list re-renders and the remaining branches marked
-    `pr-merged` revert to `! unmerged` and lose their PR badges.
-- **Steps to Reproduce:**
-  1. Run with `--github` or `--bitbucket` so some branches show `↑ pr-merged`
-  2. Delete any branch
-  3. The remaining pr-merged branches now show `! unmerged` with no PR column
-- **Expected Behavior:** pr-merged branches keep their status and PR info after a refresh
-- **Actual Behavior:** They revert to `! unmerged` and the PR badges disappear
-
----
+_No open critical issues._
 
 ---
 
@@ -62,6 +47,29 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #14: pr-merged status lost when the list refreshes after deletion
+
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-08-14
+- **Resolved:** 2026-08-15
+- **Category:** Critical / Bug
+- **Description:**
+  - After deleting any branch, the branch list re-rendered and the remaining branches marked
+    `pr-merged` reverted to `! unmerged` and lost their PR badges.
+- **Steps to Reproduce:**
+  1. Run with `--github` or `--bitbucket` so some branches show `↑ pr-merged`
+  2. Delete any branch
+  3. The remaining pr-merged branches showed `! unmerged` with no PR column
+- **Expected Behavior:** pr-merged branches keep their status and PR info after a refresh
+- **Actual Behavior:** They reverted to `! unmerged` and the PR badges disappeared
+- **Fix:**
+  - `App::refresh_branches` rebuilt the list from git classification alone, dropping the fetched
+    `pr_info`; `apply_pr_merge_status` only ever ran at startup
+  - The refresh now carries `pr_info` over by branch name and re-applies `apply_pr_merge_status`
+- **Commit:** `🐛(tui): Preserve pr-merged status when refreshing after deletion`
+
+---
 
 ### Issue #13: Squash-merged branches with live upstream show as unmerged
 

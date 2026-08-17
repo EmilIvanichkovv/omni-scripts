@@ -1825,6 +1825,13 @@ fn render_info_modal(frame: &mut Frame) {
             ),
         ]),
         Line::from(vec![
+            Span::styled("    ↑ pr-merged ", Style::default().fg(COLOR_ACCENT)),
+            Span::styled(
+                "PR merged; remote branch still exists",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
             Span::styled("    ↗ gone      ", Style::default().fg(COLOR_WARNING)),
             Span::styled(
                 "Remote tracking branch was deleted",

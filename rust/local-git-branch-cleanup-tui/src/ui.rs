@@ -15,6 +15,7 @@ use ratatui::{
 const COLOR_ACCENT: Color = Color::Rgb(46, 196, 182); // #2EC4B6 - cyan
 const COLOR_WARNING: Color = Color::Rgb(255, 184, 108); // #FFB86C - amber
 const COLOR_DIVERGED: Color = Color::Rgb(241, 250, 140); // #F1FA8C - yellow, between pr-merged cyan and unmerged amber
+const COLOR_LOCAL: Color = Color::Rgb(98, 114, 164); // #6272A4 - grey-blue for never-pushed branches
 const COLOR_DANGER: Color = Color::Rgb(255, 85, 85); // #FF5555 - red
 const COLOR_MUTED: Color = Color::Rgb(169, 177, 214); // #A9B1D6 - muted text
 const COLOR_SUCCESS: Color = Color::Rgb(80, 250, 123); // #50FA7B - green
@@ -714,10 +715,12 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     legend_spans.extend([
-        Span::styled("↗ ", Style::default().fg(COLOR_WARNING)),
+        Span::styled("↗ ", Style::default().fg(COLOR_SUCCESS)),
         Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("! ", Style::default().fg(COLOR_WARNING)),
         Span::styled("unmerged  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("○ ", Style::default().fg(COLOR_LOCAL)),
+        Span::styled("local  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
@@ -780,6 +783,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
             BranchStatus::PrDiverged => "PR merged but local diverged from remote",
             BranchStatus::GoneUpstream => "Remote branch deleted",
             BranchStatus::Unmerged => "Has unmerged commits",
+            BranchStatus::Local => "Never pushed; exists only locally",
             BranchStatus::Protected => "Protected branch",
             BranchStatus::Current => "Currently checked out",
         };
@@ -1344,8 +1348,9 @@ fn get_status_color(status: &BranchStatus) -> Color {
         BranchStatus::SafeMerged => COLOR_SUCCESS,
         BranchStatus::PrMerged => COLOR_ACCENT,
         BranchStatus::PrDiverged => COLOR_DIVERGED,
-        BranchStatus::GoneUpstream => COLOR_WARNING,
+        BranchStatus::GoneUpstream => COLOR_SUCCESS,
         BranchStatus::Unmerged => COLOR_WARNING,
+        BranchStatus::Local => COLOR_LOCAL,
         BranchStatus::Protected => COLOR_DANGER,
         BranchStatus::Current => COLOR_CURRENT,
     }
@@ -1847,7 +1852,7 @@ fn render_info_modal(frame: &mut Frame) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("    ↗ gone      ", Style::default().fg(COLOR_WARNING)),
+            Span::styled("    ↗ gone      ", Style::default().fg(COLOR_SUCCESS)),
             Span::styled(
                 "Remote tracking branch was deleted",
                 Style::default().fg(COLOR_MUTED),
@@ -1857,6 +1862,13 @@ fn render_info_modal(frame: &mut Frame) {
             Span::styled("    ! unmerged  ", Style::default().fg(COLOR_WARNING)),
             Span::styled(
                 "Has commits not in trunk (requires force)",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("    ○ local     ", Style::default().fg(COLOR_LOCAL)),
+            Span::styled(
+                "Never pushed to the remote (requires force)",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),

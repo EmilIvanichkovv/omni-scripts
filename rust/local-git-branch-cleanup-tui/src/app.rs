@@ -304,9 +304,7 @@ impl App {
             FilterMode::Unmerged => self
                 .branches
                 .iter()
-                .filter(|b| {
-                    b.status == BranchStatus::Unmerged || b.status == BranchStatus::PrDiverged
-                })
+                .filter(|b| b.status.requires_force())
                 .collect(),
         };
 
@@ -415,9 +413,7 @@ impl App {
             FilterMode::Unmerged => self
                 .branches
                 .iter()
-                .filter(|b| {
-                    b.status == BranchStatus::Unmerged || b.status == BranchStatus::PrDiverged
-                })
+                .filter(|b| b.status.requires_force())
                 .count(),
         }
     }
@@ -460,6 +456,7 @@ impl App {
                         BranchStatus::PrDiverged => 4,
                         BranchStatus::GoneUpstream => 5,
                         BranchStatus::Unmerged => 6,
+                        BranchStatus::Local => 7,
                     };
                     order(&a.status).cmp(&order(&b.status))
                 });

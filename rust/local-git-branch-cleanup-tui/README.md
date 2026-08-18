@@ -32,6 +32,7 @@ _Coming soon: Video demonstration of the TUI in action_
     `--force`; needs `--github` or `--bitbucket`)
   - ↗ **Gone** - Remote tracking branch was deleted
   - ! **Unmerged** - Has commits not in trunk (requires `--force`)
+  - ○ **Local** - Never pushed to the remote; exists only locally (requires `--force`)
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
   - ◉ **Current** - Currently checked out branch
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
@@ -228,6 +229,7 @@ interactive interface.
 | ↕   | pr-diverged | PR merged, local has commits remote doesn't    | ⚠️ Requires `--force` |
 | ↗   | gone        | Remote was deleted                             | ✅ Safe (`-d`)        |
 | !    | unmerged    | Has unmerged commits                           | ⚠️ Requires `--force` |
+| ○    | local       | Never pushed to the remote                     | ⚠️ Requires `--force` |
 | ⊘    | protected   | main/master/develop                            | ❌ Never              |
 | ◉    | current     | Currently checked out                          | ❌ Never              |
 

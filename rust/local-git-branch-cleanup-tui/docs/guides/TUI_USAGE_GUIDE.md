@@ -47,7 +47,7 @@ The TUI is divided into several sections:
 | ---------- | --------------------------------------------------- |
 | `1` / `F1` | Show only safe merged branches (includes pr-merged) |
 | `2` / `F2` | Show only upstream gone branches                    |
-| `3` / `F3` | Show only unmerged branches                         |
+| `3` / `F3` | Show only unmerged branches (includes pr-diverged)  |
 | `4` / `F4` | Show all branches                                   |
 | `Tab`      | Cycle through filters                               |
 
@@ -103,14 +103,14 @@ When search is active, the search box appears below the filters. The search is c
 
 **Available Sort Modes:**
 
-| Mode       | Label     | Description                                                                     |
-| ---------- | --------- | ------------------------------------------------------------------------------- |
-| Status     | (default) | Groups by branch status (current, protected, merged, pr-merged, gone, unmerged) |
-| Name       | Name      | Alphabetical by branch name (case-insensitive)                                  |
-| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                            |
-| Activity ↑ | Active ↑  | Least recently active branches first                                            |
-| Created ↓  | Created ↓ | Most recently created branches first                                            |
-| Created ↑  | Created ↑ | Oldest branches first (by creation date)                                        |
+| Mode       | Label     | Description                                                                                  |
+| ---------- | --------- | -------------------------------------------------------------------------------------------- |
+| Status     | (default) | Groups by branch status (current, protected, merged, pr-merged, pr-diverged, gone, unmerged) |
+| Name       | Name      | Alphabetical by branch name (case-insensitive)                                               |
+| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                                         |
+| Activity ↑ | Active ↑  | Least recently active branches first                                                         |
+| Created ↓  | Created ↓ | Most recently created branches first                                                         |
+| Created ↑  | Created ↑ | Oldest branches first (by creation date)                                                     |
 
 When a non-default sort mode is active, the header displays a sort indicator: `🔀 Active ↓`
 
@@ -269,14 +269,15 @@ just cache-clear   # delete all cached rows (forces fresh fetch on next run)
 
 Each branch displays a status icon indicating its state:
 
-| Icon | Status    | Description                                           | Deletable?             |
-| ---- | --------- | ----------------------------------------------------- | ---------------------- |
-| ✓    | Merged    | Fully merged into trunk                               | ✅ Safe (`-d`)         |
-| ↑    | PR-Merged | PR merged (squash/rebase), remote branch still exists | ✅ Safe (`-d`)         |
-| ↗   | Gone      | Remote tracking branch was deleted                    | ✅ Safe (`-d`)         |
-| !    | Unmerged  | Has commits not in trunk                              | ⚠️ Requires force mode |
-| ⊘    | Protected | main/master/develop branches                          | ❌ Never               |
-| ◉    | Current   | Currently checked out branch                          | ❌ Never               |
+| Icon | Status      | Description                                           | Deletable?             |
+| ---- | ----------- | ----------------------------------------------------- | ---------------------- |
+| ✓    | Merged      | Fully merged into trunk                               | ✅ Safe (`-d`)         |
+| ↑    | PR-Merged   | PR merged (squash/rebase), remote branch still exists | ✅ Safe (`-d`)         |
+| ↕   | PR-Diverged | PR merged, local has commits the remote doesn't       | ⚠️ Requires force mode |
+| ↗   | Gone        | Remote tracking branch was deleted                    | ✅ Safe (`-d`)         |
+| !    | Unmerged    | Has commits not in trunk                              | ⚠️ Requires force mode |
+| ⊘    | Protected   | main/master/develop branches                          | ❌ Never               |
+| ◉    | Current     | Currently checked out branch                          | ❌ Never               |
 
 ---
 
@@ -284,12 +285,12 @@ Each branch displays a status icon indicating its state:
 
 The checkbox state indicates whether a branch can be selected:
 
-| Checkbox      | Meaning                                                 |
-| ------------- | ------------------------------------------------------- |
-| `[✓]`         | Selected for deletion                                   |
-| `[ ]`         | Not selected (can be toggled with `Space`)              |
-| `-`           | Disabled (unmerged branch, enable force mode to select) |
-| _No checkbox_ | Protected or current branch (cannot be deleted)         |
+| Checkbox      | Meaning                                                             |
+| ------------- | ------------------------------------------------------------------- |
+| `[✓]`         | Selected for deletion                                               |
+| `[ ]`         | Not selected (can be toggled with `Space`)                          |
+| `-`           | Disabled (unmerged/pr-diverged branch, enable force mode to select) |
+| _No checkbox_ | Protected or current branch (cannot be deleted)                     |
 
 ---
 
@@ -314,19 +315,19 @@ The checkbox state indicates whether a branch can be selected:
 
 ## Force Mode
 
-By default, unmerged branches cannot be selected. This protects you from accidentally deleting work
-that hasn't been merged.
+By default, unmerged and pr-diverged branches cannot be selected. This protects you from
+accidentally deleting work that hasn't been merged.
 
 ### Enabling Force Mode
 
 1. Press `f` to toggle force mode
 2. Header displays "⚠️ FORCE" indicator
-3. Unmerged branches now show `[ ]` instead of `-`
-4. You can now select unmerged branches
+3. Unmerged and pr-diverged branches now show `[ ]` instead of `-`
+4. You can now select them
 
 ### Force Mode Behavior
 
-- Selected unmerged branches will be deleted with `git branch -D` (force delete)
+- Selected unmerged/pr-diverged branches will be deleted with `git branch -D` (force delete)
 - Merged/gone branches still use safe delete `git branch -d`
 
 > **⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. These commits may be
@@ -413,7 +414,8 @@ Press any key to close the help modal.
 Press `i` at any time to display information about the tool:
 
 - Tool name and description
-- Explanation of all branch status types (merged, pr-merged, gone, unmerged, protected, current)
+- Explanation of all branch status types (merged, pr-merged, pr-diverged, gone, unmerged, protected,
+  current)
 - Hint to press `?` for keyboard shortcuts
 
 Press any key to close the info modal.

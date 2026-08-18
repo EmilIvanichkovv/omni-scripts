@@ -17,6 +17,11 @@ pub enum BranchStatus {
     /// git ancestry cannot see the merge. The branch is in sync with its live
     /// upstream (ahead == 0), so `git branch -d` deletes it safely.
     PrMerged,
+    /// PR was merged and the remote branch still exists, but the local branch
+    /// has commits its upstream doesn't (ahead > 0) — unpushed work, or stale
+    /// copies left behind by a remote rebase/amend. The tool cannot prove the
+    /// local commits' content landed, so deletion requires force.
+    PrDiverged,
     /// Remote tracking branch was deleted (shows as [gone] in git branch -vv)
     GoneUpstream,
     /// Has unmerged commits - requires force delete with `git branch -D`
@@ -33,6 +38,7 @@ impl BranchStatus {
         match self {
             BranchStatus::SafeMerged => "merged",
             BranchStatus::PrMerged => "pr-merged",
+            BranchStatus::PrDiverged => "pr-diverged",
             BranchStatus::GoneUpstream => "gone",
             BranchStatus::Unmerged => "unmerged",
             BranchStatus::Protected => "protected",
@@ -45,6 +51,7 @@ impl BranchStatus {
         match self {
             BranchStatus::SafeMerged => "✓",
             BranchStatus::PrMerged => "↑",
+            BranchStatus::PrDiverged => "↕",
             BranchStatus::GoneUpstream => "↗",
             BranchStatus::Unmerged => "!",
             BranchStatus::Protected => "⊘",
@@ -64,6 +71,11 @@ impl BranchStatus {
     /// Check if this branch can be deleted at all
     pub fn is_deletable(&self) -> bool {
         !matches!(self, BranchStatus::Protected | BranchStatus::Current)
+    }
+
+    /// Check if deleting this branch requires force mode (`git branch -D`)
+    pub fn requires_force(&self) -> bool {
+        matches!(self, BranchStatus::Unmerged | BranchStatus::PrDiverged)
     }
 }
 
@@ -380,8 +392,9 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             BranchStatus::Protected => 1,
             BranchStatus::SafeMerged => 2,
             BranchStatus::PrMerged => 3,
-            BranchStatus::GoneUpstream => 4,
-            BranchStatus::Unmerged => 5,
+            BranchStatus::PrDiverged => 4,
+            BranchStatus::GoneUpstream => 5,
+            BranchStatus::Unmerged => 6,
         };
         order(&a.status).cmp(&order(&b.status))
     });
@@ -389,15 +402,17 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
     Ok(branches)
 }
 
-/// Upgrade `Unmerged` branches to `PrMerged` when the fetched PR data proves
-/// the merge that git ancestry cannot see (squash/rebase merges).
+/// Upgrade `Unmerged` branches when the fetched PR data proves the merge that
+/// git ancestry cannot see (squash/rebase merges).
 ///
-/// Conditions (all required):
-/// - currently classified `Unmerged` (gone branches are already deletable);
-/// - the upstream branch still exists;
-/// - no unpushed local commits (`ahead == 0`), so nothing can be lost and
+/// A branch currently classified `Unmerged` (gone branches are already
+/// deletable) whose upstream still exists and whose newest PR is merged
+/// becomes:
+/// - `PrMerged` when `ahead == 0` — nothing can be lost and
 ///   `git branch -d` succeeds against the upstream;
-/// - the newest PR for the branch is merged.
+/// - `PrDiverged` when `ahead > 0` — the local branch has commits its
+///   upstream doesn't (unpushed work, or stale copies after a remote
+///   rebase/amend), so deletion still requires force.
 ///
 /// Call after PR info has been fetched.
 pub fn apply_pr_merge_status(branches: &mut [BranchInfo]) {
@@ -406,10 +421,13 @@ pub fn apply_pr_merge_status(branches: &mut [BranchInfo]) {
     for branch in branches.iter_mut() {
         if branch.status == BranchStatus::Unmerged
             && branch.upstream.is_some()
-            && branch.ahead == Some(0)
             && matches!(&branch.pr_info, Some(pr) if pr.state == PrState::Merged)
         {
-            branch.status = BranchStatus::PrMerged;
+            match branch.ahead {
+                Some(0) => branch.status = BranchStatus::PrMerged,
+                Some(_) => branch.status = BranchStatus::PrDiverged,
+                None => {}
+            }
         }
     }
 }
@@ -501,6 +519,7 @@ mod tests {
     fn test_branch_status_label() {
         assert_eq!(BranchStatus::SafeMerged.label(), "merged");
         assert_eq!(BranchStatus::PrMerged.label(), "pr-merged");
+        assert_eq!(BranchStatus::PrDiverged.label(), "pr-diverged");
         assert_eq!(BranchStatus::GoneUpstream.label(), "gone");
         assert_eq!(BranchStatus::Unmerged.label(), "unmerged");
         assert_eq!(BranchStatus::Protected.label(), "protected");
@@ -511,6 +530,7 @@ mod tests {
     fn test_branch_status_icon() {
         assert_eq!(BranchStatus::SafeMerged.icon(), "✓");
         assert_eq!(BranchStatus::PrMerged.icon(), "↑");
+        assert_eq!(BranchStatus::PrDiverged.icon(), "↕");
         assert_eq!(BranchStatus::GoneUpstream.icon(), "↗");
         assert_eq!(BranchStatus::Unmerged.icon(), "!");
         assert_eq!(BranchStatus::Protected.icon(), "⊘");
@@ -521,6 +541,7 @@ mod tests {
     fn test_branch_status_is_safe_to_delete() {
         assert!(BranchStatus::SafeMerged.is_safe_to_delete());
         assert!(BranchStatus::PrMerged.is_safe_to_delete());
+        assert!(!BranchStatus::PrDiverged.is_safe_to_delete());
         assert!(BranchStatus::GoneUpstream.is_safe_to_delete());
         assert!(!BranchStatus::Unmerged.is_safe_to_delete());
         assert!(!BranchStatus::Protected.is_safe_to_delete());
@@ -531,10 +552,22 @@ mod tests {
     fn test_branch_status_is_deletable() {
         assert!(BranchStatus::SafeMerged.is_deletable());
         assert!(BranchStatus::PrMerged.is_deletable());
+        assert!(BranchStatus::PrDiverged.is_deletable());
         assert!(BranchStatus::GoneUpstream.is_deletable());
         assert!(BranchStatus::Unmerged.is_deletable());
         assert!(!BranchStatus::Protected.is_deletable());
         assert!(!BranchStatus::Current.is_deletable());
+    }
+
+    #[test]
+    fn test_branch_status_requires_force() {
+        assert!(!BranchStatus::SafeMerged.requires_force());
+        assert!(!BranchStatus::PrMerged.requires_force());
+        assert!(BranchStatus::PrDiverged.requires_force());
+        assert!(!BranchStatus::GoneUpstream.requires_force());
+        assert!(BranchStatus::Unmerged.requires_force());
+        assert!(!BranchStatus::Protected.requires_force());
+        assert!(!BranchStatus::Current.requires_force());
     }
 
     #[test]
@@ -661,12 +694,26 @@ mod tests {
     }
 
     #[test]
-    fn pr_merge_status_keeps_unmerged_with_unpushed_commits() {
-        // ahead > 0: local commits would be lost — must stay unmerged.
+    fn pr_merge_status_marks_diverged_with_unpushed_commits() {
+        // ahead > 0: local commits would be lost — flagged pr-diverged,
+        // still requires force to delete.
         let mut branches = vec![branch_with(
             BranchStatus::Unmerged,
             Some("origin/feature/x"),
             Some(2),
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::PrDiverged);
+    }
+
+    #[test]
+    fn pr_merge_status_keeps_unmerged_with_unknown_ahead() {
+        // ahead unknown (rev-list failed): nothing can be proven.
+        let mut branches = vec![branch_with(
+            BranchStatus::Unmerged,
+            Some("origin/feature/x"),
+            None,
             Some(PrState::Merged),
         )];
         apply_pr_merge_status(&mut branches);

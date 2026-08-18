@@ -16,7 +16,7 @@ counterparts.
 **Key Features:**
 
 - 🎯 Interactive TUI with keyboard navigation
-- 🛡️ Smart branch classification (merged, pr-merged, gone, unmerged, protected)
+- 🛡️ Smart branch classification (merged, pr-merged, pr-diverged, gone, unmerged, protected)
 - ⚡ Safe delete by default (protects unmerged work)
 - 🎨 Color-coded status indicators
 - 📊 Details pane with commit information

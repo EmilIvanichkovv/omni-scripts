@@ -304,7 +304,9 @@ impl App {
             FilterMode::Unmerged => self
                 .branches
                 .iter()
-                .filter(|b| b.status == BranchStatus::Unmerged)
+                .filter(|b| {
+                    b.status == BranchStatus::Unmerged || b.status == BranchStatus::PrDiverged
+                })
                 .collect(),
         };
 
@@ -413,7 +415,9 @@ impl App {
             FilterMode::Unmerged => self
                 .branches
                 .iter()
-                .filter(|b| b.status == BranchStatus::Unmerged)
+                .filter(|b| {
+                    b.status == BranchStatus::Unmerged || b.status == BranchStatus::PrDiverged
+                })
                 .count(),
         }
     }
@@ -453,8 +457,9 @@ impl App {
                         BranchStatus::Protected => 1,
                         BranchStatus::SafeMerged => 2,
                         BranchStatus::PrMerged => 3,
-                        BranchStatus::GoneUpstream => 4,
-                        BranchStatus::Unmerged => 5,
+                        BranchStatus::PrDiverged => 4,
+                        BranchStatus::GoneUpstream => 5,
+                        BranchStatus::Unmerged => 6,
                     };
                     order(&a.status).cmp(&order(&b.status))
                 });
@@ -704,8 +709,8 @@ impl App {
             if !branch.status.is_deletable() {
                 return;
             }
-            // Skip unmerged branches unless force mode is enabled
-            if branch.status == BranchStatus::Unmerged && !self.force_mode {
+            // Skip force-only branches unless force mode is enabled
+            if branch.status.requires_force() && !self.force_mode {
                 return;
             }
 
@@ -725,7 +730,7 @@ impl App {
             .iter()
             .enumerate()
             .filter(|(_, b)| {
-                b.status.is_deletable() && (self.force_mode || b.status != BranchStatus::Unmerged)
+                b.status.is_deletable() && (self.force_mode || !b.status.requires_force())
             })
             .map(|(i, _)| i)
             .collect();
@@ -795,11 +800,11 @@ impl App {
             .collect();
 
         for (_, branch_name, status) in &selected {
-            // Auto-force for "gone" branches (squash/rebase merges) and "unmerged" branches
+            // Auto-force for "gone" branches (squash/rebase merges) and
+            // force-only branches (unmerged, pr-diverged)
             // Also respect user's force_mode setting
-            let use_force = self.force_mode
-                || *status == BranchStatus::Unmerged
-                || *status == BranchStatus::GoneUpstream;
+            let use_force =
+                self.force_mode || status.requires_force() || *status == BranchStatus::GoneUpstream;
 
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {

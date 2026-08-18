@@ -13,7 +13,6 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use git::BranchStatus;
 use pr::PullRequestProvider;
 use ratatui::prelude::*;
 use std::io::{self, Write};
@@ -597,7 +596,7 @@ fn run_cli_mode(
 
     // Print legend
     let legend = if pr_provider.is_some() {
-        "   Legend: ✓ merged  ↑ pr-merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
+        "   Legend: ✓ merged  ↑ pr-merged  ↕ pr-diverged  ↗ gone  ! unmerged  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
     } else {
         "   Legend: ✓ merged  ↗ gone  ! unmerged  ⊘ protected  ◉ current"
     };
@@ -644,7 +643,7 @@ fn run_cli_mode(
     // Show warning about unmerged branches
     let unmerged_count = branches
         .iter()
-        .filter(|b| b.status == BranchStatus::Unmerged)
+        .filter(|b| b.status.requires_force())
         .count();
 
     if unmerged_count > 0 && !force {
@@ -697,18 +696,19 @@ fn run_cli_mode(
             continue;
         }
 
-        // For unmerged branches, only delete if --force is set
-        if branch.status == BranchStatus::Unmerged && !force {
+        // For unmerged/pr-diverged branches, only delete if --force is set
+        if branch.status.requires_force() && !force {
             print_boxed_line(&format!(
-                "   ⏭️  Skipped: {} (unmerged - use --force)",
-                branch.name
+                "   ⏭️  Skipped: {} ({} - use --force)",
+                branch.name,
+                branch.status.label()
             ));
             skipped_count += 1;
             continue;
         }
 
-        // Use safe delete for merged/gone branches, force for unmerged
-        let use_force = branch.status == BranchStatus::Unmerged;
+        // Use safe delete for merged/gone branches, force for unmerged/pr-diverged
+        let use_force = branch.status.requires_force();
 
         match git::delete_branch_with_mode(&branch.name, use_force) {
             Ok(_) => {

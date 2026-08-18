@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-15 10:07
+**Last Updated:** 2026-08-18 17:27
 
 ---
 
@@ -24,7 +24,23 @@ application.
 
 ## Critical Issues
 
-_No open critical issues._
+### Issue #15: Branch pushed without tracking config shows as local
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-08-18
+- **Category:** Critical / Bug
+- **Description:**
+  - A branch with a remote counterpart but no upstream tracking config (pushed without `-u`, or
+    tracking lost) is misclassified as `○ local` ("never pushed"). The pr-merged/pr-diverged upgrade
+    also requires the tracking config, so a merged PR cannot correct it either.
+- **Steps to Reproduce:**
+  1. Push a branch with `git push origin <branch>` (no `-u`)
+  2. Run the tool — the branch shows `○ local` although `origin/<branch>` exists
+- **Expected Behavior:** The branch is classified against its remote counterpart (unmerged,
+  pr-merged, or pr-diverged as appropriate)
+- **Actual Behavior:** Shows `○ local` with no ahead/behind information
+
+---
 
 ---
 

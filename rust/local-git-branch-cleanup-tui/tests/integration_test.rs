@@ -653,3 +653,33 @@ async fn test_pr_merged_status_for_squash_merged_branch() {
         .stdout(predicate::str::contains("pr-merged"))
         .stdout(predicate::str::contains("PR #7"));
 }
+
+#[test]
+fn test_local_status_for_never_pushed_branch() {
+    // In a repo WITH a remote, a branch that was never pushed shows as
+    // "local" — even when git ancestry says it is merged into trunk.
+    let repo = TestRepo::new();
+
+    let remote_dir = TempDir::new().expect("Failed to create remote dir");
+    let remote_path = remote_dir.path().to_str().unwrap().to_string();
+    TestRepo::run_git(repo.path(), &["init", "--bare", &remote_path]);
+    TestRepo::run_git(repo.path(), &["remote", "add", "origin", &remote_path]);
+
+    // Never pushed and merged into trunk: must show local, not merged.
+    repo.create_branch("feature/local-merged", "Local merged feature");
+    repo.merge_branch("feature/local-merged");
+    // Never pushed with unmerged commits: also local.
+    repo.create_branch("feature/local-wip", "Local WIP");
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
+    cmd.write_stdin("n\n");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::is_match(r"feature/local-merged.*○ local").unwrap())
+        .stdout(
+            predicate::str::is_match(r"feature/local-merged.*✓ merged")
+                .unwrap()
+                .not(),
+        );
+}

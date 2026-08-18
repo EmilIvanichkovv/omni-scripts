@@ -163,6 +163,7 @@ pub enum BranchStatus {
     PrDiverged,      // PR merged, but local has commits its upstream doesn't
     GoneUpstream,    // Remote was deleted
     Unmerged,        // Has unmerged commits
+    Local,           // Never pushed (repo has a remote, branch has no upstream)
     Protected,       // main/master/develop
     Current,         // Currently checked out
 }
@@ -226,10 +227,16 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 ```
 1. Current branch check  → BranchStatus::Current
 2. Protected name check  → BranchStatus::Protected (main/master/develop)
-3. Merged check          → BranchStatus::SafeMerged
-4. Gone upstream check   → BranchStatus::GoneUpstream
-5. Default               → BranchStatus::Unmerged
+3. Gone upstream check   → BranchStatus::GoneUpstream
+4. Never-pushed check    → BranchStatus::Local (repo has a remote, branch has
+                           no upstream; wins over merged — a branch that never
+                           reached the remote must not display as merged)
+5. Merged check          → BranchStatus::SafeMerged
+6. Default               → BranchStatus::Unmerged
 ```
+
+In a repo without any remote, the never-pushed check is skipped entirely and branches keep the plain
+merged/unmerged classification.
 
 After PR info is fetched (`--github`/`--bitbucket`), `apply_pr_merge_status` upgrades `Unmerged`
 branches whose newest PR is merged and whose upstream still exists: to `PrMerged` when `ahead == 0`
@@ -371,6 +378,7 @@ fn render_help_modal(frame: &mut Frame)
 const CYAN: Color = Color::Rgb(46, 196, 182);      // #2EC4B6 - Selection/Active
 const AMBER: Color = Color::Rgb(255, 184, 108);    // #FFB86C - Warning/Unmerged
 const YELLOW: Color = Color::Rgb(241, 250, 140);   // #F1FA8C - PR-diverged
+const GREY_BLUE: Color = Color::Rgb(98, 114, 164); // #6272A4 - Local (never pushed)
 const RED: Color = Color::Rgb(255, 85, 85);        // #FF5555 - Danger/Protected
 const PURPLE: Color = Color::Rgb(189, 147, 249);   // #BD93F9 - Current branch
 const PINK: Color = Color::Rgb(255, 121, 198);     // #FF79C6 - Selected highlight

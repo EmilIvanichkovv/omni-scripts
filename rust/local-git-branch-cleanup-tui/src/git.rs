@@ -26,6 +26,11 @@ pub enum BranchStatus {
     GoneUpstream,
     /// Has unmerged commits - requires force delete with `git branch -D`
     Unmerged,
+    /// Never pushed: the repo has a remote but this branch has no upstream.
+    /// Its commits may exist nowhere else (even when git ancestry says
+    /// merged, the branch never went through the remote), so it is shown
+    /// as its own status and deletion requires force.
+    Local,
     /// Protected branch (main/master/develop) - cannot be deleted
     Protected,
     /// Currently checked out branch - cannot be deleted
@@ -41,6 +46,7 @@ impl BranchStatus {
             BranchStatus::PrDiverged => "pr-diverged",
             BranchStatus::GoneUpstream => "gone",
             BranchStatus::Unmerged => "unmerged",
+            BranchStatus::Local => "local",
             BranchStatus::Protected => "protected",
             BranchStatus::Current => "current",
         }
@@ -54,6 +60,7 @@ impl BranchStatus {
             BranchStatus::PrDiverged => "↕",
             BranchStatus::GoneUpstream => "↗",
             BranchStatus::Unmerged => "!",
+            BranchStatus::Local => "○",
             BranchStatus::Protected => "⊘",
             BranchStatus::Current => "◉",
         }
@@ -75,7 +82,10 @@ impl BranchStatus {
 
     /// Check if deleting this branch requires force mode (`git branch -D`)
     pub fn requires_force(&self) -> bool {
-        matches!(self, BranchStatus::Unmerged | BranchStatus::PrDiverged)
+        matches!(
+            self,
+            BranchStatus::Unmerged | BranchStatus::PrDiverged | BranchStatus::Local
+        )
     }
 }
 
@@ -276,6 +286,15 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
     }
     let gone_branches = get_gone_branches()?;
 
+    // "local" (never pushed) only makes sense when the repo has a remote at
+    // all; in a remote-less repo every branch would be local and the
+    // merged/unmerged classification is more useful.
+    let has_remote = Command::new("git")
+        .args(["remote"])
+        .output()
+        .map(|o| o.status.success() && !o.stdout.is_empty())
+        .unwrap_or(false);
+
     // Get all local branches
     let output = Command::new("git")
         .args(["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
@@ -366,7 +385,14 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         };
 
         // Determine branch status
-        let status = classify_branch(branch, &current_branch, &trunk, &merged_branches, is_gone);
+        let status = classify_branch(
+            branch,
+            &current_branch,
+            &trunk,
+            &merged_branches,
+            is_gone,
+            has_remote && !has_upstream,
+        );
 
         branches.push(BranchInfo {
             name: branch.to_string(),
@@ -395,6 +421,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             BranchStatus::PrDiverged => 4,
             BranchStatus::GoneUpstream => 5,
             BranchStatus::Unmerged => 6,
+            BranchStatus::Local => 7,
         };
         order(&a.status).cmp(&order(&b.status))
     });
@@ -439,6 +466,7 @@ fn classify_branch(
     trunk: &str,
     merged_branches: &[String],
     is_gone: bool,
+    is_local: bool,
 ) -> BranchStatus {
     // Check if it's the current branch
     if branch == current_branch {
@@ -453,6 +481,12 @@ fn classify_branch(
     // Check if upstream is gone
     if is_gone {
         return BranchStatus::GoneUpstream;
+    }
+
+    // Never pushed: takes precedence over the merged check — a branch that
+    // never reached the remote should not display as merged.
+    if is_local {
+        return BranchStatus::Local;
     }
 
     // Check if merged into trunk
@@ -522,6 +556,7 @@ mod tests {
         assert_eq!(BranchStatus::PrDiverged.label(), "pr-diverged");
         assert_eq!(BranchStatus::GoneUpstream.label(), "gone");
         assert_eq!(BranchStatus::Unmerged.label(), "unmerged");
+        assert_eq!(BranchStatus::Local.label(), "local");
         assert_eq!(BranchStatus::Protected.label(), "protected");
         assert_eq!(BranchStatus::Current.label(), "current");
     }
@@ -533,6 +568,7 @@ mod tests {
         assert_eq!(BranchStatus::PrDiverged.icon(), "↕");
         assert_eq!(BranchStatus::GoneUpstream.icon(), "↗");
         assert_eq!(BranchStatus::Unmerged.icon(), "!");
+        assert_eq!(BranchStatus::Local.icon(), "○");
         assert_eq!(BranchStatus::Protected.icon(), "⊘");
         assert_eq!(BranchStatus::Current.icon(), "◉");
     }
@@ -544,6 +580,7 @@ mod tests {
         assert!(!BranchStatus::PrDiverged.is_safe_to_delete());
         assert!(BranchStatus::GoneUpstream.is_safe_to_delete());
         assert!(!BranchStatus::Unmerged.is_safe_to_delete());
+        assert!(!BranchStatus::Local.is_safe_to_delete());
         assert!(!BranchStatus::Protected.is_safe_to_delete());
         assert!(!BranchStatus::Current.is_safe_to_delete());
     }
@@ -555,6 +592,7 @@ mod tests {
         assert!(BranchStatus::PrDiverged.is_deletable());
         assert!(BranchStatus::GoneUpstream.is_deletable());
         assert!(BranchStatus::Unmerged.is_deletable());
+        assert!(BranchStatus::Local.is_deletable());
         assert!(!BranchStatus::Protected.is_deletable());
         assert!(!BranchStatus::Current.is_deletable());
     }
@@ -566,6 +604,7 @@ mod tests {
         assert!(BranchStatus::PrDiverged.requires_force());
         assert!(!BranchStatus::GoneUpstream.requires_force());
         assert!(BranchStatus::Unmerged.requires_force());
+        assert!(BranchStatus::Local.requires_force());
         assert!(!BranchStatus::Protected.requires_force());
         assert!(!BranchStatus::Current.requires_force());
     }
@@ -588,16 +627,17 @@ mod tests {
             "main",
             &["other-branch".to_string()],
             false,
+            false,
         );
         assert_eq!(status, BranchStatus::Current);
     }
 
     #[test]
     fn test_classify_branch_protected() {
-        let status = classify_branch("main", "feature/test", "main", &[], false);
+        let status = classify_branch("main", "feature/test", "main", &[], false, false);
         assert_eq!(status, BranchStatus::Protected);
 
-        let status2 = classify_branch("master", "feature/test", "main", &[], false);
+        let status2 = classify_branch("master", "feature/test", "main", &[], false, false);
         assert_eq!(status2, BranchStatus::Protected);
     }
 
@@ -608,21 +648,34 @@ mod tests {
             "main",
             "main",
             &[],
-            true, // is_gone
+            true,  // is_gone
+            false, // is_local
         );
         assert_eq!(status, BranchStatus::GoneUpstream);
     }
 
     #[test]
+    fn test_classify_branch_local() {
+        // Never pushed: local wins even over a merged ancestry — the branch
+        // never reached the remote, so it must not display as merged.
+        let merged = vec!["feature/local-done".to_string()];
+        let status = classify_branch("feature/local-done", "main", "main", &merged, false, true);
+        assert_eq!(status, BranchStatus::Local);
+
+        let status2 = classify_branch("feature/local-wip", "main", "main", &[], false, true);
+        assert_eq!(status2, BranchStatus::Local);
+    }
+
+    #[test]
     fn test_classify_branch_merged() {
         let merged = vec!["feature/done".to_string()];
-        let status = classify_branch("feature/done", "main", "main", &merged, false);
+        let status = classify_branch("feature/done", "main", "main", &merged, false, false);
         assert_eq!(status, BranchStatus::SafeMerged);
     }
 
     #[test]
     fn test_classify_branch_unmerged() {
-        let status = classify_branch("feature/wip", "main", "main", &[], false);
+        let status = classify_branch("feature/wip", "main", "main", &[], false, false);
         assert_eq!(status, BranchStatus::Unmerged);
     }
 
@@ -635,6 +688,7 @@ mod tests {
             "main",
             &["main".to_string()], // also merged
             false,
+            false,
         );
         assert_eq!(status, BranchStatus::Current);
 
@@ -644,6 +698,7 @@ mod tests {
             "feature/test",        // not current
             "develop",             // trunk is something else
             &["main".to_string()], // merged
+            false,
             false,
         );
         assert_eq!(status2, BranchStatus::Protected);

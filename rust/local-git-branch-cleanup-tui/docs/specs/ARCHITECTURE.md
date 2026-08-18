@@ -160,6 +160,7 @@ y Key     → delete_branches()  → Update action_log            → Refresh br
 pub enum BranchStatus {
     SafeMerged,      // Merged into trunk
     PrMerged,        // PR merged (squash/rebase), remote branch still exists
+    PrDiverged,      // PR merged, but local has commits its upstream doesn't
     GoneUpstream,    // Remote was deleted
     Unmerged,        // Has unmerged commits
     Protected,       // main/master/develop
@@ -230,11 +231,13 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 5. Default               → BranchStatus::Unmerged
 ```
 
-After PR info is fetched (`--github`/`--bitbucket`), `apply_pr_merge_status` upgrades `Unmerged` →
-`PrMerged` when the branch's newest PR is merged, the upstream still exists, and `ahead == 0` (no
-unpushed work). This catches squash/rebase merges that git ancestry cannot see. The same upgrade is
-re-applied by `App::refresh_branches` after deletions, which carries the already-fetched `pr_info`
-over to the re-classified list.
+After PR info is fetched (`--github`/`--bitbucket`), `apply_pr_merge_status` upgrades `Unmerged`
+branches whose newest PR is merged and whose upstream still exists: to `PrMerged` when `ahead == 0`
+(no unpushed work, safe `-d`), or to `PrDiverged` when `ahead > 0` (local commits the upstream
+doesn't have — unpushed work or stale copies after a remote rebase/amend; still requires force).
+This catches squash/rebase merges that git ancestry cannot see. The same upgrade is re-applied by
+`App::refresh_branches` after deletions, which carries the already-fetched `pr_info` over to the
+re-classified list.
 
 ### 4. `remote.rs` - Origin Remote Parsing
 
@@ -367,6 +370,7 @@ fn render_help_modal(frame: &mut Frame)
 // Accent colors
 const CYAN: Color = Color::Rgb(46, 196, 182);      // #2EC4B6 - Selection/Active
 const AMBER: Color = Color::Rgb(255, 184, 108);    // #FFB86C - Warning/Unmerged
+const YELLOW: Color = Color::Rgb(241, 250, 140);   // #F1FA8C - PR-diverged
 const RED: Color = Color::Rgb(255, 85, 85);        // #FF5555 - Danger/Protected
 const PURPLE: Color = Color::Rgb(189, 147, 249);   // #BD93F9 - Current branch
 const PINK: Color = Color::Rgb(255, 121, 198);     // #FF79C6 - Selected highlight

@@ -14,6 +14,7 @@ use ratatui::{
 // Color palette
 const COLOR_ACCENT: Color = Color::Rgb(46, 196, 182); // #2EC4B6 - cyan
 const COLOR_WARNING: Color = Color::Rgb(255, 184, 108); // #FFB86C - amber
+const COLOR_DIVERGED: Color = Color::Rgb(241, 250, 140); // #F1FA8C - yellow, between pr-merged cyan and unmerged amber
 const COLOR_DANGER: Color = Color::Rgb(255, 85, 85); // #FF5555 - red
 const COLOR_MUTED: Color = Color::Rgb(169, 177, 214); // #A9B1D6 - muted text
 const COLOR_SUCCESS: Color = Color::Rgb(80, 250, 123); // #50FA7B - green
@@ -574,8 +575,8 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
             // Checkbox display
             let checkbox = if !branch.status.is_deletable() {
                 "   " // No checkbox for protected
-            } else if branch.status == BranchStatus::Unmerged && !app.force_mode {
-                " - " // Disabled checkbox for unmerged without force
+            } else if branch.status.requires_force() && !app.force_mode {
+                " - " // Disabled checkbox for force-only branches without force
             } else if is_checked {
                 "[✓]"
             } else {
@@ -585,7 +586,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
             let checkbox_style = if is_checked {
                 Style::default().fg(COLOR_SELECTED)
             } else if !branch.status.is_deletable()
-                || (branch.status == BranchStatus::Unmerged && !app.force_mode)
+                || (branch.status.requires_force() && !app.force_mode)
             {
                 Style::default().fg(COLOR_MUTED)
             } else {
@@ -698,11 +699,16 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
     ];
 
-    // pr-merged can only occur when a PR provider supplied merge evidence
+    // pr-merged/pr-diverged can only occur when a PR provider supplied merge evidence
     if app.pr_provider.is_some() {
         legend_spans.push(Span::styled("↑ ", Style::default().fg(COLOR_ACCENT)));
         legend_spans.push(Span::styled(
             "pr-merged  ",
+            Style::default().fg(COLOR_MUTED),
+        ));
+        legend_spans.push(Span::styled("↕ ", Style::default().fg(COLOR_DIVERGED)));
+        legend_spans.push(Span::styled(
+            "pr-diverged  ",
             Style::default().fg(COLOR_MUTED),
         ));
     }
@@ -771,6 +777,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
         let explanation = match branch.status {
             BranchStatus::SafeMerged => "Merged into trunk, safe to delete",
             BranchStatus::PrMerged => "PR merged; remote branch still exists",
+            BranchStatus::PrDiverged => "PR merged but local diverged from remote",
             BranchStatus::GoneUpstream => "Remote branch deleted",
             BranchStatus::Unmerged => "Has unmerged commits",
             BranchStatus::Protected => "Protected branch",
@@ -1187,7 +1194,7 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     let selected_branches = app.get_selected_branches();
     let unmerged_count = selected_branches
         .iter()
-        .filter(|b| b.status == BranchStatus::Unmerged)
+        .filter(|b| b.status.requires_force())
         .count();
     let gone_count = selected_branches
         .iter()
@@ -1336,6 +1343,7 @@ fn get_status_color(status: &BranchStatus) -> Color {
     match status {
         BranchStatus::SafeMerged => COLOR_SUCCESS,
         BranchStatus::PrMerged => COLOR_ACCENT,
+        BranchStatus::PrDiverged => COLOR_DIVERGED,
         BranchStatus::GoneUpstream => COLOR_WARNING,
         BranchStatus::Unmerged => COLOR_WARNING,
         BranchStatus::Protected => COLOR_DANGER,
@@ -1828,6 +1836,13 @@ fn render_info_modal(frame: &mut Frame) {
             Span::styled("    ↑ pr-merged ", Style::default().fg(COLOR_ACCENT)),
             Span::styled(
                 "PR merged; remote branch still exists",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled("    ↕ pr-diverged ", Style::default().fg(COLOR_DIVERGED)),
+            Span::styled(
+                "PR merged but local diverged from remote",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),

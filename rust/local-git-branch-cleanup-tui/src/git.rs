@@ -319,11 +319,30 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             .output()?;
 
         let has_upstream = upstream_check.status.success();
-        let upstream = if has_upstream {
+        let mut upstream = if has_upstream {
             Some(String::from_utf8(upstream_check.stdout)?.trim().to_string())
         } else {
             None
         };
+
+        // A branch can have a remote counterpart without tracking config
+        // (pushed without -u, or from another clone): fall back to
+        // origin/<branch> so it is not misread as never pushed and
+        // ahead/behind and the PR-merge upgrade still work.
+        if upstream.is_none() {
+            let origin_ref = format!("origin/{}", branch);
+            let origin_check = Command::new("git")
+                .args([
+                    "rev-parse",
+                    "--quiet",
+                    "--verify",
+                    &format!("refs/remotes/{}", origin_ref),
+                ])
+                .output()?;
+            if origin_check.status.success() {
+                upstream = Some(origin_ref);
+            }
+        }
 
         // Determine if upstream is "gone"
         let is_gone = gone_branches.contains(&branch.to_string());
@@ -377,9 +396,10 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|| last_commit_author.clone()); // Fallback to last commit author
 
-        // Get ahead/behind counts if there's an upstream
-        let (ahead, behind) = if has_upstream && !is_gone {
-            get_ahead_behind_counts(branch, upstream.as_ref().unwrap())?
+        // Get ahead/behind counts if there's an upstream (tracked or the
+        // origin/<branch> fallback)
+        let (ahead, behind) = if let Some(up) = upstream.as_ref().filter(|_| !is_gone) {
+            get_ahead_behind_counts(branch, up)?
         } else {
             (None, None)
         };
@@ -391,7 +411,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             &trunk,
             &merged_branches,
             is_gone,
-            has_remote && !has_upstream,
+            has_remote && upstream.is_none(),
         );
 
         branches.push(BranchInfo {

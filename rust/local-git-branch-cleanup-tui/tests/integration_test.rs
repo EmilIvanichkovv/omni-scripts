@@ -683,3 +683,35 @@ fn test_local_status_for_never_pushed_branch() {
                 .not(),
         );
 }
+
+#[test]
+fn test_pushed_without_tracking_is_not_local() {
+    // A branch pushed without -u has a remote counterpart but no tracking
+    // config. It was pushed, so it must NOT be classified as local —
+    // origin/<branch> is used as the effective upstream.
+    let repo = TestRepo::new();
+
+    let remote_dir = TempDir::new().expect("Failed to create remote dir");
+    let remote_path = remote_dir.path().to_str().unwrap().to_string();
+    TestRepo::run_git(repo.path(), &["init", "--bare", &remote_path]);
+    TestRepo::run_git(repo.path(), &["remote", "add", "origin", &remote_path]);
+
+    repo.create_branch("feature/no-tracking", "Pushed feature");
+    // Push WITHOUT -u: creates origin/feature/no-tracking, no tracking config.
+    TestRepo::run_git(repo.path(), &["push", "origin", "feature/no-tracking"]);
+    // create_branch returns to "main", which doesn't exist in this fixture
+    // (init default is master) — leave the feature branch explicitly.
+    TestRepo::run_git(repo.path(), &["checkout", "master"]);
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
+    cmd.write_stdin("n\n");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::is_match(r"feature/no-tracking.*! unmerged").unwrap())
+        .stdout(
+            predicate::str::is_match(r"feature/no-tracking.*○ local")
+                .unwrap()
+                .not(),
+        );
+}

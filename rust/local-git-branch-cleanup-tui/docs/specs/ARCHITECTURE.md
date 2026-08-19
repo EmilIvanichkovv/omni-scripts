@@ -163,7 +163,7 @@ pub enum BranchStatus {
     PrDiverged,      // PR merged, but local has commits its upstream doesn't
     GoneUpstream,    // Remote was deleted
     Unmerged,        // Has unmerged commits
-    Local,           // Never pushed (repo has a remote, branch has no upstream)
+    Local,           // Never pushed (no tracking config and no origin/<branch>)
     Protected,       // main/master/develop
     Current,         // Currently checked out
 }
@@ -229,8 +229,10 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 2. Protected name check  → BranchStatus::Protected (main/master/develop)
 3. Gone upstream check   → BranchStatus::GoneUpstream
 4. Never-pushed check    → BranchStatus::Local (repo has a remote, branch has
-                           no upstream; wins over merged — a branch that never
-                           reached the remote must not display as merged)
+                           no tracking config AND no origin/<branch> ref; wins
+                           over merged — a branch that never reached the remote
+                           must not display as merged. A branch pushed without
+                           -u uses origin/<branch> as its effective upstream)
 5. Merged check          → BranchStatus::SafeMerged
 6. Default               → BranchStatus::Unmerged
 ```

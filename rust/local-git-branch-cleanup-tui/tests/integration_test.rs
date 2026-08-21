@@ -715,3 +715,29 @@ fn test_pushed_without_tracking_is_not_local() {
                 .not(),
         );
 }
+
+#[test]
+fn test_remote_not_named_origin() {
+    // With a remote named something other than origin, classification must
+    // still work: a branch pushed there (without -u) is not local, and a
+    // never-pushed branch is.
+    let repo = TestRepo::new();
+
+    let remote_dir = TempDir::new().expect("Failed to create remote dir");
+    let remote_path = remote_dir.path().to_str().unwrap().to_string();
+    TestRepo::run_git(repo.path(), &["init", "--bare", &remote_path]);
+    TestRepo::run_git(repo.path(), &["remote", "add", "fork", &remote_path]);
+
+    repo.create_branch("feature/pushed-to-fork", "Pushed to fork");
+    TestRepo::run_git(repo.path(), &["push", "fork", "feature/pushed-to-fork"]);
+    repo.create_branch("feature/never-pushed", "Never pushed");
+    TestRepo::run_git(repo.path(), &["checkout", "master"]);
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
+    cmd.write_stdin("n\n");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::is_match(r"feature/pushed-to-fork.*! unmerged").unwrap())
+        .stdout(predicate::str::is_match(r"feature/never-pushed.*○ local").unwrap());
+}

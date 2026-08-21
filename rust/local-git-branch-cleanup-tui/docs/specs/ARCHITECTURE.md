@@ -163,7 +163,7 @@ pub enum BranchStatus {
     PrDiverged,      // PR merged, but local has commits its upstream doesn't
     GoneUpstream,    // Remote was deleted
     Unmerged,        // Has unmerged commits
-    Local,           // Never pushed (no tracking config and no origin/<branch>)
+    Local,           // Never pushed (no tracking config, no <remote>/<branch>)
     Protected,       // main/master/develop
     Current,         // Currently checked out
 }
@@ -209,18 +209,18 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 
 **Git Command Usage:**
 
-| Purpose         | Git Command                                                                                                                |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Verify repo     | `git rev-parse --show-toplevel`                                                                                            |
-| Current branch  | `git branch --show-current`                                                                                                |
-| Trunk detection | `git symbolic-ref --short refs/remotes/origin/HEAD`                                                                        |
-| Branch list     | `git for-each-ref refs/heads/`                                                                                             |
-| Merged check    | `git branch --format='%(refname:short)' --merged <trunk>` (also run against `origin/<trunk>` to catch a stale local trunk) |
-| Gone check      | Parse `[gone]` from `git for-each-ref`                                                                                     |
-| Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                                                                                   |
-| Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>`                                                                  |
-| Delete          | `git branch -d/-D <branch>`                                                                                                |
-| Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)                                                                    |
+| Purpose         | Git Command                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Verify repo     | `git rev-parse --show-toplevel`                                                                                                      |
+| Current branch  | `git branch --show-current`                                                                                                          |
+| Trunk detection | `git symbolic-ref --short refs/remotes/<primary remote>/HEAD`                                                                        |
+| Branch list     | `git for-each-ref refs/heads/`                                                                                                       |
+| Merged check    | `git branch --format='%(refname:short)' --merged <trunk>` (also run against `<primary remote>/<trunk>` to catch a stale local trunk) |
+| Gone check      | Parse `[gone]` from `git for-each-ref`                                                                                               |
+| Commit info     | `git log -1 --format="%cr\|%h\|%an\|%s"`                                                                                             |
+| Ahead/behind    | `git rev-list --left-right --count <branch>...<upstream>`                                                                            |
+| Delete          | `git branch -d/-D <branch>`                                                                                                          |
+| Open URL        | `xdg-open` (Linux) / `open` (macOS) / `start` (Windows)                                                                              |
 
 **Classification Logic:**
 
@@ -229,10 +229,11 @@ pub fn open_url_in_browser(url: &str) -> Result<()>
 2. Protected name check  → BranchStatus::Protected (main/master/develop)
 3. Gone upstream check   → BranchStatus::GoneUpstream
 4. Never-pushed check    → BranchStatus::Local (repo has a remote, branch has
-                           no tracking config AND no origin/<branch> ref; wins
-                           over merged — a branch that never reached the remote
-                           must not display as merged. A branch pushed without
-                           -u uses origin/<branch> as its effective upstream)
+                           no tracking config AND no <remote>/<branch> ref
+                           under any remote; wins over merged — a branch that
+                           never reached a remote must not display as merged. A
+                           branch pushed without -u uses <remote>/<branch> as
+                           its effective upstream)
 5. Merged check          → BranchStatus::SafeMerged
 6. Default               → BranchStatus::Unmerged
 ```

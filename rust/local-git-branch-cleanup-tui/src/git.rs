@@ -147,24 +147,49 @@ pub fn get_current_git_user() -> Result<String> {
 
 /// Detect the default/trunk branch
 /// Tries: git symbolic-ref, then fallback to main/master
+/// The remote the tool treats as primary: `origin` when it exists, otherwise
+/// the repository's first remote (git lists them alphabetically). `None` when
+/// the repo has no remotes at all.
+pub fn get_primary_remote() -> Option<String> {
+    let output = Command::new("git").args(["remote"]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let remotes: Vec<&str> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    if remotes.contains(&"origin") {
+        Some("origin".to_string())
+    } else {
+        remotes.first().map(|r| r.to_string())
+    }
+}
+
 pub fn get_default_branch(trunk_override: Option<&str>) -> Result<String> {
     // Use CLI override if provided
     if let Some(trunk) = trunk_override {
         return Ok(trunk.to_string());
     }
 
-    // Try to get the default branch from origin/HEAD
-    let output = Command::new("git")
-        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
-        .output()?;
+    // Try to get the default branch from the primary remote's HEAD
+    if let Some(remote) = get_primary_remote() {
+        let output = Command::new("git")
+            .args([
+                "symbolic-ref",
+                "--short",
+                &format!("refs/remotes/{}/HEAD", remote),
+            ])
+            .output()?;
 
-    if output.status.success() {
-        let branch = String::from_utf8(output.stdout)?.trim().to_string();
-        // Strip "origin/" prefix if present
-        return Ok(branch
-            .strip_prefix("origin/")
-            .unwrap_or(&branch)
-            .to_string());
+        if output.status.success() {
+            let branch = String::from_utf8(output.stdout)?.trim().to_string();
+            // Strip "<remote>/" prefix if present
+            let prefix = format!("{}/", remote);
+            return Ok(branch.strip_prefix(&prefix).unwrap_or(&branch).to_string());
+        }
     }
 
     // Fallback: check if main or master exists
@@ -276,24 +301,22 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
     // Get context for classification
     let current_branch = get_current_branch()?;
     let trunk = get_default_branch(trunk_override)?;
-    // Also consider origin/<trunk>: a branch merged remotely while the local
-    // trunk is stale would otherwise be misclassified as unmerged.
-    let mut merged_branches = get_merged_branches(&trunk)?;
-    for branch in get_merged_branches(&format!("origin/{trunk}"))? {
-        if !merged_branches.contains(&branch) {
-            merged_branches.push(branch);
-        }
-    }
-    let gone_branches = get_gone_branches()?;
-
     // "local" (never pushed) only makes sense when the repo has a remote at
     // all; in a remote-less repo every branch would be local and the
     // merged/unmerged classification is more useful.
-    let has_remote = Command::new("git")
-        .args(["remote"])
-        .output()
-        .map(|o| o.status.success() && !o.stdout.is_empty())
-        .unwrap_or(false);
+    let primary_remote = get_primary_remote();
+
+    // Also consider <remote>/<trunk>: a branch merged remotely while the
+    // local trunk is stale would otherwise be misclassified as unmerged.
+    let mut merged_branches = get_merged_branches(&trunk)?;
+    if let Some(remote) = &primary_remote {
+        for branch in get_merged_branches(&format!("{remote}/{trunk}"))? {
+            if !merged_branches.contains(&branch) {
+                merged_branches.push(branch);
+            }
+        }
+    }
+    let gone_branches = get_gone_branches()?;
 
     // Get all local branches
     let output = Command::new("git")
@@ -326,21 +349,29 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
         };
 
         // A branch can have a remote counterpart without tracking config
-        // (pushed without -u, or from another clone): fall back to
-        // origin/<branch> so it is not misread as never pushed and
-        // ahead/behind and the PR-merge upgrade still work.
-        if upstream.is_none() {
-            let origin_ref = format!("origin/{}", branch);
-            let origin_check = Command::new("git")
+        // (pushed without -u, or from another clone): look for
+        // <any remote>/<branch> so it is not misread as never pushed and
+        // ahead/behind and the PR-merge upgrade still work. The primary
+        // remote's ref wins when several remotes have the branch.
+        if upstream.is_none() && primary_remote.is_some() {
+            let candidates = Command::new("git")
                 .args([
-                    "rev-parse",
-                    "--quiet",
-                    "--verify",
-                    &format!("refs/remotes/{}", origin_ref),
+                    "for-each-ref",
+                    "--format=%(refname:short)",
+                    &format!("refs/remotes/*/{}", branch),
                 ])
                 .output()?;
-            if origin_check.status.success() {
-                upstream = Some(origin_ref);
+            if candidates.status.success() {
+                let candidates = String::from_utf8(candidates.stdout)?;
+                let mut candidates = candidates.lines().map(str::trim).filter(|l| !l.is_empty());
+                let primary_ref = primary_remote
+                    .as_ref()
+                    .map(|remote| format!("{}/{}", remote, branch));
+                upstream = candidates
+                    .clone()
+                    .find(|c| Some(*c) == primary_ref.as_deref())
+                    .or_else(|| candidates.next())
+                    .map(|c| c.to_string());
             }
         }
 
@@ -411,7 +442,7 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             &trunk,
             &merged_branches,
             is_gone,
-            has_remote && upstream.is_none(),
+            primary_remote.is_some() && upstream.is_none(),
         );
 
         branches.push(BranchInfo {

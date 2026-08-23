@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-19 14:29
+**Last Updated:** 2026-08-23 12:50
 
 ---
 
@@ -24,7 +24,23 @@ application.
 
 ## Critical Issues
 
-_No open critical issues._
+### Issue #16: Search input panics on multi-byte characters
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-08-23
+- **Category:** Critical / Bug
+- **Description:**
+  - Typing a multi-byte character in search (e.g. a Cyrillic author name after `@author:`) crashes
+    the app: `assertion failed: self.is_char_boundary(idx)` in `search_insert_char`.
+    `search_cursor_pos` is a byte index but the cursor moves by ±1 byte, landing mid-character.
+- **Steps to Reproduce:**
+  1. Press `/` to open search
+  2. Type any non-ASCII character (e.g. `Е`), then type another character
+  3. The app panics
+- **Expected Behavior:** Search accepts any text; the cursor moves by whole characters
+- **Actual Behavior:** Panic at `String::insert` char-boundary assertion
+
+---
 
 ---
 

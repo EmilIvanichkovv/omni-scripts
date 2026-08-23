@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-23 12:50
+**Last Updated:** 2026-08-23 16:31
 
 ---
 
@@ -24,23 +24,7 @@ application.
 
 ## Critical Issues
 
-### Issue #16: Search input panics on multi-byte characters
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-08-23
-- **Category:** Critical / Bug
-- **Description:**
-  - Typing a multi-byte character in search (e.g. a Cyrillic author name after `@author:`) crashes
-    the app: `assertion failed: self.is_char_boundary(idx)` in `search_insert_char`.
-    `search_cursor_pos` is a byte index but the cursor moves by ±1 byte, landing mid-character.
-- **Steps to Reproduce:**
-  1. Press `/` to open search
-  2. Type any non-ASCII character (e.g. `Е`), then type another character
-  3. The app panics
-- **Expected Behavior:** Search accepts any text; the cursor moves by whole characters
-- **Actual Behavior:** Panic at `String::insert` char-boundary assertion
-
----
+_No open critical issues._
 
 ---
 
@@ -63,6 +47,30 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #16: Search input panics on multi-byte characters
+
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-08-23
+- **Resolved:** 2026-08-23
+- **Category:** Critical / Bug
+- **Description:**
+  - Typing a multi-byte character in search (e.g. a Cyrillic author name after `@author:`) crashed
+    the app: `assertion failed: self.is_char_boundary(idx)` in `search_insert_char`.
+    `search_cursor_pos` is a byte index but the cursor moved by ±1 byte, landing mid-character.
+- **Steps to Reproduce:**
+  1. Press `/` to open search
+  2. Type any non-ASCII character (e.g. `Е`), then type another character
+  3. The app panicked
+- **Expected Behavior:** Search accepts any text; the cursor moves by whole characters
+- **Actual Behavior:** Panic at `String::insert` char-boundary assertion
+- **Fix:**
+  - Cursor movement, insert, and backspace now step by whole characters (`char_indices`/`len_utf8`),
+    keeping the cursor on char boundaries
+  - `accept_suggestion` repositions the cursor to the end of the replaced query
+- **Commit:** `🐛(tui): Keep search cursor on char boundaries with multi-byte input`
+
+---
 
 ### Issue #15: Branch pushed without tracking config shows as local
 

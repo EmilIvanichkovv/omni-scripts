@@ -605,6 +605,10 @@ impl App {
                 }
             }
 
+            // The query was replaced: put the cursor at its end so it stays
+            // on a char boundary
+            self.search_cursor_pos = self.search_query.len();
+
             // Update suggestions after accepting
             self.update_suggestions();
             return true;
@@ -619,24 +623,33 @@ impl App {
         self.suggestion_index = None;
     }
 
+    /// Byte index of the char before the cursor (cursor stays on char
+    /// boundaries — the query can contain multi-byte characters)
+    fn search_prev_char_pos(&self) -> Option<usize> {
+        self.search_query[..self.search_cursor_pos]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
+    }
+
     /// Move search cursor left
     pub fn search_cursor_left(&mut self) {
-        if self.search_cursor_pos > 0 {
-            self.search_cursor_pos -= 1;
+        if let Some(prev) = self.search_prev_char_pos() {
+            self.search_cursor_pos = prev;
         }
     }
 
     /// Move search cursor right
     pub fn search_cursor_right(&mut self) {
-        if self.search_cursor_pos < self.search_query.len() {
-            self.search_cursor_pos += 1;
+        if let Some(c) = self.search_query[self.search_cursor_pos..].chars().next() {
+            self.search_cursor_pos += c.len_utf8();
         }
     }
 
     /// Insert character at cursor position in search query
     pub fn search_insert_char(&mut self, c: char) {
         self.search_query.insert(self.search_cursor_pos, c);
-        self.search_cursor_pos += 1;
+        self.search_cursor_pos += c.len_utf8();
         self.selected_index = 0;
         self.scroll_offset = 0;
         self.update_suggestions();
@@ -644,9 +657,9 @@ impl App {
 
     /// Delete character before cursor in search query (backspace behavior)
     pub fn search_backspace(&mut self) {
-        if self.search_cursor_pos > 0 {
-            self.search_query.remove(self.search_cursor_pos - 1);
-            self.search_cursor_pos -= 1;
+        if let Some(prev) = self.search_prev_char_pos() {
+            self.search_query.remove(prev);
+            self.search_cursor_pos = prev;
             self.selected_index = 0;
             self.scroll_offset = 0;
             self.update_suggestions();
@@ -914,6 +927,50 @@ mod tests {
             "main".to_string(),
             "Test Author".to_string(),
         )
+    }
+
+    #[test]
+    fn test_search_editing_with_multibyte_chars() {
+        // Cursor is a byte index but must always stay on a char boundary —
+        // Cyrillic (2 bytes/char) used to panic String::insert/remove.
+        let mut app = create_test_app();
+        for c in "Емил".chars() {
+            app.search_insert_char(c);
+        }
+        assert_eq!(app.search_query, "Емил");
+        assert_eq!(app.search_cursor_pos, app.search_query.len());
+
+        // Walk left through multi-byte chars, then insert mid-string
+        app.search_cursor_left();
+        app.search_cursor_left();
+        app.search_insert_char('X');
+        assert_eq!(app.search_query, "ЕмXил");
+
+        // Backspace removes the whole char before the cursor
+        app.search_backspace(); // remove 'X'
+        app.search_backspace(); // remove 'м' (2 bytes)
+        assert_eq!(app.search_query, "Еил");
+
+        // Delete removes the whole char at the cursor
+        app.search_delete(); // remove 'и'
+        assert_eq!(app.search_query, "Ел");
+
+        // Right steps over the full 2-byte 'л' and lands on the end boundary
+        assert_eq!(app.search_cursor_pos, "Е".len());
+        app.search_cursor_right();
+        assert_eq!(app.search_cursor_pos, app.search_query.len());
+    }
+
+    #[test]
+    fn test_accept_suggestion_resets_cursor_to_query_end() {
+        let mut app = create_test_app();
+        for c in "@author:Test".chars() {
+            app.search_insert_char(c);
+        }
+        app.update_suggestions();
+        if app.accept_suggestion() {
+            assert_eq!(app.search_cursor_pos, app.search_query.len());
+        }
     }
 
     #[test]

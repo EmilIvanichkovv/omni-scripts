@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-08-23 16:31
+**Last Updated:** 2026-10-09 13:06
 
 ---
 
@@ -30,7 +30,60 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #18: Require a double Esc press to quit
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-10-09
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - In normal mode a single `Esc` with an empty search query calls `app.quit()` (the `KeyCode::Esc`
+    arm in `main.rs`). `Esc` is also the key for closing modals, clearing the search, and cancelling
+    the confirmation, so an extra press meant for a popup closes the whole app.
+- **Steps to Reproduce:**
+  1. Open a popup (e.g. `?` help) or clear a search with `Esc`
+  2. Press `Esc` once more
+  3. The app exits immediately
+- **Expected Behavior:**
+  - The first `Esc` in normal mode (no modal, no search query) only arms quit and shows a hint like
+    `Press Esc again to quit` in the footer
+  - A second `Esc` within a short window (~1s) quits; any other key or the timeout disarms it
+  - `q` still quits immediately
+- **Actual Behavior:** A single `Esc` quits the app
+- **Proposed Fix:**
+  - Add `esc_quit_armed_at: Option<Instant>` to `App`; in the normal-mode `Esc` arm, quit if it is
+    set and within the window, otherwise set it. Clear it on any other key press and when the window
+    expires (checked in the event loop's 100 ms poll tick)
+  - Render the hint in the footer while armed; update the help modal, `README.md` and
+    `TUI_USAGE_GUIDE.md` (`q` / `Esc` → `q` / `Esc Esc`)
+  - Unit-test the arm/quit/disarm transitions with the timestamp injected
+
+---
+
+### Issue #17: Down arrow does not browse branches after accepting `@author:me`
+
+- **Status:** 🔴 Open
+- **Reported:** 2026-10-09
+- **Category:** UI/UX / Bug
+- **Description:**
+  - After accepting the `me` author suggestion (Enter or Tab), the list is filtered correctly but
+    Down/Up does not move into the branch list. Accepting a named author works.
+  - Root cause: `accept_suggestion` calls `update_suggestions` again. For `@author:me` the author
+    query `me` still prefix-matches the `"me"` suggestion (and any author containing "me"), so
+    `show_suggestions` stays true and the Down/Up handlers in `main.rs` cycle suggestions instead of
+    leaving search. Named authors are wrapped in quotes (`@author:"Name"`), so nothing matches and
+    the dropdown closes.
+- **Steps to Reproduce:**
+  1. Press `/` to open search
+  2. Type `@` and accept `author`, then accept the first suggestion `me` with Enter or Tab
+  3. Press Down
+- **Expected Behavior:** The dropdown closes after accepting an author, and Down moves into the
+  filtered branch list, the same as for a named author
+- **Actual Behavior:** The suggestions dropdown stays open and Down cycles through it; the branch
+  list can't be browsed
+- **Proposed Fix:**
+  - In `accept_suggestion`, hide suggestions after accepting an author value instead of recomputing
+    them (keep the recompute only after accepting a command, so `@author:` opens the author list)
+  - Add a unit test: accept `me`, assert `show_suggestions == false`
 
 ---
 
@@ -573,3 +626,5 @@ _No open minor/cosmetic issues._
 | 2026-02-25 | 16:05 | -     | Migrated resolved issues #7-#11 to Resolved Issues section             |
 | 2026-03-23 | 17:40 | #12   | Reported: Cannot edit search query with left/right arrow keys          |
 | 2026-03-23 | 18:30 | #12   | Resolved: Added cursor position tracking and text editing support      |
+| 2026-10-09 | 12:58 | #17   | Reported: Down arrow does not browse branches after `@author:me`       |
+| 2026-10-09 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |

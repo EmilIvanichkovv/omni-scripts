@@ -92,6 +92,7 @@ After typing `@author:`, you'll see suggestions for:
 - **Scrollable dropdown** - When many authors exist, the dropdown shows scroll indicators
   (`↑ X more above`, `↓ X more below`)
 - **Auto-quoting** - Author names with spaces are automatically wrapped in quotes when selected
+- Accepting an author closes the dropdown, so `↑`/`↓` move straight into the filtered list
 
 When search is active, the search box appears below the filters. The search is case-insensitive.
 

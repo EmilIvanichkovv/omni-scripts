@@ -586,6 +586,7 @@ impl App {
         let suggestion_idx = self.suggestion_index.unwrap_or(0);
         if let Some(suggestion) = self.suggestions.get(suggestion_idx).cloned() {
             let query = self.search_query.clone();
+            let mut accepted_command = false;
 
             if let Some(at_pos) = query.rfind('@') {
                 let after_at = &query[at_pos + 1..];
@@ -594,6 +595,7 @@ impl App {
                 if !after_at.contains(':') {
                     // Replace everything after @ with the command and add colon
                     self.search_query = format!("{}@{}:", &query[..at_pos], suggestion);
+                    accepted_command = true;
                 } else if after_at.to_lowercase().starts_with("author:") {
                     // Accepting an author name - wrap in quotes if contains space
                     let formatted_author = if suggestion.contains(' ') {
@@ -609,8 +611,14 @@ impl App {
             // on a char boundary
             self.search_cursor_pos = self.search_query.len();
 
-            // Update suggestions after accepting
-            self.update_suggestions();
+            if accepted_command {
+                // Show the command's value suggestions (e.g. authors after @author:)
+                self.update_suggestions();
+            } else {
+                // The accepted value still matches its own suggestion (e.g. "me"),
+                // so recomputing would keep the dropdown open and trap Up/Down
+                self.hide_suggestions();
+            }
             return true;
         }
 
@@ -1584,6 +1592,34 @@ mod tests {
             app.accept_suggestion();
             // Should be wrapped in quotes
             assert_eq!(app.search_query, "@author:\"Emil Ivanichkov\"");
+        }
+    }
+
+    #[test]
+    fn test_accept_author_suggestion_closes_dropdown() {
+        let branches = vec![create_test_branch_with_author(
+            "branch1",
+            BranchStatus::SafeMerged,
+            "Alice",
+        )];
+        let mut app = App::new(
+            branches,
+            "/test/repo".to_string(),
+            "main".to_string(),
+            "Test".to_string(),
+        );
+
+        for author in ["me", "Alice"] {
+            app.search_query = "@author:".to_string();
+            app.update_suggestions();
+            let idx = app.suggestions.iter().position(|s| s == author).unwrap();
+            app.suggestion_index = Some(idx);
+            assert!(app.accept_suggestion());
+
+            // Dropdown must close so Up/Down browse the filtered branch list
+            assert_eq!(app.search_query, format!("@author:{}", author));
+            assert!(!app.show_suggestions);
+            assert_eq!(app.suggestion_index, None);
         }
     }
 }

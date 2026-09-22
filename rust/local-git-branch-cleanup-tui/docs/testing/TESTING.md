@@ -99,6 +99,8 @@ Compare behavior with the original bash script:
 - [ ] Tab - cycle through filters
 - [ ] Filter counts update correctly
 - [ ] Selection index resets when changing filters
+- [ ] `/` → `@author:` → accept `me` (or a single-word name): dropdown closes and `↓` browses the
+      filtered branches
 
 #### 3.4 Details Pane
 

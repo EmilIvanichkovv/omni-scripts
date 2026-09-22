@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-10-09 13:06
+**Last Updated:** 2026-10-09 13:35
 
 ---
 
@@ -59,34 +59,6 @@ _No open critical issues._
 
 ---
 
-### Issue #17: Down arrow does not browse branches after accepting `@author:me`
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-10-09
-- **Category:** UI/UX / Bug
-- **Description:**
-  - After accepting the `me` author suggestion (Enter or Tab), the list is filtered correctly but
-    Down/Up does not move into the branch list. Accepting a named author works.
-  - Root cause: `accept_suggestion` calls `update_suggestions` again. For `@author:me` the author
-    query `me` still prefix-matches the `"me"` suggestion (and any author containing "me"), so
-    `show_suggestions` stays true and the Down/Up handlers in `main.rs` cycle suggestions instead of
-    leaving search. Named authors are wrapped in quotes (`@author:"Name"`), so nothing matches and
-    the dropdown closes.
-- **Steps to Reproduce:**
-  1. Press `/` to open search
-  2. Type `@` and accept `author`, then accept the first suggestion `me` with Enter or Tab
-  3. Press Down
-- **Expected Behavior:** The dropdown closes after accepting an author, and Down moves into the
-  filtered branch list, the same as for a named author
-- **Actual Behavior:** The suggestions dropdown stays open and Down cycles through it; the branch
-  list can't be browsed
-- **Proposed Fix:**
-  - In `accept_suggestion`, hide suggestions after accepting an author value instead of recomputing
-    them (keep the recompute only after accepting a command, so `@author:` opens the author list)
-  - Add a unit test: accept `me`, assert `show_suggestions == false`
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -100,6 +72,36 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #17: Down arrow does not browse branches after accepting `@author:me`
+
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-10-09
+- **Resolved:** 2026-10-09
+- **Category:** UI/UX / Bug
+- **Description:**
+  - After accepting the `me` author suggestion (Enter or Tab), the list was filtered correctly but
+    Down/Up did not move into the branch list.
+  - Root cause: `accept_suggestion` called `update_suggestions` again. For `@author:me` the author
+    query `me` still prefix-matched the `"me"` suggestion, so `show_suggestions` stayed true and the
+    Down/Up handlers in `main.rs` cycled suggestions instead of leaving search. Single-word author
+    names (`@author:Alice`) had the same problem; names with spaces worked only because the added
+    quotes stopped them matching.
+- **Steps to Reproduce:**
+  1. Press `/` to open search
+  2. Type `@` and accept `author`, then accept the first suggestion `me` with Enter or Tab
+  3. Press Down
+- **Expected Behavior:** The dropdown closes after accepting an author, and Down moves into the
+  filtered branch list
+- **Actual Behavior:** The suggestions dropdown stayed open and Down cycled through it; the branch
+  list could not be browsed
+- **Fix:**
+  - `accept_suggestion` recomputes suggestions only after accepting a command (so `@author:` still
+    opens the author list); after accepting an author value it calls `hide_suggestions`
+  - Added `test_accept_author_suggestion_closes_dropdown` covering `me` and a single-word name
+- **Commit:** `fix(tui): Close autocomplete dropdown after accepting an author`
+
+---
 
 ### Issue #16: Search input panics on multi-byte characters
 
@@ -628,3 +630,4 @@ _No open minor/cosmetic issues._
 | 2026-03-23 | 18:30 | #12   | Resolved: Added cursor position tracking and text editing support      |
 | 2026-10-09 | 12:58 | #17   | Reported: Down arrow does not browse branches after `@author:me`       |
 | 2026-10-09 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |
+| 2026-10-09 | 13:35 | #17   | Resolved: Close autocomplete dropdown after accepting an author        |

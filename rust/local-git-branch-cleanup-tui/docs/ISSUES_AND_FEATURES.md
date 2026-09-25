@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-10-09 13:35
+**Last Updated:** 2026-10-09 13:36
 
 ---
 
@@ -30,32 +30,7 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #18: Require a double Esc press to quit
-
-- **Status:** 🔴 Open
-- **Reported:** 2026-10-09
-- **Category:** UI/UX / Enhancement
-- **Description:**
-  - In normal mode a single `Esc` with an empty search query calls `app.quit()` (the `KeyCode::Esc`
-    arm in `main.rs`). `Esc` is also the key for closing modals, clearing the search, and cancelling
-    the confirmation, so an extra press meant for a popup closes the whole app.
-- **Steps to Reproduce:**
-  1. Open a popup (e.g. `?` help) or clear a search with `Esc`
-  2. Press `Esc` once more
-  3. The app exits immediately
-- **Expected Behavior:**
-  - The first `Esc` in normal mode (no modal, no search query) only arms quit and shows a hint like
-    `Press Esc again to quit` in the footer
-  - A second `Esc` within a short window (~1s) quits; any other key or the timeout disarms it
-  - `q` still quits immediately
-- **Actual Behavior:** A single `Esc` quits the app
-- **Proposed Fix:**
-  - Add `esc_quit_armed_at: Option<Instant>` to `App`; in the normal-mode `Esc` arm, quit if it is
-    set and within the window, otherwise set it. Clear it on any other key press and when the window
-    expires (checked in the event loop's 100 ms poll tick)
-  - Render the hint in the footer while armed; update the help modal, `README.md` and
-    `TUI_USAGE_GUIDE.md` (`q` / `Esc` → `q` / `Esc Esc`)
-  - Unit-test the arm/quit/disarm transitions with the timestamp injected
+_No open UI/UX issues._
 
 ---
 
@@ -72,6 +47,36 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #18: Require a double Esc press to quit
+
+- **Status:** 🟢 Resolved
+- **Reported:** 2026-10-09
+- **Resolved:** 2026-10-09
+- **Category:** UI/UX / Enhancement
+- **Description:**
+  - In normal mode a single `Esc` with an empty search query called `app.quit()` (the `KeyCode::Esc`
+    arm in `main.rs`). `Esc` is also the key for closing modals, clearing the search, and cancelling
+    the confirmation, so an extra press meant for a popup closed the whole app.
+- **Steps to Reproduce:**
+  1. Open a popup (e.g. `?` help) or clear a search with `Esc`
+  2. Press `Esc` once more
+  3. The app exited immediately
+- **Expected Behavior:**
+  - The first `Esc` in normal mode (no modal, no search query) only arms quit and shows a hint
+  - A second `Esc` within 1s quits; any other key or the timeout disarms it
+  - `q` still quits immediately
+- **Actual Behavior:** A single `Esc` quit the app
+- **Fix:**
+  - Added `esc_quit_armed_at: Option<Instant>` and `ESC_QUIT_WINDOW` (1s) to `App`.
+    `press_esc_to_quit` arms on the first press and quits on a second press inside the window;
+    `expire_esc_quit` runs every loop tick, and any non-Esc key disarms it
+  - While armed, the footer shows `Press Esc again to quit` in amber
+  - Help modal, footer, `README.md`, `TUI_USAGE_GUIDE.md`, and `TESTING.md` now show `q` / `Esc Esc`
+  - Added `test_double_esc_quits` and `test_esc_quit_expires_after_window`
+- **Commit:** `feat(tui): Require a double Esc press to quit`
+
+---
 
 ### Issue #17: Down arrow does not browse branches after accepting `@author:me`
 
@@ -631,3 +636,4 @@ _No open minor/cosmetic issues._
 | 2026-10-09 | 12:58 | #17   | Reported: Down arrow does not browse branches after `@author:me`       |
 | 2026-10-09 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |
 | 2026-10-09 | 13:35 | #17   | Resolved: Close autocomplete dropdown after accepting an author        |
+| 2026-10-09 | 13:36 | #18   | Resolved: Esc must be pressed twice within 1s to quit                  |

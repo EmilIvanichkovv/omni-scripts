@@ -29,17 +29,17 @@ The TUI is divided into several sections:
 
 ### Navigation
 
-| Key          | Action                |
-| ------------ | --------------------- |
-| `↑` / `k`    | Move cursor up        |
-| `↓` / `j`    | Move cursor down      |
-| `g` / `Home` | Go to first item      |
-| `G` / `End`  | Go to last item       |
-| `Ctrl+U`     | Go to first item      |
-| `Ctrl+D`     | Go to last item       |
-| `Page Up`    | Move up by one page   |
-| `Page Down`  | Move down by one page |
-| `q` / `Esc`  | Quit application      |
+| Key               | Action                                         |
+| ----------------- | ---------------------------------------------- |
+| `↑` / `k`         | Move cursor up                                 |
+| `↓` / `j`         | Move cursor down                               |
+| `g` / `Home`      | Go to first item                               |
+| `G` / `End`       | Go to last item                                |
+| `Ctrl+U`          | Go to first item                               |
+| `Ctrl+D`          | Go to last item                                |
+| `Page Up`         | Move up by one page                            |
+| `Page Down`       | Move down by one page                          |
+| `q` / `Esc` `Esc` | Quit application (press `Esc` twice within 1s) |
 
 ### Filtering Branches
 

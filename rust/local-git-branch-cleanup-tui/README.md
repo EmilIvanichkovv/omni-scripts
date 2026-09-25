@@ -210,7 +210,7 @@ interactive interface.
 | `Enter`            | Delete selected (with confirmation)              |
 | `o`                | Open PR in browser (with --github / --bitbucket) |
 | `?`                | Show help                                        |
-| `q` / `Esc`        | Quit                                             |
+| `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 
 ### Search Syntax
 

@@ -3,6 +3,10 @@
 use crate::git::{self, BranchInfo, BranchStatus};
 use crate::pr::PrProviderKind;
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
+
+/// How long after a first Esc press a second one quits the app
+pub const ESC_QUIT_WINDOW: Duration = Duration::from_secs(1);
 
 /// Sort mode for branch list
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -109,6 +113,8 @@ pub struct App {
     pub selected_branches: HashSet<usize>,
     /// Whether the app should quit
     pub should_quit: bool,
+    /// When Esc was pressed in normal mode; a second Esc within `ESC_QUIT_WINDOW` quits
+    pub esc_quit_armed_at: Option<Instant>,
     /// Repository path
     pub repo_path: String,
     /// Trunk branch name
@@ -177,6 +183,7 @@ impl App {
             selected_index: 0,
             selected_branches: HashSet::new(),
             should_quit: false,
+            esc_quit_armed_at: None,
             repo_path,
             trunk,
             show_confirmation: false,
@@ -204,6 +211,25 @@ impl App {
 
     pub fn quit(&mut self) {
         self.should_quit = true;
+    }
+
+    /// Esc in normal mode: the first press arms quit, a second press within
+    /// `ESC_QUIT_WINDOW` quits (a single Esc is too easy to hit after closing a popup)
+    pub fn press_esc_to_quit(&mut self, now: Instant) {
+        match self.esc_quit_armed_at {
+            Some(armed_at) if now.duration_since(armed_at) <= ESC_QUIT_WINDOW => self.quit(),
+            _ => self.esc_quit_armed_at = Some(now),
+        }
+    }
+
+    /// Disarm a pending Esc quit once its window has passed
+    pub fn expire_esc_quit(&mut self, now: Instant) {
+        if self
+            .esc_quit_armed_at
+            .is_some_and(|armed_at| now.duration_since(armed_at) > ESC_QUIT_WINDOW)
+        {
+            self.esc_quit_armed_at = None;
+        }
     }
 
     pub fn select_next(&mut self) {
@@ -1621,5 +1647,38 @@ mod tests {
             assert!(!app.show_suggestions);
             assert_eq!(app.suggestion_index, None);
         }
+    }
+
+    #[test]
+    fn test_double_esc_quits() {
+        let mut app = create_test_app();
+        let start = Instant::now();
+
+        app.press_esc_to_quit(start);
+        assert!(!app.should_quit);
+        assert_eq!(app.esc_quit_armed_at, Some(start));
+
+        app.press_esc_to_quit(start + Duration::from_millis(500));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn test_esc_quit_expires_after_window() {
+        let mut app = create_test_app();
+        let start = Instant::now();
+
+        app.press_esc_to_quit(start);
+        app.expire_esc_quit(start + Duration::from_millis(500));
+        assert!(app.esc_quit_armed_at.is_some());
+
+        let late = start + ESC_QUIT_WINDOW + Duration::from_millis(1);
+        app.expire_esc_quit(late);
+        assert_eq!(app.esc_quit_armed_at, None);
+
+        // A late second press only re-arms
+        app.press_esc_to_quit(start);
+        app.press_esc_to_quit(late);
+        assert!(!app.should_quit);
+        assert_eq!(app.esc_quit_armed_at, Some(late));
     }
 }

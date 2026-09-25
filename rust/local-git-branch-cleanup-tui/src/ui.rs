@@ -1054,7 +1054,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             ),
             Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
-                "q / Esc",
+                "q / Esc Esc",
                 Style::default()
                     .fg(COLOR_ACCENT)
                     .add_modifier(Modifier::BOLD),
@@ -1177,6 +1177,22 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled(" pr  ", Style::default().fg(COLOR_MUTED)),
         );
         Line::from(spans)
+    } else {
+        key_hints
+    };
+
+    // After a first Esc, replace the hints with the quit confirmation prompt
+    let key_hints = if app.esc_quit_armed_at.is_some() {
+        Line::from(vec![
+            Span::styled(" Press ", Style::default().fg(COLOR_WARNING)),
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(COLOR_WARNING)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" again to quit", Style::default().fg(COLOR_WARNING)),
+        ])
     } else {
         key_hints
     };
@@ -1759,12 +1775,12 @@ fn render_help_modal(frame: &mut Frame) {
         ]),
         Line::from(vec![
             Span::styled(
-                "    q / Esc",
+                "    q / Esc Esc",
                 Style::default()
                     .fg(COLOR_SUCCESS)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled("       Quit application", Style::default().fg(COLOR_MUTED)),
+            Span::styled("   Quit application", Style::default().fg(COLOR_MUTED)),
         ]),
         Line::from(""),
     ];

@@ -148,7 +148,10 @@ Compare behavior with the original bash script:
 #### 3.9 Exit
 
 - [ ] `q` - quit application
-- [ ] Esc - quit application (when not in modal)
+- [ ] Esc once (not in modal, empty search) - footer shows "Press Esc again to quit", app stays open
+- [ ] Esc twice within 1s - quit application
+- [ ] Esc, then wait over 1s or press another key - hint disappears, next Esc only re-arms
+- [ ] Esc closing a popup does not quit the app
 - [ ] Terminal restored properly on exit
 - [ ] No artifacts left on screen
 

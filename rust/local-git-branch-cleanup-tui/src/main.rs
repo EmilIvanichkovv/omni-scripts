@@ -274,6 +274,8 @@ fn run_tui_mode(
 
     // Main loop
     loop {
+        app.expire_esc_quit(std::time::Instant::now());
+
         // Draw UI
         terminal.draw(|frame| ui::render(frame, &mut app))?;
 
@@ -281,6 +283,11 @@ fn run_tui_mode(
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    // Any key other than Esc cancels a pending Esc quit
+                    if key.code != KeyCode::Esc {
+                        app.esc_quit_armed_at = None;
+                    }
+
                     // Handle help modal
                     if app.show_help {
                         // Any key closes help modal
@@ -428,7 +435,7 @@ fn run_tui_mode(
                                         app.selected_index = 0;
                                         app.scroll_offset = 0;
                                     } else {
-                                        app.quit();
+                                        app.press_esc_to_quit(std::time::Instant::now());
                                     }
                                 }
                                 KeyCode::Down | KeyCode::Char('j') => {

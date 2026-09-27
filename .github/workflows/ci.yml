@@ -2,98 +2,80 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
 
+# Every job runs through the flake's dev shell so CI uses the exact toolchain pinned in
+# flake.lock -- the same rustc/clippy/prettier that the local pre-commit hook uses.
 jobs:
-  # Rust checks and tests
-  rust:
-    name: Rust (${{ matrix.check }})
+  lint:
+    name: Lint (pre-commit)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: rust
-    strategy:
-      fail-fast: false
-      matrix:
-        check: [fmt, clippy, test]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          components: rustfmt, clippy
+      - uses: cachix/install-nix-action@v31
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             rust/target
-          key: ${{ runner.os }}-cargo-${{ matrix.check }}-${{ hashFiles('rust/**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.check }}-
-            ${{ runner.os }}-cargo-
+          key: cargo-lint-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust/Cargo.lock') }}
+          restore-keys: cargo-lint-${{ runner.os }}-
 
-      - name: Check formatting
-        if: matrix.check == 'fmt'
-        run: cargo fmt --all -- --check
+      # Runs cargo fmt, clippy -D warnings, prettier, markdownlint and the yaml/toml/whitespace
+      # checks. Hooks that rewrite files fail the run and the diff is printed.
+      - name: Run pre-commit hooks
+        run: nix develop --command pre-commit run --all-files --show-diff-on-failure
 
-      - name: Run Clippy
-        if: matrix.check == 'clippy'
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Run tests
-        if: matrix.check == 'test'
-        run: cargo test --all-features --workspace
-
-  # Nix build check
-  nix:
-    name: Nix Build
+  test:
+    name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      - uses: cachix/install-nix-action@v31
 
-      - name: Setup Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust/Cargo.lock') }}
+          restore-keys: cargo-test-${{ runner.os }}-
 
-      - name: Check flake
-        run: nix flake check
+      - name: Rust tests
+        run: nix develop --command bash -c "cd rust && cargo test --workspace --all-features"
 
-      - name: Build default package
-        run: nix build
+      - name: Bash tests (bats)
+        run: nix develop --command bats --recursive bash
 
-      - name: Build all packages
-        run: |
-          nix build .#local-git-branch-cleanup
-          nix build .#local-git-branch-cleanup-tui
-
-  # Bash script tests
-  bash-tests:
-    name: Bash Tests (bats)
+  build:
+    name: Nix build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install bats
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bats
+      - uses: cachix/install-nix-action@v31
 
-      - name: Run bats tests
-        run: |
-          if compgen -G "bash/**/*.bats" > /dev/null; then
-            bats bash/**/*.bats
-          else
-            echo "No bats tests found, skipping"
-          fi
+      # `nix flake check` is not used: its pre-commit-check derivation runs clippy inside the
+      # sandbox, where cargo cannot reach crates.io. The lint job covers those hooks instead.
+      - name: Build packages
+        run: nix build --print-build-logs .#local-git-branch-cleanup .#local-git-branch-cleanup-tui

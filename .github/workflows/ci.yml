@@ -28,6 +28,13 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
 
+      # Pulls from the cache, and pushes everything the job builds when the token is available
+      # (it is not exposed to fork PRs, which then only read).
+      - uses: cachix/cachix-action@v17
+        with:
+          name: git-branch-manager
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
       - uses: actions/cache@v4
         with:
           path: |
@@ -50,6 +57,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: cachix/install-nix-action@v31
+
+      # Pulls from the cache, and pushes everything the job builds when the token is available
+      # (it is not exposed to fork PRs, which then only read).
+      - uses: cachix/cachix-action@v17
+        with:
+          name: git-branch-manager
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       - uses: actions/cache@v4
         with:
@@ -74,6 +88,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: cachix/install-nix-action@v31
+
+      # Pulls from the cache, and pushes everything the job builds when the token is available
+      # (it is not exposed to fork PRs, which then only read).
+      - uses: cachix/cachix-action@v17
+        with:
+          name: git-branch-manager
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       # `nix flake check` is not used: its pre-commit-check derivation runs clippy inside the
       # sandbox, where cargo cannot reach crates.io. The lint job covers those hooks instead.

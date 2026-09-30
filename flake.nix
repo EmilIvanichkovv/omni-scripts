@@ -1,4 +1,11 @@
 {
+  nixConfig = {
+    extra-substituters = [ "https://git-branch-manager.cachix.org" ];
+    extra-trusted-public-keys = [
+      "git-branch-manager.cachix.org-1:Cp9s0Krvz/Q9GXq0ZPfIsW473/tNIreMOZApP5LuHgE="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";

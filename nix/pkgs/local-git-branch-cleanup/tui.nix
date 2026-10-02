@@ -7,18 +7,20 @@
 }:
 
 let
-  src = craneLib.cleanCargoSource (lib.fileset.toSource {
-    root = ../../../rust;
-    fileset = lib.fileset.unions [
-      ../../../rust/Cargo.toml
-      ../../../rust/Cargo.lock
-      ../../../rust/local-git-branch-cleanup-tui/Cargo.toml
-      ../../../rust/local-git-branch-cleanup-tui/src
-      ../../../rust/local-git-branch-cleanup-tui/tests
-      ../../../rust/omni-lib/Cargo.toml
-      ../../../rust/omni-lib/src
-    ];
-  });
+  src = craneLib.cleanCargoSource (
+    lib.fileset.toSource {
+      root = ../../../rust;
+      fileset = lib.fileset.unions [
+        ../../../rust/Cargo.toml
+        ../../../rust/Cargo.lock
+        ../../../rust/local-git-branch-cleanup-tui/Cargo.toml
+        ../../../rust/local-git-branch-cleanup-tui/src
+        ../../../rust/local-git-branch-cleanup-tui/tests
+        ../../../rust/omni-lib/Cargo.toml
+        ../../../rust/omni-lib/src
+      ];
+    }
+  );
 
   commonArgs = {
     inherit src;

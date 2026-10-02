@@ -31,7 +31,12 @@ stdenvNoCC.mkDerivation rec {
     mkdir -p $out/bin
     makeWrapper $out/libexec/local-git-branch-cleanup/local-git-branch-cleanup.sh \
       $out/bin/local-git-branch-cleanup \
-      --prefix PATH : ${lib.makeBinPath [ git bash ]}
+      --prefix PATH : ${
+        lib.makeBinPath [
+          git
+          bash
+        ]
+      }
 
     runHook postInstall
   '';

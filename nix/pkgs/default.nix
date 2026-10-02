@@ -16,7 +16,12 @@
 
         # Rust TUI version (interactive)
         local-git-branch-cleanup-tui = pkgs.callPackage ./local-git-branch-cleanup/tui.nix {
-          inherit (pkgs) lib git sqlite pkg-config;
+          inherit (pkgs)
+            lib
+            git
+            sqlite
+            pkg-config
+            ;
           inherit craneLib;
         };
 

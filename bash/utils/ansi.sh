@@ -25,9 +25,12 @@ export CROSS="┼"
 
 # Function to draw a horizontal line
 print_line() {
-  printf "$1"
-  printf '%.0s'"$H_LINE" $(seq 1 $2)
-  printf "$3\n"
+  local i
+  printf '%s' "$1"
+  for ((i = 0; i < $2; i++)); do
+    printf '%s' "$H_LINE"
+  done
+  printf '%s\n' "$3"
 }
 
 print_boxed_new_line() {
@@ -35,7 +38,7 @@ print_boxed_new_line() {
 
   # Print the top line of the box
   printf "%s" "$V_LINE"
-  printf "%*s" $width ""
+  printf "%*s" "$width" ""
   printf "%s\n" "$V_LINE"
 }
 
@@ -44,16 +47,17 @@ print_boxed_text() {
   local width="$2"
 
   # Strip ANSI escape sequences to calculate the visible length of the text
-  local stripped_text=$(echo -e "$text" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
+  local stripped_text
+  stripped_text=$(echo -e "$text" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
   local visible_length=${#stripped_text}
 
   # Calculate padding
-  local padding=$(( (width - visible_length)  )) # No need to subtract for V_LINE
+  local padding=$((width - visible_length)) # No need to subtract for V_LINE
 
   # Print the text with V_LINE at the beginning and end
   printf "%s" "$V_LINE"
   printf "%b" "$text"
-  printf "%*s" $padding ""
+  printf "%*s" "$padding" ""
   printf "%s\n" "$V_LINE"
 }
 
@@ -62,7 +66,8 @@ print_boxed_centered_text() {
   local width="$2"
 
   # Strip ANSI escape sequences to calculate the visible length of the text
-  local stripped_text=$(echo -e "$text" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
+  local stripped_text
+  stripped_text=$(echo -e "$text" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
   local visible_length=${#stripped_text}
 
   # Calculate padding
@@ -70,9 +75,9 @@ print_boxed_centered_text() {
 
   # Print the text with V_LINE at the beginning and end
   printf "%s" "$V_LINE"
-  printf "%*s" $padding ""
+  printf "%*s" "$padding" ""
   printf "%b" "$text"
-  printf "%*s" $padding ""
+  printf "%*s" "$padding" ""
   printf "%s\n" "$V_LINE"
 }
 

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
+# shellcheck source=utils/path.sh
 source "${BASH_SOURCE%/*}/utils/path.sh"
+# shellcheck source=utils/user-interaction.sh
 source "${BASH_SOURCE%/*}/utils/user-interaction.sh"
+# shellcheck source=utils/ansi.sh
 source "${BASH_SOURCE%/*}/utils/ansi.sh"
 
 WIDTH=120
@@ -16,14 +19,13 @@ LOCAL_BRANCHES=()
 # - Do not have an upstream (remote tracking) branch, or
 # - Have an upstream branch that no longer exists (e.g. deleted on the remote)
 get_branches_with_no_remote_counterpart() {
-  for branch in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
+  while IFS= read -r branch; do
     # Check if the branch has a remote counterpart
-    _upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "$branch@{u}" 2>/dev/null)
-    if [ $? -ne 0 ]; then
+    if ! git rev-parse --abbrev-ref --symbolic-full-name "$branch@{u}" >/dev/null 2>&1; then
       # If the branch does not have a remote counterpart, add it to the LOCAL_BRANCHES array
       LOCAL_BRANCHES+=("$branch")
     fi
-  done
+  done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
 }
 
 print_header () {

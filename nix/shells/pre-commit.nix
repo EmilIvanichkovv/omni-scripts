@@ -9,6 +9,13 @@
     let
       pre-commit-check = inputs.git-hooks.lib.${system}.run {
         src = ../..;
+
+        # Vendored crates so clippy also works inside the `nix flake check` sandbox, which has no
+        # network access to crates.io.
+        settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {
+          lockFile = ../../rust/Cargo.lock;
+        };
+
         hooks = {
           # General hooks
           trailing-whitespace = {
@@ -53,10 +60,22 @@
           clippy = {
             enable = true;
             name = "cargo clippy";
-            entry = "bash -c 'cd rust && cargo clippy --all-targets --all-features -- -D warnings'";
             files = "\\.(rs|toml)$";
-            pass_filenames = false;
+            settings = {
+              allFeatures = true;
+              denyWarnings = true;
+              # Locally and in CI cargo may still need to download crates; the sandbox gets them
+              # through cargoDeps above instead.
+              offline = false;
+              extraArgs = "--manifest-path rust/Cargo.toml --workspace --all-targets";
+            };
           };
+
+          # Shell
+          shellcheck.enable = true;
+
+          # Nix formatting
+          nixfmt.enable = true;
 
           # Markdown formatting
           prettier = {
@@ -78,7 +97,8 @@
       _module.args.pre-commit-check = pre-commit-check;
 
       checks = {
-        inherit pre-commit-check;
+        # The vendored cargoDeps are checked against rust/Cargo.lock, not one at the repo root.
+        pre-commit-check = pre-commit-check.overrideAttrs { cargoRoot = "rust"; };
       };
     };
 }

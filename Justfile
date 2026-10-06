@@ -14,6 +14,10 @@ build:
 test-rust:
     cd rust && cargo test
 
+# Check Rust dependencies against the RustSec advisory database
+audit:
+    cd rust && cargo audit
+
 # Quick validation (format check only, no modifications)
 check:
     cd rust && cargo fmt --all -- --check

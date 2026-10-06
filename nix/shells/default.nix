@@ -26,6 +26,7 @@
             clippy
             rust-analyzer
             git
+            cargo-audit
 
             # Markdown formatting tools
             nodePackages.prettier

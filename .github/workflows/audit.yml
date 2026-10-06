@@ -1,0 +1,34 @@
+name: Security audit
+
+on:
+  push:
+    branches: [main]
+    paths: [rust/Cargo.lock, rust/**/Cargo.toml]
+  pull_request:
+    paths: [rust/Cargo.lock, rust/**/Cargo.toml]
+  # New advisories appear without any change in this repo.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: git-branch-manager
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Fails on vulnerabilities; unsound/unmaintained/yanked advisories are reported as warnings.
+      - name: Audit Rust dependencies
+        run: nix develop --command bash -c "cd rust && cargo audit"

@@ -61,8 +61,17 @@ fallback if creating a GitHub App is not possible (see section 6.4).
   `version.workspace = true`), `nix/pkgs/local-git-branch-cleanup/tui.nix` hard-codes `0.2.0`, the
   root `README.md` says "v0.2.0", and `tests/integration_test.rs` (`test_cli_version`) asserts
   `0.1.0`.
-- **No CI at all:** there is no `.github/workflows/` directory. Dependabot is active (open PRs #37,
-  #38, #39).
+- **CI exists (merged in `8986e3f`), Linux only and Nix-based:**
+  - `.github/workflows/ci.yml` runs on `pull_request`, `push: main` and `workflow_dispatch`. Jobs:
+    `lint` (`pre-commit run --all-files`: cargo fmt, clippy `-D warnings`, prettier, markdownlint,
+    yaml/toml checks), `test` (`cargo test --workspace --all-features` + bats), and `build`
+    (`nix build` of both packages). Every job runs inside `nix develop` with the Cachix cache
+    `git-branch-manager`, so CI uses the toolchain pinned in `flake.lock`.
+  - `.github/workflows/audit.yml` runs `cargo audit` on Cargo changes and weekly.
+  - `.github/dependabot.yml` updates `github-actions` (prefix `ci`) and `cargo` (prefix `build`)
+    weekly. Actions are pinned by major tag (`actions/checkout@v7`), not by SHA.
+  - Gaps for this project: nothing runs on macOS, Windows or Linux ARM, and nothing builds release
+    artifacts.
 - **No `LICENSE` file**, although Cargo metadata declares `MIT`.
 - No Cargo `repository` field.
 - The flake declares `systems = [ "x86_64-linux" ]` only. Nix stays a developer and Nix-user channel
@@ -97,10 +106,12 @@ minimum glibc, and do not substitute silently.
 ## 5. Architecture
 
 ```
-PR opened ──► ci.yml
-              ├─ quality   (ubuntu): fmt, clippy, commit-message lint
-              ├─ test      (ubuntu, macos, windows): cargo test
-              └─ release.yml (pr-run-mode = plan): dist plan
+PR opened ──► ci.yml (existing, Nix, ubuntu)
+              ├─ lint: pre-commit (fmt, clippy, prettier, ...) + commit-message lint  [new step]
+              ├─ test: cargo test + bats
+              ├─ build: nix build
+              └─ test-native (ubuntu-arm, macos, windows): cargo test   [new job]
+             release.yml (dist, pr-run-mode = plan): dist plan          [new]
 
 PR rebase-merged to main
       │
@@ -222,7 +233,7 @@ previous tag), using the App token, so the push is made as the App.
 
 - Create a GitHub App ("omni-scripts-release") installed only on this repo with **Contents: read &
   write**. Store `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` as repo secrets; mint the token with
-  `actions/create-github-app-token` (pinned by SHA).
+  `actions/create-github-app-token`.
 - Only `auto-release.yml` gets the App token. `release.yml` keeps `dist`'s generated, minimal
   `GITHUB_TOKEN` permissions.
 - If branch protection is added to `main` later, add the App to the bypass list. Otherwise the
@@ -236,11 +247,13 @@ previous tag), using the App token, so the push is made as the App.
 
 Because rebase-merge puts every PR commit on `main`, release quality depends on commit messages:
 
-- `ci.yml` `quality` job lints every commit in the PR range (`base..head`) against
+- A new step in the existing `ci.yml` `lint` job (PRs only) lints every commit in the PR range
+  (`base..head`) against
   `^(feat|fix|perf|refactor|build|ci|docs|test|chore|style|revert)(\([a-z0-9-]+\))?!?: .+`. Fail
   with a message naming the offending commit.
 - Add the same check as a `commit-msg` hook through `git-hooks.nix` so it fails locally first.
-- Dependabot already uses `build(deps): ...`, which passes.
+- Dependabot is configured with `prefix: build` / `prefix: ci` and `include: scope`, producing
+  `build(deps): ...` and `ci(deps): ...`, which pass.
 
 ### 6.6 Manual releases and experiments (`just` recipes)
 
@@ -361,7 +374,13 @@ Notes:
 - **`include`**: ship `README.md` and `LICENSE` inside each archive. Nothing else (no source, no
   `target/`, no test binaries).
 - `dist plan` fails CI if `release.yml` drifts from what the config would generate. Never hand-edit
-  `release.yml`; change config and rerun `dist init` / `dist generate`. Do not set `allow-dirty`.
+  `release.yml`; change config and rerun `dist init` / `dist generate`.
+- **Dependabot conflict:** the existing `github-actions` Dependabot entry will open PRs that bump
+  action versions inside the generated `release.yml`, which then fails `dist plan`. Exclude the file
+  from Dependabot (`exclude-paths: [".github/workflows/release.yml"]` on the `github-actions` entry;
+  verify the option is supported when implementing). Upgrade `dist` itself instead to get newer
+  actions. Use `allow-dirty = ["ci"]` only if excluding the file is impossible, because it stops
+  `dist` from regenerating the workflow.
 - Archive names stay `dist` defaults, e.g.
   `local-git-branch-cleanup-tui-x86_64-unknown-linux-musl.tar.xz`,
   `local-git-branch-cleanup-tui-x86_64-pc-windows-msvc.zip`, each with a `.sha256` file, plus
@@ -385,22 +404,34 @@ that works. When a second tool starts publishing releases, either:
 
 Record this as a constraint in the README's maintainer section.
 
-## 8. CI (`.github/workflows/ci.yml`)
+## 8. CI: extend the existing `ci.yml`
 
-No CI exists today; this adds it. Runs on `pull_request` and `push: main`.
+`ci.yml` already covers formatting, clippy, tests and the Nix build on Linux. Keep it as it is and
+add only what release-on-merge needs:
 
-| Job       | Runners                                                               | Steps                                                                                                                 |
-| --------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `quality` | `ubuntu-latest`                                                       | `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, commit-msg lint |
-| `test`    | `ubuntu-latest`, `ubuntu-24.04-arm`, `macos-latest`, `windows-latest` | `cargo test --workspace --all-features` (needs `git` configured with `user.name`/`user.email` for test repos)         |
-| `plan`    | (from `dist`'s `release.yml`, `pr-run-mode = plan`)                   | `dist plan`                                                                                                           |
+1. **`test-native` job (new)**: matrix `ubuntu-24.04-arm`, `macos-latest`, `windows-latest`. Runs
+   `cargo test --workspace --all-features` (configure `git` `user.name`/`user.email` first; the
+   tests create repos).
+   - These runners **cannot use the Nix dev shell**: the flake only declares `x86_64-linux`, and Nix
+     does not run natively on Windows. Use `dtolnay/rust-toolchain` with the same Rust version as
+     `flake.lock` (read it from `nix eval` in the existing jobs, or pin it in a
+     `rust-toolchain.toml` that the flake also reads, so the two cannot drift) plus
+     `Swatinem/rust-cache`.
+   - Optional later: add `aarch64-linux` and `aarch64-darwin` to the flake `systems` and run those
+     two through Nix like the other jobs. Windows stays on the plain toolchain regardless.
+   - Same timeouts, `permissions: contents: read` and major-tag action pinning as the existing jobs.
+2. **Commit-message lint step (new)** in the `lint` job, PR events only (section 6.5).
+3. **`dist plan`** comes from the generated `release.yml` (`pr-run-mode = "plan"`), not from
+   `ci.yml`.
+4. Make `lint`, `test`, `build` and `test-native` required checks once branch protection is turned
+   on.
 
-- CI uses `dtolnay/rust-toolchain` + `Swatinem/rust-cache`, **not** Nix. Nix only targets
-  `x86_64-linux`, and the release binaries are built without Nix anyway. A separate optional
-  `nix build` job can stay Linux-only.
-- Pin third-party actions by commit SHA. Workflow-level `permissions: contents: read`.
 - Windows will likely expose path, line-ending or shell assumptions in tests. Fix the code or tests;
   do not mark tests `#[cfg(unix)]` to get a green matrix unless the behavior really is Unix-only.
+- `audit.yml` stays unchanged. A failing audit does not block the auto-release (it is a separate
+  workflow); fix forward.
+- The release commit pushed by the GitHub App to `main` triggers `ci.yml` (`push: main`) like any
+  other commit. That is fine and adds a post-release check of the bumped tree.
 
 ## 9. Smoke tests (`.github/workflows/smoke-test.yml`)
 
@@ -433,7 +464,8 @@ merge, which ships `X.Y.Z+1`.
 | `LICENSE`                                                     | Add MIT license text (repo root)                                                                    |
 | `rust/dist-workspace.toml`                                    | Generated by `dist init` (section 7)                                                                |
 | `.github/workflows/release.yml`                               | Generated by `dist`; never hand-edited                                                              |
-| `.github/workflows/ci.yml`                                    | New (section 8)                                                                                     |
+| `.github/workflows/ci.yml`                                    | Existing; add `test-native` job and commit-lint step (section 8)                                    |
+| `.github/dependabot.yml`                                      | Exclude generated `release.yml` from `github-actions` updates (section 7)                           |
 | `.github/workflows/auto-release.yml`                          | New (section 6)                                                                                     |
 | `.github/workflows/smoke-test.yml`                            | New (section 9)                                                                                     |
 | `cliff.toml`                                                  | git-cliff config: conventional parsers, `[bump]` rules, changelog template with requirements footer |
@@ -475,8 +507,9 @@ Each phase is one PR, merged in order. Nothing releases until phase D merges.
 test via `CARGO_PKG_VERSION`, Nix version from Cargo, root README de-versioned, seed `CHANGELOG.md`.
 Exit: `cargo test` green; `--version` prints `0.2.0`; `nix build` still works.
 
-**Phase B: CI and cross-platform confidence.** Add `ci.yml` (section 8) and the commit-msg lint and
-hook. Fix whatever macOS/Windows/ARM test runs uncover. Exit: all four test runners green on the PR.
+**Phase B: cross-platform confidence.** Extend the existing `ci.yml` with the `test-native` matrix
+and the commit-msg lint step, and add the local commit-msg hook (section 8). Fix whatever
+macOS/Windows/ARM test runs uncover. Exit: all four test runners green on the PR.
 
 **Phase C: dist packaging (no publishing yet).** `dist init` with section 7 config, minus
 `post-announce-jobs`. Run `dist plan` and confirm all five targets plus both installers are listed.
@@ -505,7 +538,9 @@ OS.
 
 - [ ] `Cargo.toml`, `Cargo.lock`, `tui.nix` (derived), `--version` and the latest tag agree.
 - [ ] No test hard-codes a version.
-- [ ] `ci.yml` runs fmt, clippy, commit lint, and tests on Linux x64, Linux ARM, macOS and Windows.
+- [ ] Existing `ci.yml` jobs still pass; new `test-native` runs tests on Linux ARM, macOS and
+      Windows; commit lint runs on PRs.
+- [ ] Dependabot does not modify the generated `release.yml`.
 - [ ] `dist plan` runs on every PR; a PR cannot publish a release.
 - [ ] Merging an app-affecting PR produces, without human action: version bump commit, changelog
       entry, tag `local-git-branch-cleanup-tui-vX.Y.Z`, and a GitHub Release.

@@ -46,11 +46,11 @@ All of these can be added later without changing the architecture (see section 1
 | Pushing the bump commit and tag | `GITHUB_TOKEN`, personal access token, GitHub App installation token     | **GitHub App token**                      | Tags pushed with `GITHUB_TOKEN` do **not** trigger other workflows (GitHub docs), so `dist`'s tag-triggered release would never run. A GitHub App token is scoped to this repo, short-lived, and not tied to a person's account.                                                 |
 | Linux libc                      | glibc (`-gnu`), musl (`-musl`)                                           | **musl**                                  | Statically linked; runs on any distribution regardless of glibc version, including Alpine.                                                                                                                                                                                       |
 
-Rejected alternative for the token: switch `dist` to `dispatch-releases = true` and have the
-auto-release job start it with `gh workflow run` (allowed with `GITHUB_TOKEN`, because
-`workflow_dispatch` is an exception to the no-trigger rule). This avoids a secret but turns off
-tag-push releases and is less common, so `dist`'s own docs and examples cover it less. It is the
-fallback if creating a GitHub App is not possible (see section 6.4).
+Rejected alternatives for the token: (a) a personal access token, which acts as the maintainer's
+account and expires; (b) `dist` `dispatch-releases = true` started via `gh workflow run` with
+`GITHUB_TOKEN` (`workflow_dispatch` is exempt from the no-trigger rule). That avoids a secret but
+turns off tag-push releases and is the less common setup. The GitHub App was chosen on 2026-10-09
+(section 6.4).
 
 ## 3. Current state (facts the implementer must account for)
 
@@ -238,19 +238,63 @@ The script, then the workflow:
 The job checks out `main` with `fetch-depth: 0` and `fetch-tags: true` (it needs history to find the
 previous tag), using the App token, so the push is made as the App.
 
-### 6.4 Credentials
+### 6.4 Credentials: GitHub App (decided 2026-10-09)
 
-- Create a GitHub App ("omni-scripts-release") installed only on this repo with **Contents: read &
-  write**. Store `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` as repo secrets; mint the token with
-  `actions/create-github-app-token`.
-- Only `auto-release.yml` gets the App token. `release.yml` keeps `dist`'s generated, minimal
-  `GITHUB_TOKEN` permissions.
-- If branch protection is added to `main` later, add the App to the bypass list. Otherwise the
-  release commit push will be rejected.
-- Fallback (no App possible): `dist-workspace.toml` `dispatch-releases = true`; the auto-release job
-  pushes commit and tag with `GITHUB_TOKEN` (`contents: write`, `actions: write`) and then runs
-  `gh workflow run release.yml -f tag=local-git-branch-cleanup-tui-vX.Y.Z`. Verify against the
-  pinned `dist` version before choosing this.
+Why it is needed: pushes made with the built-in `GITHUB_TOKEN` do not start other workflows, so a
+tag pushed that way would never start `release.yml`. A token minted from a GitHub App does start
+them.
+
+**One-time setup (repo owner, manual, done in Phase D):**
+
+1. GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App**.
+   - Name: `omni-scripts-release` (must be globally unique; add a suffix if taken).
+   - Homepage URL: the repo URL. **Webhook: uncheck "Active"** (not needed).
+   - Repository permissions: **Contents: Read and write**. Metadata: Read-only (mandatory, set
+     automatically). Nothing else. The release commit only touches `Cargo.toml`, `Cargo.lock` and
+     `CHANGELOG.md`, so the "Workflows" permission is **not** needed.
+   - "Where can this GitHub App be installed?": **Only on this account**.
+2. After creating it, note the **App ID** and **Generate a private key** (downloads a `.pem`).
+3. **Install App** → only select repositories → `omni-scripts`.
+4. Repo → Settings → Secrets and variables → Actions:
+   - Variable `RELEASE_APP_ID` = App ID (not secret).
+   - Secret `RELEASE_APP_PRIVATE_KEY` = full contents of the `.pem`.
+5. Delete the local `.pem` file (or move it to a password manager). If it leaks, revoke it in the
+   App settings and generate a new one.
+
+**Usage in `auto-release.yml`:**
+
+```yaml
+- id: app-token
+  uses: actions/create-github-app-token@v2
+  with:
+    app-id: ${{ vars.RELEASE_APP_ID }}
+    private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+- uses: actions/checkout@v7
+  with:
+    token: ${{ steps.app-token.outputs.token }} # pushes are made as the App
+    fetch-depth: 0
+    fetch-tags: true
+- name: Configure bot identity
+  run: |
+    slug='${{ steps.app-token.outputs.app-slug }}'
+    id=$(gh api "/users/${slug}%5Bbot%5D" --jq .id)
+    git config user.name  "${slug}[bot]"
+    git config user.email "${id}+${slug}[bot]@users.noreply.github.com"
+  env:
+    GH_TOKEN: ${{ steps.app-token.outputs.token }}
+```
+
+Rules:
+
+- Only `auto-release.yml` mints the App token. `release.yml` keeps `dist`'s generated, minimal
+  `GITHUB_TOKEN` permissions. Workflow-level `permissions: contents: read` for everything else.
+- The token is minted per run and expires after one hour. There is no long-lived token to rotate.
+- Do not mint the token on `pull_request` events. `auto-release.yml` only runs on `push: main` and
+  `workflow_dispatch`, so fork PRs never see the secret.
+- If branch protection or rulesets are enabled on `main` later, add the App to the bypass list,
+  otherwise the release-commit push is rejected.
+- The loop guard (section 6.1) can also check `github.actor == '<app-slug>[bot]'` in addition to the
+  commit-message prefix.
 
 ### 6.5 Commit message discipline
 
@@ -526,14 +570,15 @@ Temporarily set `pr-run-mode = "upload"` on the PR to build every target in CI a
 artifacts; check musl builds and archive contents. Revert to `plan` before merge. Exit: every target
 builds; archives contain only the binary, `README.md` and `LICENSE`.
 
-**Phase D: auto-release + smoke tests.** Create the GitHub App and secrets (manual, repo owner). Add
-`cliff.toml`, `scripts/release/next-version.sh`, `auto-release.yml` (push and dispatch triggers),
-`smoke-test.yml`, the section 6.6 `just` recipes, and `dist`/`git-cliff` in the dev shell; wire
-`post-announce-jobs`. Before merging, rehearse on the PR branch: `just release-plan`, then
-`just release-pre rc` and check that the prerelease has all assets, the tag-pinned installers work,
-and smoke tests pass; delete it with `just release-pre-delete`. Exit: merging this PR triggers the
-bootstrap path → tag `local-git-branch-cleanup-tui-v0.2.0` → GitHub Release `0.2.0` with all assets
-→ smoke tests green on all runners.
+**Phase D: auto-release + smoke tests.** Create the GitHub App, variable and secret (section 6.4
+setup steps; manual, repo owner). Add `cliff.toml`, `scripts/release/next-version.sh`,
+`auto-release.yml` (push and dispatch triggers), `smoke-test.yml`, the section 6.6 `just` recipes,
+and `dist`/`git-cliff` in the dev shell; wire `post-announce-jobs`. Before merging, rehearse on the
+PR branch: `just release-plan`, then `just release-pre rc` and check that the prerelease has all
+assets, the tag-pinned installers work, and smoke tests pass; delete it with
+`just release-pre-delete`. Exit: merging this PR triggers the bootstrap path → tag
+`local-git-branch-cleanup-tui-v0.2.0` → GitHub Release `0.2.0` with all assets → smoke tests green
+on all runners.
 
 **Phase E: docs.** README installation rewrite (section 11) and maintainer section. Merging it
 should **not** release, because the docs paths are excluded. That doubles as a test of the path
@@ -585,9 +630,9 @@ observe that no release is made. Run both one-liners on a clean machine or VM pe
    make it straightforward.
 9. Decide the monorepo `latest` strategy (section 7.1) before a second tool ships releases.
 
-## 15. Open questions for the maintainer
+## 15. Decisions log
 
-1. Is a GitHub App acceptable, or should the `dispatch-releases` fallback (no extra secret) be used?
+1. ~~GitHub App vs. alternatives?~~ **Decided 2026-10-09: GitHub App** (section 6.4).
 2. ~~Release on `docs`/`test`/`chore`-only merges?~~ **Decided 2026-10-09: no.** Only releasable
    commit types ship a version (section 6.2).
 3. ~~Shorter binary name?~~ **Decided 2026-10-09:** keep `local-git-branch-cleanup-tui` for now. The

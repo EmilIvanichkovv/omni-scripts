@@ -25,9 +25,9 @@ from the earlier draft is removed.
    powershell -ExecutionPolicy Bypass -c "irm https://github.com/EmilIvanichkovv/omni-scripts/releases/latest/download/local-git-branch-cleanup-tui-installer.ps1 | iex"
    ```
 
-2. **Release on every merge.** Each PR merged to `main` that touches the application produces a new
-   version, a git tag, a changelog entry and a GitHub Release with prebuilt binaries, with no human
-   step after the merge.
+2. **Release on every merge.** Each PR merged to `main` that touches the application with at least
+   one releasable commit (section 6.2) produces a new version, a git tag, a changelog entry and a
+   GitHub Release with prebuilt binaries, with no human step after the merge.
 3. **Manual download stays first-class.** Every release carries plain archives plus SHA-256
    checksums, so users who refuse `curl | sh` can download, verify and run the binary themselves.
 
@@ -197,11 +197,20 @@ Rules (configured in `cliff.toml` `[bump]`):
 | -------------------------------------------------- | ---------------- | ------------------ |
 | any `feat!:`, `fix!:` or `BREAKING CHANGE:` footer | minor            | major              |
 | any `feat:`                                        | minor            | minor              |
-| anything else (`fix`, `perf`, `refactor`, `build`) | patch            | patch              |
+| any `fix`, `perf`, `refactor`, `build`, `revert`   | patch            | patch              |
+| only `docs`, `test`, `chore`, `ci`, `style`        | **no release**   | **no release**     |
 
-- "Anything else" must still bump a patch. git-cliff's auto mode returns the current version when
-  there is no `feat`/`fix`, so the script falls back to `git cliff --bump patch`. Every
-  app-affecting merge ships.
+- **Releasable types** are `feat`, `fix`, `perf`, `refactor`, `build` and `revert`, plus any commit
+  marked breaking. If the commits since the last stable tag contain none of these, the job logs "no
+  releasable changes" and exits successfully without a commit, tag or release. Those commits are not
+  lost: they are included in the next release's changelog range (the git-cliff template may hide
+  `test`/`chore`/`ci`/`style` entries from the rendered notes).
+- git-cliff's auto mode only bumps on `feat`/`fix`, so for `perf`, `refactor`, `build` and `revert`
+  the script falls back to `git cliff --bump patch`.
+- Dependabot `build(deps): ...` merges therefore ship a patch, because the binary changes.
+  Dependabot `ci(deps): ...` merges do not release.
+- `just release patch` (section 6.6) can still force a release when only non-releasable commits
+  landed.
 - **Bootstrap / manual override:** if no tag `local-git-branch-cleanup-tui-v<Cargo version>` exists
   yet, release the Cargo version **as is** and skip calculation. This makes the very first release
   `0.2.0` (set by hand in the implementation PR), and lets a maintainer force a version such as
@@ -531,8 +540,8 @@ should **not** release, because the docs paths are excluded. That doubles as a t
 filter.
 
 **Phase F: verify release-on-merge.** Merge a trivial `fix:` PR and observe `0.2.1` released
-end-to-end; then a `feat:` PR and observe `0.3.0`. Run both one-liners on a clean machine or VM per
-OS.
+end-to-end; then a `feat:` PR and observe `0.3.0`; then a `test:`-only PR touching the app and
+observe that no release is made. Run both one-liners on a clean machine or VM per OS.
 
 ## 13. Acceptance criteria
 
@@ -545,6 +554,8 @@ OS.
 - [ ] Merging an app-affecting PR produces, without human action: version bump commit, changelog
       entry, tag `local-git-branch-cleanup-tui-vX.Y.Z`, and a GitHub Release.
 - [ ] Merging a docs-only or non-app PR does not release.
+- [ ] Merging a PR whose commits are only `docs`/`test`/`chore`/`ci`/`style` does not release, even
+      if it touches app source.
 - [ ] Release commit does not trigger another release (no loop).
 - [ ] `just release-plan` prints the next version and changelog with no side effects.
 - [ ] `just release-pre` publishes a GitHub prerelease from a non-`main` branch without changing any
@@ -577,8 +588,8 @@ OS.
 ## 15. Open questions for the maintainer
 
 1. Is a GitHub App acceptable, or should the `dispatch-releases` fallback (no extra secret) be used?
-2. Should a `docs:`/`test:`/`chore:`-only merge that touches the app's source paths still ship a
-   patch release, or be skipped? The spec currently says **ship** (every merge releases).
+2. ~~Release on `docs`/`test`/`chore`-only merges?~~ **Decided 2026-10-09: no.** Only releasable
+   commit types ship a version (section 6.2).
 3. ~~Shorter binary name?~~ **Decided 2026-10-09:** keep `local-git-branch-cleanup-tui` for now. The
    tool and the repo layout will be renamed later (section 16).
 

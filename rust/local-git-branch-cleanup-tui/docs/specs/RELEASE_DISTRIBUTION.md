@@ -139,6 +139,19 @@ on:
       - "rust/Cargo.toml"
       - "rust/Cargo.lock"
       - "rust/dist-workspace.toml" # or wherever dist init puts config
+  workflow_dispatch: # manual trigger, see section 6.6
+    inputs:
+      bump:
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      prerelease:
+        description: "Prerelease label (e.g. rc, beta). Empty = stable release."
+        type: string
+        default: ""
+      dry-run:
+        type: boolean
+        default: false
 concurrency:
   group: auto-release
   cancel-in-progress: false # never cancel a half-done release; queue instead
@@ -163,7 +176,7 @@ Run git-cliff (pinned version) scoped to the app:
 ```bash
 git cliff --include-path 'rust/local-git-branch-cleanup-tui/**' \
           --include-path 'rust/Cargo.lock' \
-          --tag-pattern '^local-git-branch-cleanup-tui-v' \
+          --tag-pattern '^local-git-branch-cleanup-tui-v[0-9]+\.[0-9]+\.[0-9]+$' \
           --bumped-version
 ```
 
@@ -182,6 +195,8 @@ Rules (configured in `cliff.toml` `[bump]`):
   yet, release the Cargo version **as is** and skip calculation. This makes the very first release
   `0.2.0` (set by hand in the implementation PR), and lets a maintainer force a version such as
   `1.0.0` by editing `Cargo.toml` in a PR.
+- The tag pattern only matches **stable** tags, so prerelease tags (section 6.6) never become the
+  base for the next calculation.
 - Keep the logic in `scripts/release/next-version.sh` so it can be run and tested locally
   (`--dry-run` prints the computed version and changelog without writing).
 
@@ -226,6 +241,85 @@ Because rebase-merge puts every PR commit on `main`, release quality depends on 
   with a message naming the offending commit.
 - Add the same check as a `commit-msg` hook through `git-hooks.nix` so it fails locally first.
 - Dependabot already uses `build(deps): ...`, which passes.
+
+### 6.6 Manual releases and experiments (`just` recipes)
+
+Automatic release-on-merge is the default path, but a maintainer must be able to cut or rehearse a
+release by hand, especially while experimenting with the pipeline itself. Three levels, from no side
+effects to a real release:
+
+| Recipe                              | Where it runs             | Side effects                                                                   | Use it for                                                                                 |
+| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `just release-plan [bump]`          | Local                     | None                                                                           | See the next version, the changelog section and `dist plan` output                         |
+| `just release-build`                | Local                     | Writes archives to `rust/target/distrib/` only                                 | Build and inspect the host-platform archive (`dist build`); run the binary from it         |
+| `just release-pre [label] [ref]`    | GitHub Actions (dispatch) | Publishes a **prerelease** `X.Y.Z-<label>.N` from any branch; `main` untouched | Try the full pipeline (builds, installers, smoke tests) on a feature branch before merging |
+| `just release-pre-delete <version>` | Local (`gh`)              | Deletes that prerelease and its tag                                            | Clean up after an experiment                                                               |
+| `just release [bump]`               | GitHub Actions (dispatch) | Real stable release from `main`, same as a merge would produce                 | Release after merges the path filter skipped, or force a `minor`/`major` bump              |
+| `just release-status`               | Local (`gh`)              | None                                                                           | Show the latest `auto-release` and `release` runs and the latest tags                      |
+
+Recipe sketch (`Justfile`):
+
+```just
+app := "local-git-branch-cleanup-tui"
+
+# Show next version, changelog section and dist plan (no side effects)
+release-plan bump="auto":
+    scripts/release/next-version.sh --dry-run --bump {{bump}}
+    cd rust && dist plan
+
+# Build the host-platform release archive locally into rust/target/distrib/
+release-build:
+    cd rust && dist build --artifacts=local
+
+# Publish a prerelease from a branch (default: current branch), e.g. `just release-pre rc`
+release-pre label="rc" ref=`git branch --show-current`:
+    gh workflow run auto-release.yml --ref {{ref}} -f prerelease={{label}}
+    @echo "Follow with: just release-status"
+
+# Delete a prerelease and its tag, e.g. `just release-pre-delete 0.3.0-rc.1`
+release-pre-delete version:
+    @echo "{{version}}" | grep -q -- '-' || (echo "refusing: {{version}} is not a prerelease" && exit 1)
+    gh release delete "{{app}}-v{{version}}" --cleanup-tag --yes
+
+# Cut a stable release from main now (bump: auto|patch|minor|major)
+release bump="auto":
+    gh workflow run auto-release.yml --ref main -f bump={{bump}}
+
+release-status:
+    gh run list --workflow auto-release.yml --limit 3
+    gh run list --workflow release.yml --limit 3
+    git ls-remote --tags origin '{{app}}-v*' | tail -5
+```
+
+Workflow behavior for `workflow_dispatch`:
+
+- **`bump`** overrides the calculated bump (`auto` = section 6.2 rules). The bootstrap rule still
+  wins if the Cargo version has no tag yet.
+- **`dry-run: true`** runs the calculation and prints the version and changelog, then stops before
+  committing. This is the CI equivalent of `just release-plan`.
+- **Stable releases (`prerelease` empty) are refused unless `github.ref == refs/heads/main`.** A
+  stable release from a feature branch would put a tag on a commit `main` never sees.
+- **Prereleases** (`prerelease` set):
+  - Version = next calculated version + `-<label>.N`, where `N` is one more than the highest
+    existing `<app>-vX.Y.Z-<label>.*` tag (first one is `.1`).
+  - The bump commit (Cargo version + changelog) is created on a **detached** commit on top of the
+    chosen ref. Only the tag is pushed (`git push origin <tag>`). Neither `main` nor the branch is
+    updated, so experiments leave no trace in history.
+  - `dist` sees the semver prerelease suffix and publishes a GitHub **prerelease**. GitHub never
+    marks prereleases as "latest", so the public one-liners (`/releases/latest/...`) are not
+    affected.
+  - Install a prerelease with the tag-pinned installer URL:
+    `curl -LsSf https://github.com/EmilIvanichkovv/omni-scripts/releases/download/local-git-branch-cleanup-tui-v0.3.0-rc.1/local-git-branch-cleanup-tui-installer.sh | sh`
+    (PowerShell: same path with `installer.ps1`).
+  - Smoke tests run for prereleases too, but a failure only fails the run; it does not open an
+    issue.
+  - The immutability rule (section 9) applies to stable releases only. Prereleases may be deleted
+    with `just release-pre-delete`.
+- Manual dispatch shares the `auto-release` concurrency group, so it queues behind an in-flight
+  merge release instead of racing it.
+- `just release-build` needs `dist` locally. Add the pinned `dist` (and `git-cliff`) to the Nix dev
+  shell (`nix/shells/default.nix`) so the recipes work inside `nix develop` like the existing ones.
+  `dist build` builds only the host target; cross targets are covered by `release-pre`.
 
 ## 7. dist configuration
 
@@ -348,7 +442,8 @@ merge, which ships `X.Y.Z+1`.
 | `rust/local-git-branch-cleanup-tui/README.md`                 | Installation section reordered (section 11)                                                         |
 | `README.md` (root)                                            | Drop "v0.2.0"; say "Prebuilt releases for Linux, macOS and Windows" and show the one-liners         |
 | `nix/shells/pre-commit.nix`                                   | Add commit-msg conventional-commit hook                                                             |
-| `Justfile`                                                    | `release-dry-run` recipe → `scripts/release/next-version.sh --dry-run` and `dist plan`              |
+| `Justfile`                                                    | Release recipes from section 6.6                                                                    |
+| `nix/shells/default.nix`                                      | Add pinned `dist` and `git-cliff` to the dev shell                                                  |
 
 Must not be committed: `target/`, archives, binaries, App private key, any token.
 
@@ -368,7 +463,9 @@ Must not be committed: `target/`, archives, binaries, App private key, any token
 5. **Build from source (Cargo)** and **Nix**: existing instructions, unchanged, moved below.
 
 Add a short **Maintainers: how releases work** section: merge → automatic release; how to force a
-version (edit `Cargo.toml` in the PR); commits must be conventional; never re-upload assets.
+version (edit `Cargo.toml` in the PR, or `just release major`); how to experiment with
+`just release-plan` / `just release-pre`; commits must be conventional; never re-upload assets of a
+stable release.
 
 ## 12. Implementation phases
 
@@ -388,11 +485,13 @@ artifacts; check musl builds and archive contents. Revert to `plan` before merge
 builds; archives contain only the binary, `README.md` and `LICENSE`.
 
 **Phase D: auto-release + smoke tests.** Create the GitHub App and secrets (manual, repo owner). Add
-`cliff.toml`, `scripts/release/next-version.sh`, `auto-release.yml`, `smoke-test.yml`, wire
-`post-announce-jobs`. Run `next-version.sh --dry-run` locally against a scratch tag to prove the
-bump rules. Exit: merging this PR triggers the bootstrap path → tag
-`local-git-branch-cleanup-tui-v0.2.0` → GitHub Release `0.2.0` with all assets → smoke tests green
-on all runners.
+`cliff.toml`, `scripts/release/next-version.sh`, `auto-release.yml` (push and dispatch triggers),
+`smoke-test.yml`, the section 6.6 `just` recipes, and `dist`/`git-cliff` in the dev shell; wire
+`post-announce-jobs`. Before merging, rehearse on the PR branch: `just release-plan`, then
+`just release-pre rc` and check that the prerelease has all assets, the tag-pinned installers work,
+and smoke tests pass; delete it with `just release-pre-delete`. Exit: merging this PR triggers the
+bootstrap path → tag `local-git-branch-cleanup-tui-v0.2.0` → GitHub Release `0.2.0` with all assets
+→ smoke tests green on all runners.
 
 **Phase E: docs.** README installation rewrite (section 11) and maintainer section. Merging it
 should **not** release, because the docs paths are excluded. That doubles as a test of the path
@@ -412,6 +511,12 @@ OS.
       entry, tag `local-git-branch-cleanup-tui-vX.Y.Z`, and a GitHub Release.
 - [ ] Merging a docs-only or non-app PR does not release.
 - [ ] Release commit does not trigger another release (no loop).
+- [ ] `just release-plan` prints the next version and changelog with no side effects.
+- [ ] `just release-pre` publishes a GitHub prerelease from a non-`main` branch without changing any
+      branch, and `/releases/latest` still points at the last stable release.
+- [ ] `just release-pre-delete` removes a prerelease and its tag; it refuses stable versions.
+- [ ] `just release` produces a stable release from `main`; dispatching a stable release from
+      another branch is refused.
 - [ ] Release contains 5 archives, per-archive `.sha256`, `sha256.sum`, `installer.sh`,
       `installer.ps1`, `dist-manifest.json`.
 - [ ] Shell one-liner installs a working binary on Linux x64, Linux ARM and macOS (both arches).

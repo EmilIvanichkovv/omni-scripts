@@ -534,7 +534,7 @@ OS.
 4. macOS signing + notarization; Windows Authenticode signing (`dist` has `ssldotcom` support).
 5. `install-updater = true` for a `local-git-branch-cleanup-tui-update` command.
 6. `cargo binstall` metadata so `cargo binstall local-git-branch-cleanup-tui` pulls these archives.
-7. A short binary alias (e.g. `lgbc`).
+7. Tool rename and repo re-layout (planned). See section 16.
 8. Windows ARM64 (`aarch64-pc-windows-msvc`) via a custom build job, once `dist` or GitHub runners
    make it straightforward.
 9. Decide the monorepo `latest` strategy (section 7.1) before a second tool ships releases.
@@ -544,7 +544,34 @@ OS.
 1. Is a GitHub App acceptable, or should the `dispatch-releases` fallback (no extra secret) be used?
 2. Should a `docs:`/`test:`/`chore:`-only merge that touches the app's source paths still ship a
    patch release, or be skipped? The spec currently says **ship** (every merge releases).
-3. Keep the long binary name for the one-liners, or add a short alias in Phase A?
+3. ~~Shorter binary name?~~ **Decided 2026-10-09:** keep `local-git-branch-cleanup-tui` for now. The
+   tool and the repo layout will be renamed later (section 16).
+
+## 16. Designing for the upcoming rename
+
+The tool name and repository layout will change soon. Until then everything ships as
+`local-git-branch-cleanup-tui`. The pipeline should make that rename a small, mechanical change:
+
+- **One source for the name and path.** Workflows define the package name and its directory once
+  (workflow-level `env: APP: local-git-branch-cleanup-tui`,
+  `APP_DIR: rust/local-git-branch-cleanup-tui`), `scripts/release/next-version.sh` takes them as
+  arguments or env vars, and the `Justfile` uses the `app :=` variable. Do not hard-code the name in
+  scripts. The exceptions are `on.push.paths`, which cannot read variables, and the generated
+  `release.yml`.
+- **What a rename touches:** Cargo package/binary name, `dist` config (then `dist init` to
+  regenerate `release.yml`), the `APP`/`APP_DIR` values, the `paths` filters, `cliff.toml` tag
+  pattern, the README one-liners, and the Nix package.
+- **Tag continuity.** New tags will be `<new-name>-vX.Y.Z`. Before the first release under the new
+  name, create a tag `<new-name>-v<last version>` on the commit of the last old-name release so
+  version calculation continues from it instead of hitting the bootstrap rule. Keep the old tags and
+  releases.
+- **Old install URL.** `/releases/latest/download/local-git-branch-cleanup-tui-installer.sh` will
+  404 once the latest release has the new name. Either upload a final old-name installer that
+  installs the new tool, or document the new one-liner and accept the break. Decide this when the
+  rename happens.
+- **Repo move.** If the tool moves to its own repository, GitHub redirects the old repo's
+  `releases/...` URLs only if the repository itself is renamed or transferred. New-repo releases
+  start from the same version (carry the changelog over).
 
 ## References
 

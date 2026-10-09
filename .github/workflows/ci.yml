@@ -1,8 +1,7 @@
 name: CI
 
+# PRs only: a merged PR already passed these checks, so pushes to main do not rerun them.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 

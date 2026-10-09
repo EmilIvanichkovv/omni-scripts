@@ -20,7 +20,7 @@ crossterm = "0.29.0"
 ratatui = { version = "0.30.0", features = ["all-widgets"] }
 
 rusqlite = { version = "0.31", features = ["bundled"] }
-dirs = "5.0"
+dirs = "7.0"
 tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "sync", "time"] }
 
 async-trait = "0.1"

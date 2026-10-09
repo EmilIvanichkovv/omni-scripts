@@ -19,7 +19,7 @@ color-eyre = "0.6.5"
 crossterm = "0.29.0"
 ratatui = { version = "0.30.0", features = ["all-widgets"] }
 
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 dirs = "7.0"
 tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "sync", "time"] }
 

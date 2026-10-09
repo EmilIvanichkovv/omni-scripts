@@ -19,6 +19,8 @@ Technical documentation for developers and contributors:
 - **[Search Feature](specs/SEARCH_FEATURE.md)** — Branch search functionality specification
 - **[Bitbucket Support](specs/BITBUCKET_SUPPORT.md)** — Bitbucket Data Center PR integration
   specification
+- **[Release & Distribution](specs/RELEASE_DISTRIBUTION.md)** — Cross-platform binaries, one-line
+  installers, release on every merge
 
 ## 🧪 Testing
 

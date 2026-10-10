@@ -16,8 +16,9 @@ set -euo pipefail
 APP=${APP:-local-git-branch-cleanup-tui}
 APP_DIR=${APP_DIR:-rust/local-git-branch-cleanup-tui}
 
-# Commit types that change the shipped binary. Keep in sync with commit_parsers in cliff.toml.
-RELEASABLE='feat|fix|perf|refactor|build|revert'
+# Commit types that trigger a release. refactor does not (no behaviour change): it ships with the
+# next release that does, and its changelog entry with it (commit_parsers in cliff.toml).
+RELEASABLE='feat|fix|perf|build|revert'
 
 bump=auto
 prerelease=""

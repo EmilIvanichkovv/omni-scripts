@@ -407,10 +407,12 @@ See the **[Migration Guide](docs/guides/MIGRATION.md)** for detailed comparison 
 Releases are automatic. Every merge to `main` that touches this tool and contains a releasable
 commit publishes a new version: `feat` bumps the minor version, `fix`, `perf`, `build` and `revert`
 bump the patch version, and breaking changes (`feat!:` or a `BREAKING CHANGE:` footer) bump the
-major version (the minor version before 1.0). Merges with only `refactor`, `docs`, `test`, `chore`,
-`ci` or `style` commits do not release; `refactor` commits are listed in the next release's
-changelog. Commit subjects must follow Conventional Commits; CI checks every PR commit, since PRs
-are rebase-merged.
+major version (the minor version before 1.0). Merges with only `refactor`, `build(deps)` (dependency
+updates, such as Dependabot's), `docs`, `test`, `chore`, `ci` or `style` commits do not release;
+`refactor` and `build(deps)` commits are listed in the next release's changelog. For a dependency
+update users need right away, such as a security fix, use `fix(deps):` or run `just release patch`.
+Commit subjects must follow Conventional Commits; CI checks every PR commit, since PRs are
+rebase-merged.
 
 The `auto-release` workflow commits the version bump and changelog entry and pushes the
 `local-git-branch-cleanup-tui-vX.Y.Z` tag; the tag starts the `release` workflow (dist), which

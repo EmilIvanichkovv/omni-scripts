@@ -16,8 +16,9 @@ set -euo pipefail
 APP=${APP:-local-git-branch-cleanup-tui}
 APP_DIR=${APP_DIR:-rust/local-git-branch-cleanup-tui}
 
-# Commit types that trigger a release. refactor does not (no behaviour change): it ships with the
-# next release that does, and its changelog entry with it (commit_parsers in cliff.toml).
+# Commit types that trigger a release. refactor (no behaviour change) and build(deps) (dependency
+# updates, mostly Dependabot) do not: they ship with the next release that does, and their changelog
+# entries with it (commit_parsers in cliff.toml). Use fix(deps): for an update users need now.
 RELEASABLE='feat|fix|perf|build|revert'
 
 bump=auto
@@ -87,6 +88,8 @@ commit_level() {
             level=3
         elif [[ "$subject" =~ ^feat(\([a-z0-9-]+\))?: ]]; then
             level=$((level > 2 ? level : 2))
+        elif [[ "$subject" =~ ^build\(deps\): ]]; then
+            : # rides along with the next release
         elif [[ "$subject" =~ ^($RELEASABLE)(\([a-z0-9-]+\))?: ]]; then
             level=$((level > 1 ? level : 1))
         fi
@@ -118,7 +121,7 @@ else
     # An experiment should always be possible, even with only docs/test/chore commits.
     if [[ -n "$prerelease" ]] && ((level == 0)); then level=1; fi
     if ((level == 0)); then
-        finish false "$current" "no releasable commits since $previous ($RELEASABLE)"
+        finish false "$current" "no releasable commits since $previous ($RELEASABLE, except build(deps))"
         exit 0
     fi
     case "$level" in

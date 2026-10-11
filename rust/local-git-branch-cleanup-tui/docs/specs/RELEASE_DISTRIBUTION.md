@@ -193,24 +193,25 @@ git cliff --include-path 'rust/local-git-branch-cleanup-tui/**' \
 
 Rules (configured in `cliff.toml` `[bump]`):
 
-| Commits since last tag                                  | Bump while `0.x` | Bump once `>= 1.0` |
-| ------------------------------------------------------- | ---------------- | ------------------ |
-| any `feat!:`, `fix!:` or `BREAKING CHANGE:` footer      | minor            | major              |
-| any `feat:`                                             | minor            | minor              |
-| any `fix`, `perf`, `build`, `revert`                    | patch            | patch              |
-| only `refactor`, `docs`, `test`, `chore`, `ci`, `style` | **no release**   | **no release**     |
+| Commits since last tag                                                 | Bump while `0.x` | Bump once `>= 1.0` |
+| ---------------------------------------------------------------------- | ---------------- | ------------------ |
+| any `feat!:`, `fix!:` or `BREAKING CHANGE:` footer                     | minor            | major              |
+| any `feat:`                                                            | minor            | minor              |
+| any `fix`, `perf`, `build`, `revert`                                   | patch            | patch              |
+| only `refactor`, `build(deps)`, `docs`, `test`, `chore`, `ci`, `style` | **no release**   | **no release**     |
 
 - **Releasable types** are `feat`, `fix`, `perf`, `build` and `revert`, plus any commit marked
-  breaking. `refactor` changes no behaviour, so it does not release on its own; it is listed in the
-  changelog of the next release (decided 2026-10-12). If the commits since the last stable tag
-  contain none of these, the job logs "no releasable changes" and exits successfully without a
-  commit, tag or release. Those commits are not lost: they are included in the next release's
-  changelog range (the git-cliff template may hide `test`/`chore`/`ci`/`style` entries from the
-  rendered notes).
+  breaking. `refactor` changes no behaviour and `build(deps)` only updates dependencies, so neither
+  releases on its own; both are listed in the changelog of the next release (decided 2026-10-12).
+  For a dependency update users need now (a security fix), use `fix(deps):` or run
+  `just release patch`. If the commits since the last stable tag contain none of these, the job logs
+  "no releasable changes" and exits successfully without a commit, tag or release. Those commits are
+  not lost: they are included in the next release's changelog range (the git-cliff template may hide
+  `test`/`chore`/`ci`/`style` entries from the rendered notes).
 - git-cliff's auto mode only bumps on `feat`/`fix`, so for `perf`, `build` and `revert` the script
   falls back to `git cliff --bump patch`.
-- Dependabot `build(deps): ...` merges therefore ship a patch, because the binary changes.
-  Dependabot `ci(deps): ...` merges do not release.
+- Dependabot `build(deps): ...` and `ci(deps): ...` merges therefore do not release. Without this,
+  every weekly cargo update would ship a patch with nothing visible for users.
 - `just release patch` (section 6.6) can still force a release when only non-releasable commits
   landed.
 - **Bootstrap / manual override:** if no tag `local-git-branch-cleanup-tui-v<Cargo version>` exists
@@ -641,6 +642,8 @@ observe that no release is made. Run both one-liners on a clean machine or VM pe
    tool and the repo layout will be renamed later (section 16).
 4. ~~Release on `refactor`-only merges?~~ **Decided 2026-10-12: no.** A refactor changes no
    behaviour; it ships with the next release (section 6.2).
+5. ~~Release on dependency-only (`build(deps)`, Dependabot) merges?~~ **Decided 2026-10-12: no.**
+   They ship with the next release; urgent updates use `fix(deps):` or `just release patch`.
 
 ## 16. Designing for the upcoming rename
 

@@ -25,7 +25,8 @@ filter_commits = false
 sort_commits = "oldest"
 # Types that change the shipped binary get a group (the <!-- n --> prefix fixes the order and is
 # stripped on render); the rest are skipped. Whether to release at all is decided by RELEASABLE in
-# scripts/release/next-version.sh, which leaves out refactor: it is listed here, in the next release.
+# scripts/release/next-version.sh, which leaves out refactor and build(deps): they are listed here,
+# in the next release.
 commit_parsers = [
   { message = "^feat", group = "<!-- 0 -->Features" },
   { message = "^fix", group = "<!-- 1 -->Bug fixes" },

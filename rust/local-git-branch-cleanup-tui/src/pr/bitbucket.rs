@@ -669,6 +669,7 @@ impl BitbucketProvider {
         // Redirects stay disabled on purpose: a REST endpoint redirecting to
         // an SSO/login page must surface as a configuration/authentication
         // error, not be followed as if it were API JSON (spec 8.1).
+        crate::tls::install_crypto_provider();
         let client = reqwest::Client::builder()
             .default_headers(headers)
             .user_agent(concat!(

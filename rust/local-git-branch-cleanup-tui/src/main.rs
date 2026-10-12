@@ -3,6 +3,7 @@ mod cache;
 mod git;
 mod pr;
 mod remote;
+mod tls;
 mod ui;
 
 use app::App;
@@ -73,6 +74,7 @@ struct Args {
 async fn main() -> Result<()> {
     // Initialize error handling
     color_eyre::install()?;
+    tls::install_crypto_provider();
 
     let args = Args::parse();
 

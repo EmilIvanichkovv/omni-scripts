@@ -11,7 +11,9 @@ An interactive terminal user interface for cleaning up local Git branches that n
 counterparts.
 
 **Location:** [`rust/local-git-branch-cleanup-tui/`](rust/local-git-branch-cleanup-tui/) **Status:**
-✅ Production Ready
+✅ Production Ready, with
+[prebuilt releases](https://github.com/EmilIvanichkovv/omni-scripts/releases) for Linux, macOS and
+Windows
 
 **Key Features:**
 
@@ -22,10 +24,25 @@ counterparts.
 - 📊 Details pane with commit information
 - 🔍 Dry run mode for previewing deletions
 
+**Install (Linux, macOS):**
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EmilIvanichkovv/omni-scripts/releases/latest/download/local-git-branch-cleanup-tui-installer.sh | sh
+```
+
+**Install (Windows PowerShell):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/EmilIvanichkovv/omni-scripts/releases/latest/download/local-git-branch-cleanup-tui-installer.ps1 | iex"
+```
+
+Requires Git. See the [User Guide](rust/local-git-branch-cleanup-tui/README.md#installation) for
+manual downloads and checksums.
+
 **Quick Start (Nix):**
 
 ```bash
-# Run directly with Nix (recommended)
+# Run directly with Nix
 nix run .#local-git-branch-cleanup-tui
 
 # Or run the bash script version

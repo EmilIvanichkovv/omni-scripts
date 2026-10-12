@@ -58,6 +58,32 @@ jobs:
             exit 1
           fi
 
+  # PRs are rebase-merged, so every PR commit lands on main and feeds the release version.
+  commit-messages:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check Conventional Commits subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          status=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..HEAD"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/message"
+            if ! scripts/check-commit-message.sh "$RUNNER_TEMP/message"; then
+              echo "::error::Commit ${sha:0:7} does not follow Conventional Commits"
+              status=1
+            fi
+          done
+          exit "$status"
+
   test:
     name: Test
     runs-on: ubuntu-latest

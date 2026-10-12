@@ -67,8 +67,21 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/EmilIvanichkovv/om
 ```
 
 The installer picks the build for your platform and puts `local-git-branch-cleanup-tui` in
-`~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows), adding it to your `PATH` if needed. Open a
-new terminal afterwards. To uninstall, delete that file. Run the same command again to upgrade.
+`~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows), adding it to your `PATH` if needed. To
+uninstall, delete that file. Run the same command again to upgrade.
+
+The `PATH` change applies to new terminals only, so the terminal you installed from will not find
+the command yet. Open a new terminal, or run the `source` line the installer prints (Linux and
+macOS):
+
+```bash
+source ~/.config/local-git-branch-cleanup-tui/env.sh     # sh, bash, zsh
+source ~/.config/local-git-branch-cleanup-tui/env.fish   # fish
+```
+
+If the installer prints `~/.profile: No such file or directory`, `~/.profile` is most likely a
+symlink to a missing file (common with dotfile managers). The binary is still installed; fix or
+remove the link, or add `~/.local/bin` to your `PATH` yourself.
 
 ### Download manually
 

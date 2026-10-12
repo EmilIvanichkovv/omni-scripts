@@ -109,3 +109,31 @@ jobs:
       # does with an incremental cargo cache instead of a cold sandbox build.
       - name: Build packages
         run: nix build --print-build-logs .#local-git-branch-cleanup .#local-git-branch-cleanup-tui
+
+  # The jobs above run on x86_64 Linux through Nix. Release binaries also target macOS, Windows and
+  # Linux ARM, where the Nix dev shell is not available, so the tests run there with rustup and
+  # rust-toolchain.toml (kept equal to the flake's rustc by the lint job).
+  test-native:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Rust tests
+        run: cargo test -p local-git-branch-cleanup-tui --all-features

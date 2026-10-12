@@ -49,7 +49,70 @@ _Coming soon: Video demonstration of the TUI in action_
 
 ## Installation
 
-### Using Nix (Recommended)
+Prebuilt binaries are published for every release: Linux (x86_64, ARM64), macOS (Intel, Apple
+Silicon) and Windows (x86_64). You do not need Rust or Nix to use them.
+
+### Install with one command (recommended)
+
+Linux and macOS:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EmilIvanichkovv/omni-scripts/releases/latest/download/local-git-branch-cleanup-tui-installer.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/EmilIvanichkovv/omni-scripts/releases/latest/download/local-git-branch-cleanup-tui-installer.ps1 | iex"
+```
+
+The installer picks the build for your platform and puts `local-git-branch-cleanup-tui` in
+`~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows), adding it to your `PATH` if needed. Open a
+new terminal afterwards. To uninstall, delete that file. Run the same command again to upgrade.
+
+### Download manually
+
+If you prefer not to pipe a script into your shell, download the archive for your platform from the
+[latest release](https://github.com/EmilIvanichkovv/omni-scripts/releases/latest):
+
+| Platform              | Archive                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| Linux x86_64          | `local-git-branch-cleanup-tui-x86_64-unknown-linux-musl.tar.xz`  |
+| Linux ARM64           | `local-git-branch-cleanup-tui-aarch64-unknown-linux-musl.tar.xz` |
+| macOS (Intel)         | `local-git-branch-cleanup-tui-x86_64-apple-darwin.tar.xz`        |
+| macOS (Apple Silicon) | `local-git-branch-cleanup-tui-aarch64-apple-darwin.tar.xz`       |
+| Windows x86_64        | `local-git-branch-cleanup-tui-x86_64-pc-windows-msvc.zip`        |
+
+Each archive has a `.sha256` file next to it. Verify the download, extract it and run the binary:
+
+```bash
+sha256sum -c local-git-branch-cleanup-tui-x86_64-unknown-linux-musl.tar.xz.sha256   # Linux
+shasum -a 256 -c local-git-branch-cleanup-tui-aarch64-apple-darwin.tar.xz.sha256    # macOS
+```
+
+```powershell
+Get-FileHash local-git-branch-cleanup-tui-x86_64-pc-windows-msvc.zip -Algorithm SHA256   # Windows
+```
+
+The Linux binaries are statically linked and run on any distribution.
+
+### Requirements
+
+- **Git** on your `PATH`.
+- Optional: [GitHub CLI](https://cli.github.com/) (`gh`) for `--github`, or a Bitbucket Data Center
+  HTTP access token in `BITBUCKET_TOKEN` for `--bitbucket`.
+
+### Known limitations
+
+- Binaries are not code-signed yet. On macOS, a binary downloaded through a browser may be blocked
+  by Gatekeeper; run `xattr -d com.apple.quarantine local-git-branch-cleanup-tui` once. (The
+  one-command installer is not affected.) On Windows, SmartScreen may warn about a downloaded
+  `.exe`.
+- Windows on ARM runs the x86_64 build through emulation; there is no native ARM64 build.
+
+### Build from source
+
+With Nix:
 
 ```bash
 # Run directly (no build needed)
@@ -59,7 +122,7 @@ nix run github:EmilIvanichkovv/omni-scripts#local-git-branch-cleanup-tui
 nix run .#local-git-branch-cleanup-tui
 ```
 
-### Using Cargo
+With Cargo:
 
 ```bash
 # Enter development shell (from repo root)

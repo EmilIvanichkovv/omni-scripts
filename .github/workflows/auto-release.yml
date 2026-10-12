@@ -1,0 +1,111 @@
+name: Auto release
+
+# Releases local-git-branch-cleanup-tui after every merge to main with releasable commits (rules in
+# scripts/release/next-version.sh). It pushes a version bump commit and a tag; the tag starts
+# release.yml (dist), which builds the binaries and publishes the GitHub Release.
+# Run it by hand for a forced bump, a prerelease from any branch, or a dry run (`just release-*`).
+on:
+  push:
+    branches: [main]
+    # Workflow paths cannot use variables: keep in sync with APP_DIR and next-version.sh.
+    paths:
+      - rust/local-git-branch-cleanup-tui/**
+      - "!rust/local-git-branch-cleanup-tui/docs/**"
+      - rust/Cargo.toml
+      - rust/Cargo.lock
+      - dist-workspace.toml
+      - rust-toolchain.toml
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (auto = from commit types)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      prerelease:
+        description: Prerelease label such as rc or beta (empty = stable release, main only)
+        type: string
+        default: ""
+      dry-run:
+        description: Only print the version and changelog entry
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One release at a time; a queued run picks up whatever the previous one pushed.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+env:
+  APP: local-git-branch-cleanup-tui
+  APP_DIR: rust/local-git-branch-cleanup-tui
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The release commit also matches the path filter; do not release it again.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.head_commit.message, 'chore(release): ')
+    steps:
+      - name: Check inputs
+        if: >-
+          github.event_name == 'workflow_dispatch' && inputs.prerelease == '' &&
+          !inputs.dry-run && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Stable releases come from main only. Pass a prerelease label to release from $GITHUB_REF_NAME."
+          exit 1
+
+      # Tags pushed with GITHUB_TOKEN do not start other workflows, so publishing uses a token of
+      # the release GitHub App (setup: rust/local-git-branch-cleanup-tui/docs/specs/
+      # RELEASE_DISTRIBUTION.md, section 6.4). Dry runs do not push and need no App.
+      - id: app-token
+        if: ${{ !inputs.dry-run }}
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # The branch head rather than the triggering commit, so a queued run sees earlier releases.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      - uses: cachix/install-nix-action@v31
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: git-branch-manager
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Configure release commit identity
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${id}+${SLUG}[bot]@users.noreply.github.com"
+
+      - name: Release
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          DRY_RUN: ${{ inputs.dry-run || false }}
+        run: |
+          args=(--bump "$BUMP")
+          if [ -n "$PRERELEASE" ]; then args+=(--prerelease "$PRERELEASE"); fi
+          if [ "$DRY_RUN" = true ]; then
+            nix develop --command scripts/release/next-version.sh "${args[@]}" --dry-run
+          else
+            nix develop --command scripts/release/publish.sh "${args[@]}"
+          fi

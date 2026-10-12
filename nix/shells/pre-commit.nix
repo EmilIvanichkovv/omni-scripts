@@ -71,6 +71,15 @@
             };
           };
 
+          # Release versions are computed from commit subjects, so they must be Conventional
+          # Commits. CI runs the same script on every PR commit.
+          commit-message = {
+            enable = true;
+            name = "conventional commit message";
+            entry = "scripts/check-commit-message.sh --local";
+            stages = [ "commit-msg" ];
+          };
+
           # Shell
           shellcheck.enable = true;
 

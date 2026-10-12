@@ -81,18 +81,29 @@ pub struct PrCache {
     stats: CacheStats,
 }
 
+/// `$XDG_CACHE_HOME` when set to an absolute path, otherwise the platform cache directory.
+/// `dirs::cache_dir()` reads `XDG_CACHE_HOME` on Linux only; honouring it everywhere lets users
+/// move the cache and lets tests isolate it on macOS and Windows too.
+fn cache_root() -> Option<std::path::PathBuf> {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(dirs::cache_dir)
+}
+
 impl PrCache {
     // -----------------------------------------------------------------------
     // Construction
     // -----------------------------------------------------------------------
 
-    /// Open (or create) the on-disk cache database at the XDG cache path.
+    /// Open (or create) the on-disk cache database.
     ///
     /// Priority:
-    /// 1. `$XDG_CACHE_HOME/omni-scripts/pr-cache.db`
-    /// 2. `$HOME/.cache/omni-scripts/pr-cache.db`
+    /// 1. `$XDG_CACHE_HOME/omni-scripts/pr-cache.db`, on every platform
+    /// 2. the platform cache directory: `~/.cache` on Linux, `~/Library/Caches` on macOS,
+    ///    `%LOCALAPPDATA%` on Windows, plus `omni-scripts/pr-cache.db`
     pub fn open(repository: &str, ttl: Duration) -> Result<Self> {
-        let cache_dir = dirs::cache_dir()
+        let cache_dir = cache_root()
             .ok_or_else(|| color_eyre::eyre::eyre!("Cannot determine cache directory"))?
             .join("omni-scripts");
 

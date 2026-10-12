@@ -579,6 +579,27 @@ async fn test_bitbucket_fetch_only_exits_zero_on_success() {
 }
 
 #[tokio::test]
+async fn test_pr_cache_is_created_under_xdg_cache_home() {
+    // On every platform, so tests never share (or touch) the real user cache.
+    let repo = TestRepo::new();
+    let server = wiremock::MockServer::start().await;
+    mount_valid_repo(&server).await;
+
+    let mut cmd = bitbucket_cmd(&repo);
+    cmd.env("BITBUCKET_TOKEN", "fake-test-token");
+    cmd.arg("--fetch-only")
+        .args(bitbucket_mock_args(&server.uri()));
+    let _ = cmd.output().expect("failed to run the binary");
+
+    let db = repo
+        .path()
+        .join(".cache")
+        .join("omni-scripts")
+        .join("pr-cache.db");
+    assert!(db.exists(), "expected the PR cache at {}", db.display());
+}
+
+#[tokio::test]
 async fn test_bitbucket_fetch_only_exits_nonzero_on_lookup_failure() {
     let repo = TestRepo::new();
     let server = wiremock::MockServer::start().await;

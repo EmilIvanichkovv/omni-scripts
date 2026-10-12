@@ -1,0 +1,94 @@
+name: Smoke test
+
+# Called by release.yml (dist post-announce job, see dist-workspace.toml) once a release is
+# published: installs it the way users do, on every supported platform, and runs it.
+# A failure fails the release run but does not unpublish anything. Releases are immutable, so fix
+# forward with the next merge.
+on:
+  workflow_call:
+    inputs:
+      plan:
+        description: dist plan manifest (JSON)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      APP: ${{ fromJson(inputs.plan).releases[0].app_name }}
+      VERSION: ${{ fromJson(inputs.plan).releases[0].app_version }}
+      TAG: ${{ fromJson(inputs.plan).announcement_tag }}
+      REPO: ${{ github.repository }}
+    steps:
+      # Pinned to this release's tag rather than /releases/latest, so a newer release cannot race.
+      - name: Install with the shell installer
+        if: runner.os != 'Windows'
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/$REPO/releases/download/$TAG/$APP-installer.sh" | sh
+
+      - name: Install with the PowerShell installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: irm "https://github.com/$env:REPO/releases/download/$env:TAG/$env:APP-installer.ps1" | iex
+
+      - name: Add the install directory to PATH
+        run: |
+          dir="$HOME/.local/bin"
+          ls -l "$dir"
+          if [ "$RUNNER_OS" = Windows ]; then dir=$(cygpath -w "$dir"); fi
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: Check the installed version
+        run: |
+          out=$("$APP" --version)
+          echo "$out"
+          [ "$out" = "$APP $VERSION" ]
+
+      - name: Show help
+        run: $APP --help
+
+      - name: Dry run in a scratch repository
+        run: |
+          cd "$(mktemp -d)"
+          git init -q -b main
+          git -c user.name=smoke -c user.email=smoke@example.com commit -q --allow-empty -m init
+          git branch smoke
+          echo n | "$APP" --cli --dry-run
+          git rev-parse -q --verify refs/heads/smoke
+
+      # The installer picks the arm64 build on Apple Silicon; check the Intel build under Rosetta.
+      - name: Intel build under Rosetta, from the archive
+        if: runner.os == 'macOS'
+        run: |
+          /usr/bin/pgrep -q oahd || sudo softwareupdate --install-rosetta --agree-to-license
+          archive="$APP-x86_64-apple-darwin.tar.xz"
+          curl -LsSfO "https://github.com/$REPO/releases/download/$TAG/$archive"
+          curl -LsSfO "https://github.com/$REPO/releases/download/$TAG/$archive.sha256"
+          shasum -a 256 -c "$archive.sha256"
+          tar -xJf "$archive"
+          arch -x86_64 "./${archive%.tar.xz}/$APP" --version
+
+      # The manual path from the README: download, verify the checksum, extract, run.
+      - name: Manual download with checksum
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          archive="$APP-x86_64-unknown-linux-musl.tar.xz"
+          curl -LsSfO "https://github.com/$REPO/releases/download/$TAG/$archive"
+          curl -LsSfO "https://github.com/$REPO/releases/download/$TAG/$archive.sha256"
+          sha256sum -c "$archive.sha256"
+          tar -xJf "$archive"
+          "./${archive%.tar.xz}/$APP" --version

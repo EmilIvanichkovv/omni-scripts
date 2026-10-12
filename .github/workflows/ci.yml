@@ -48,6 +48,16 @@ jobs:
       - name: Run pre-commit hooks
         run: nix develop --command pre-commit run --all-files --show-diff-on-failure
 
+      # Non-Nix builds (native test runners, dist release builds) use rust-toolchain.toml.
+      - name: Check rust-toolchain.toml matches the flake's rustc
+        run: |
+          want=$(nix develop --command rustc --version | awk '{print $2}')
+          have=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          if [ "$want" != "$have" ]; then
+            echo "::error file=rust-toolchain.toml::channel is $have, flake.lock pins rustc $want"
+            exit 1
+          fi
+
   test:
     name: Test
     runs-on: ubuntu-latest

@@ -1,0 +1,7 @@
+# Toolchain for rustup-based builds: the native CI test runners and the dist release builds.
+# Nix ignores this file and uses rustc from flake.lock; CI fails if the two versions differ.
+# It sits at the repo root, not in rust/, so every rustup call in the repo sees it: dist runs
+# `rustup target add` from the root and cargo from rust/, and both must use the same toolchain.
+[toolchain]
+channel = "1.92.0"
+components = ["rustfmt", "clippy"]

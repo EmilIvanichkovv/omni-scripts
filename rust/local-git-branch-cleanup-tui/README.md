@@ -389,6 +389,41 @@ This tool replaces `bash/local-git-branch-cleanup.sh` with improvements:
 
 See the **[Migration Guide](docs/guides/MIGRATION.md)** for detailed comparison and migration steps.
 
+## Releases (maintainers)
+
+Releases are automatic. Every merge to `main` that touches this tool and contains a releasable
+commit publishes a new version: `feat` bumps the minor version, `fix`, `perf`, `refactor`, `build`
+and `revert` bump the patch version, and breaking changes (`feat!:` or a `BREAKING CHANGE:` footer)
+bump the major version (the minor version before 1.0). Merges with only `docs`, `test`, `chore`,
+`ci` or `style` commits do not release. Commit subjects must follow Conventional Commits; CI checks
+every PR commit, since PRs are rebase-merged.
+
+The `auto-release` workflow commits the version bump and changelog entry and pushes the
+`local-git-branch-cleanup-tui-vX.Y.Z` tag; the tag starts the `release` workflow (dist), which
+builds the binaries, publishes the GitHub Release, and smoke tests the installers on every platform.
+
+Manual commands (run inside `nix develop`):
+
+| Command                          | What it does                                                         |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `just release-plan [bump]`       | Show the next version, its changelog entry and the dist plan (local) |
+| `just release-dry-run`           | Same decision made by the workflow on GitHub; pushes nothing         |
+| `just release-pre [label] [ref]` | Publish a prerelease (e.g. `0.3.0-rc.1`) from a pushed branch        |
+| `just release-pre-delete <ver>`  | Delete a prerelease and its tag                                      |
+| `just release [bump]`            | Cut a stable release from `main` now, optionally forcing the bump    |
+| `just release-status`            | Show the latest release runs and tags                                |
+
+- To force a specific version (e.g. `1.0.0`), set it in `Cargo.toml` in a PR; it is released as is.
+- Prereleases never change a branch and are never marked "latest", so the install commands above
+  keep pointing at the last stable release. Install one with its tag in the URL:
+  `.../releases/download/local-git-branch-cleanup-tui-v0.3.0-rc.1/local-git-branch-cleanup-tui-installer.sh`.
+- Stable releases are never replaced or deleted. If one is broken, fix forward with the next merge.
+- The one-command install uses `/releases/latest/`, which is the newest release in the whole
+  repository. Once another tool here publishes releases, they must not be marked "latest" (or the
+  install URL must change).
+
+Full design: [Release and distribution spec](docs/specs/RELEASE_DISTRIBUTION.md).
+
 ## License
 
 Part of the omni-scripts repository.

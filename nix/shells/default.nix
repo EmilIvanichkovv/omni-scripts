@@ -35,6 +35,8 @@
               # Release packaging (generates .github/workflows/release.yml; see
               # rust/local-git-branch-cleanup-tui/docs/specs/RELEASE_DISTRIBUTION.md)
               cargo-dist
+              # Renders changelog entries for releases (scripts/release/next-version.sh)
+              git-cliff
 
               # Markdown formatting tools
               nodePackages.prettier

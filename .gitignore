@@ -5,3 +5,6 @@ result
 
 # Pre-commit
 .pre-commit-config.yaml
+
+# dist output (dist runs from the repo root)
+/target

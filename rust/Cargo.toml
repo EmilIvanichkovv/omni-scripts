@@ -37,3 +37,8 @@ wiremock = "0.6"
 
 # Internal crates
 omni-lib = { path = "omni-lib" }
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

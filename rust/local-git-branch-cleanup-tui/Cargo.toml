@@ -30,3 +30,8 @@ tempfile.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
 wiremock.workspace = true
+
+[package.metadata.dist]
+# README.md and CHANGELOG.md are picked up from this directory automatically; the license lives
+# at the repository root.
+include = ["../../LICENSE"]

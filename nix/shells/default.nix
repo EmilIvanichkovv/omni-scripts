@@ -11,55 +11,63 @@
       ...
     }:
     {
-      devShells = {
-        default = pkgs.mkShell {
-          packages = with pkgs; [
-            jq
+      devShells =
+        let
+          cargo-dist = pkgs.callPackage ../pkgs/cargo-dist.nix { };
+        in
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              jq
 
-            # Bash Automated Testing System
-            bats
+              # Bash Automated Testing System
+              bats
 
-            # Rust toolchain
-            cargo
-            rustc
-            rustfmt
-            clippy
-            rust-analyzer
-            git
-            cargo-audit
+              # Rust toolchain
+              cargo
+              rustc
+              rustfmt
+              clippy
+              rust-analyzer
+              git
+              cargo-audit
 
-            # Markdown formatting tools
-            nodePackages.prettier
-            nodePackages.markdownlint-cli
+              # Release packaging (generates .github/workflows/release.yml; see
+              # rust/local-git-branch-cleanup-tui/docs/specs/RELEASE_DISTRIBUTION.md)
+              cargo-dist
 
-            # Pre-commit hooks
-            pre-commit
+              # Markdown formatting tools
+              nodePackages.prettier
+              nodePackages.markdownlint-cli
 
-            # Task runner
-            just
+              # Pre-commit hooks
+              pre-commit
 
-            # Database inspection
-            sqlite
-          ];
+              # Task runner
+              just
 
-          RUST_BACKTRACE = 1;
+              # Database inspection
+              sqlite
+            ];
 
-          inherit (pre-commit-check) shellHook;
+            RUST_BACKTRACE = 1;
+
+            inherit (pre-commit-check) shellHook;
+          };
+
+          rust-tui = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              cargo
+              rustc
+              rustfmt
+              clippy
+              rust-analyzer
+              git
+              sqlite
+            ];
+
+            RUST_BACKTRACE = 1;
+          };
         };
-
-        rust-tui = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            cargo
-            rustc
-            rustfmt
-            clippy
-            rust-analyzer
-            git
-            sqlite
-          ];
-
-          RUST_BACKTRACE = 1;
-        };
-      };
     };
 }

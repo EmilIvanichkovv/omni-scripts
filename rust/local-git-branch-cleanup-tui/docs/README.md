@@ -21,6 +21,7 @@ Technical documentation for developers and contributors:
   specification
 - **[Release & Distribution](specs/RELEASE_DISTRIBUTION.md)** — Cross-platform binaries, one-line
   installers, release on every merge
+- **[Self-Update](specs/SELF_UPDATE.md)** — `update` command and update-available notice (proposed)
 
 ## 🧪 Testing
 

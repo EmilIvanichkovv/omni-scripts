@@ -426,4 +426,4 @@ Full design: [Release and distribution spec](docs/specs/RELEASE_DISTRIBUTION.md)
 
 ## License
 
-Part of the omni-scripts repository.
+MIT. See [LICENSE](../../LICENSE). Part of the omni-scripts repository.

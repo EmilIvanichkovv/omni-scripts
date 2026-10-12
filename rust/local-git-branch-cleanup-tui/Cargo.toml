@@ -5,6 +5,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Interactive TUI for cleaning up local git branches"
+repository = "https://github.com/EmilIvanichkovv/omni-scripts"
+homepage = "https://github.com/EmilIvanichkovv/omni-scripts/tree/main/rust/local-git-branch-cleanup-tui"
+readme = "README.md"
 
 [dependencies]
 chrono.workspace = true

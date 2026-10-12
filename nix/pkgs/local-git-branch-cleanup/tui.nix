@@ -22,11 +22,14 @@ let
     }
   );
 
+  # Name and version come from Cargo.toml, the single source of the TUI's version.
+  crateInfo = craneLib.crateNameFromCargoToml {
+    cargoToml = ../../../rust/local-git-branch-cleanup-tui/Cargo.toml;
+  };
+
   commonArgs = {
     inherit src;
-
-    pname = "local-git-branch-cleanup-tui";
-    version = "0.2.0";
+    inherit (crateInfo) pname version;
 
     cargoExtraArgs = "-p local-git-branch-cleanup-tui";
 

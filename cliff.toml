@@ -1,0 +1,36 @@
+# git-cliff config for release changelog entries. scripts/release/next-version.sh decides
+# whether to release and which version; git-cliff only renders the entry, which is inserted into
+# the tool's CHANGELOG.md and becomes the GitHub Release notes (dist matches the heading).
+
+[changelog]
+# The tag passed with --tag is "<tool>-v<version>"; the heading shows just the version.
+body = """
+## {{ version | split(pat="-v") | last }} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}\
+{% if commit.breaking %} (**breaking**){% endif %}
+{%- endfor %}
+{% endfor %}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = true
+filter_commits = false
+sort_commits = "oldest"
+# Releasable types get a group (the <!-- n --> prefix fixes the order and is stripped on
+# render); the rest are skipped. Keep in sync with RELEASABLE in scripts/release/next-version.sh.
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug fixes" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^refactor", group = "<!-- 3 -->Refactoring" },
+  { message = "^build", group = "<!-- 4 -->Build and dependencies" },
+  { message = "^revert", group = "<!-- 5 -->Reverts" },
+  { message = ".*", skip = true },
+]

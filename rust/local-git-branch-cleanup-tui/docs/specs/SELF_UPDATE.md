@@ -1,9 +1,9 @@
 # Self-Update Specification
 
-Status: Proposed. Target project: `rust/local-git-branch-cleanup-tui`. Repository:
-`EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`, 2026-10-12. Builds on
-[Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries, installers and install
-receipts this feature relies on.
+Status: Accepted (decisions in section 9). Target project: `rust/local-git-branch-cleanup-tui`.
+Repository: `EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`,
+2026-10-12. Builds on [Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries,
+installers and install receipts this feature relies on.
 
 ## 1. Goals
 
@@ -268,15 +268,13 @@ Each phase is its own PR with atomic commits.
 5. The dist binary grows by at most 1 MB.
 6. All five dist targets still build.
 
-## 9. Open questions
+## 9. Decisions log
 
-1. **Notice on by default?** Recommended: yes, with the 24-hour cache and the opt-outs above. Most
-   command-line tools that check for updates (`gh`, `npm`) do the same. The alternative is off by
-   default, which few users would turn on.
-2. **Command form:** subcommand `update` (recommended, as `rustup update` and `uv self update`), or
-   flags `--update` / `--check-update` like the existing flags.
-3. **Exit code for "update available":** 10 is an arbitrary choice; any non-zero code other than 1
-   works.
+1. ~~Notice on by default?~~ **Decided 2026-10-12: yes**, with the 24-hour cache and the opt-outs in
+   section 4.2, like `gh` and `npm`.
+2. ~~Command form?~~ **Decided 2026-10-12: an `update` subcommand**, with `update --check` to only
+   report (section 5.1), as `rustup update` and `uv self update`.
+3. ~~Exit code for "update available"?~~ **Decided 2026-10-12: 10** (section 4.1).
 
 ## 10. Risks
 

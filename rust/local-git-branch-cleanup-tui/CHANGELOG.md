@@ -3,6 +3,16 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.2.1 - 2026-10-12
+
+### Bug fixes
+
+- **tui:** Honour XDG_CACHE_HOME for the PR cache on macOS and Windows
+
+### Build and dependencies
+
+- **deps:** Move reqwest to 0.13 with the ring crypto provider
+
 ## 0.2.0
 
 First version published as prebuilt binaries for Linux, macOS and Windows.

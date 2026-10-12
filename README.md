@@ -11,7 +11,7 @@ An interactive terminal user interface for cleaning up local Git branches that n
 counterparts.
 
 **Location:** [`rust/local-git-branch-cleanup-tui/`](rust/local-git-branch-cleanup-tui/) **Status:**
-✅ Production Ready (v0.2.0)
+✅ Production Ready
 
 **Key Features:**
 

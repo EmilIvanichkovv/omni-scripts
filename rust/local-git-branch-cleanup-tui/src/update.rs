@@ -193,11 +193,83 @@ fn looks_rate_limited(message: &str) -> bool {
         .any(|s| message.contains(s))
 }
 
-fn print_rate_limit_hint() {
-    eprintln!(
-        "GitHub limits anonymous requests per IP address. Set {TOKEN_ENV} to a GitHub token to \
-         raise the limit, for example: export {TOKEN_ENV}=$(gh auth token)"
+/// The anonymous API quota of this IP address: requests left, and when it resets (Unix time).
+/// GitHub's `rate_limit` endpoint does not count against the quota. `None` when it cannot be read,
+/// or when an override points at a host whose API path is not known here.
+async fn anonymous_rate_limit(client: &reqwest::Client) -> Option<(u64, i64)> {
+    let url = match std::env::var(GHE_BASE_URL_ENV) {
+        Ok(base) => format!("{}/api/v3/rate_limit", base.trim_end_matches('/')),
+        Err(_) if std::env::var_os(GITHUB_BASE_URL_ENV).is_some() => return None,
+        Err(_) => "https://api.github.com/rate_limit".to_string(),
+    };
+    let body: serde_json::Value = client
+        .get(url)
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let core = &body["resources"]["core"];
+    Some((core["remaining"].as_u64()?, core["reset"].as_i64()?))
+}
+
+/// "14:32 (in 23 minutes)", in local time.
+fn describe_reset(reset: i64, now: i64) -> String {
+    let minutes = ((reset - now).max(0) + 59) / 60;
+    let at = chrono::DateTime::from_timestamp(reset, 0)
+        .map(|t| t.with_timezone(&chrono::Local).format("%H:%M").to_string())
+        .unwrap_or_default();
+    match minutes {
+        0 | 1 => format!("{at} (in a minute)"),
+        n => format!("{at} (in {n} minutes)"),
+    }
+}
+
+/// Why a request made without a token may have failed.
+enum RateLimitHint {
+    /// This IP address has used its anonymous quota: the explanation replaces the error.
+    UsedUp(String),
+    /// The error looked like a rate limit, but the quota could not be read: a hint to add.
+    Possible(String),
+}
+
+/// After a request made without a token failed: is the anonymous API quota the cause?
+/// `looked_limited` is whether the error itself showed a rate limit. `None` when the quota is not
+/// used up, or cannot be read and the error did not look like a rate limit.
+async fn rate_limit_hint(client: &reqwest::Client, looked_limited: bool) -> Option<RateLimitHint> {
+    let use_a_token = format!(
+        "set {TOKEN_ENV} to a GitHub token to raise the limit, for example:\n  \
+         export {TOKEN_ENV}=$(gh auth token)"
     );
+    match (anonymous_rate_limit(client).await, looked_limited) {
+        (Some((0, reset)), _) => Some(RateLimitHint::UsedUp(format!(
+            "GitHub's limit for anonymous API requests from this network (60 per hour per IP \
+             address) is used up. It resets at {}: try again then, or {use_a_token}",
+            describe_reset(reset, chrono::Utc::now().timestamp())
+        ))),
+        (Some(_), _) | (None, false) => None,
+        (None, true) => Some(RateLimitHint::Possible(format!(
+            "GitHub limits anonymous API requests per IP address; {use_a_token}"
+        ))),
+    }
+}
+
+/// Print a failed request's error, explained when the anonymous rate limit caused it.
+async fn report_failure(context: &str, error: &str, client: &reqwest::Client, authenticated: bool) {
+    let hint = if authenticated {
+        None
+    } else {
+        rate_limit_hint(client, looks_rate_limited(error)).await
+    };
+    match hint {
+        Some(RateLimitHint::UsedUp(explanation)) => eprintln!("error: {context}.\n{explanation}"),
+        Some(RateLimitHint::Possible(hint)) => eprintln!("error: {context}: {error}\n{hint}"),
+        None => eprintln!("error: {context}: {error}"),
+    }
 }
 
 /// An updater for this app, with its receipt loaded when there is one, and the channel it implies.
@@ -320,10 +392,14 @@ pub async fn run(check_only: bool) -> i32 {
                     return 1;
                 }
                 Err(e) => {
-                    eprintln!("error: could not check for updates: {e}");
-                    if looks_rate_limited(&e.to_string()) {
-                        print_rate_limit_hint();
-                    }
+                    let error = e.to_string();
+                    report_failure(
+                        "could not check for updates",
+                        &error,
+                        &client,
+                        authenticated,
+                    )
+                    .await;
                     return 1;
                 }
             }
@@ -361,13 +437,9 @@ pub async fn run(check_only: bool) -> i32 {
             0
         }
         Err(e) => {
-            eprintln!("error: the update failed: {e}");
-            // axoupdater reports any failed tag lookup, a rate-limited one too, as "not found".
-            let message = e.to_string();
-            if !authenticated && (looks_rate_limited(&message) || message.contains("was not found"))
-            {
-                print_rate_limit_hint();
-            }
+            // axoupdater reports any failed tag lookup, a rate-limited one too, as "not found":
+            // the quota tells which it was.
+            report_failure("the update failed", &e.to_string(), &client, authenticated).await;
             1
         }
     }
@@ -520,6 +592,14 @@ mod tests {
             pick_token(vars(&[(TOKEN_ENV, "ours")]), false, gh_never_runs).as_deref(),
             Some("ours")
         );
+    }
+
+    #[test]
+    fn reset_is_described_in_whole_minutes_rounded_up() {
+        assert!(describe_reset(1_000 + 23 * 60, 1_000).ends_with("(in 23 minutes)"));
+        assert!(describe_reset(1_000 + 22 * 60 + 1, 1_000).ends_with("(in 23 minutes)"));
+        assert!(describe_reset(1_000 + 30, 1_000).ends_with("(in a minute)"));
+        assert!(describe_reset(1_000, 2_000).ends_with("(in a minute)"));
     }
 
     #[test]

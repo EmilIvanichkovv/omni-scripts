@@ -69,6 +69,25 @@ async fn mount_api(server: &MockServer, status: u16, endpoints: &[String], expec
     }
 }
 
+/// GitHub's quota endpoint, reporting `remaining` anonymous requests, reset in 23 minutes.
+async fn mount_rate_limit(server: &MockServer, remaining: u64) {
+    let reset = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 23 * 60
+        - 30;
+    let core = serde_json::json!({ "limit": 60, "remaining": remaining, "reset": reset });
+    Mock::given(method("GET"))
+        .and(path("/api/v3/rate_limit"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "resources": { "core": core }, "rate": core })),
+        )
+        .mount(server)
+        .await;
+}
+
 fn lookup_endpoints() -> Vec<String> {
     vec![format!("{RELEASES}/latest"), RELEASES.to_string()]
 }
@@ -295,6 +314,7 @@ async fn update_from_the_feed_looks_up_only_that_tag() {
     mount_api(&server, 200, &lookup_endpoints(), 0).await;
     // Rate limited, so nothing gets installed; the one request is all this test needs.
     mount_api(&server, 403, &[format!("{RELEASES}/tags/{APP}-v99.0.0")], 1).await;
+    mount_rate_limit(&server, 0).await;
     let config = TempDir::new().unwrap();
     write_receipt(config.path(), &test_binary_dir());
 
@@ -305,8 +325,30 @@ async fn update_from_the_feed_looks_up_only_that_tag() {
         .stdout(predicate::str::contains(format!(
             "Update available: {CURRENT} -> 99.0.0"
         )))
-        .stderr(predicate::str::contains("the update failed"))
+        .stderr(predicate::str::contains("error: the update failed.\n"))
+        // axoupdater's misleading "not found" is replaced by the real cause.
+        .stderr(predicate::str::contains("was not found").not())
+        .stderr(predicate::str::contains("is used up. It resets at"))
+        .stderr(predicate::str::contains("(in 23 minutes): try again then"))
         .stderr(predicate::str::contains(
             "LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN",
         ));
+}
+
+#[tokio::test]
+async fn failed_update_with_quota_left_gives_no_rate_limit_hint() {
+    let server = MockServer::start().await;
+    mount_feed(&server, &["99.0.0"]).await;
+    // A missing release, not a rate limit: axoupdater reports both as "not found".
+    mount_api(&server, 404, &[format!("{RELEASES}/tags/{APP}-v99.0.0")], 1).await;
+    mount_rate_limit(&server, 42).await;
+    let config = TempDir::new().unwrap();
+    write_receipt(config.path(), &test_binary_dir());
+
+    update_cmd(&server, config.path())
+        .arg("update")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("the update failed"))
+        .stderr(predicate::str::contains("GITHUB_TOKEN").not());
 }

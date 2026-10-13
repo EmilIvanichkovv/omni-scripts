@@ -94,17 +94,21 @@ local-git-branch-cleanup-tui update --check   # only report; exit code 10 if an 
 `update` replaces a copy installed with the one-line installer in place. A copy installed another
 way (Nix, Cargo or a manual download) is never modified: `update` prints how to upgrade it instead.
 
-The check is one request to the GitHub API. GitHub allows 60 anonymous requests per hour per IP
-address, which a shared office network can use up; set `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN`
-to any GitHub token to raise the limit, for example
+Checking reads the repository's releases feed on github.com, which is not subject to the GitHub API
+rate limit. Installing makes one GitHub API request. GitHub allows 60 anonymous API requests per
+hour per IP address, which a shared office network can use up, so `update` uses a token when it
+finds one: `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN`, then `GH_TOKEN`, then `GITHUB_TOKEN`, then
+the logged-in `gh` CLI (`gh auth token`). With none of them and the limit reached, `update` says so
+and when the limit resets (within the hour); set any GitHub token to raise the limit, for example
 `export LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN=$(gh auth token)`.
 
 The app also tells you when a newer release exists: the TUI shows
 `Update available: X.Y.Z (run: local-git-branch-cleanup-tui update)` at the bottom right, and
 `--cli` prints the same line on stderr when it finishes. It checks at most once every 24 hours, in
-the background with a 2 second timeout, and stays silent when the check fails. The request contains
-only the app version (in the `User-Agent` header), nothing about your repositories; the answer is
-cached next to the PR cache. The check is off when any of these holds:
+the background with a 2 second timeout, and stays silent when the check fails. The request (to the
+releases feed) contains only the app version in the `User-Agent` header, no token and nothing about
+your repositories; the answer is cached next to the PR cache. The check is off when any of these
+holds:
 
 - `--no-update-check` is passed;
 - `LOCAL_GIT_BRANCH_CLEANUP_TUI_NO_UPDATE_CHECK=1` is set;

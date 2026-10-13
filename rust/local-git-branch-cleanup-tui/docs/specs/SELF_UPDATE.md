@@ -1,9 +1,9 @@
 # Self-Update Specification
 
-Status: Accepted (decisions in section 9). Phases 1 to 4 done (`update` in 0.3.0, the notice in
-0.4.0, the smoke tests in every release run); phase 5 (section 12, the GitHub API rate limit) is
-accepted and not implemented yet. Target project: `rust/local-git-branch-cleanup-tui`. Repository:
-`EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`, 2026-10-12. Builds on
+Status: Accepted (decisions in section 9). Phases 1 to 5 done (`update` in 0.3.0, the notice in
+0.4.0, the smoke tests in every release run, the rate-limit fix of section 12). Target project:
+`rust/local-git-branch-cleanup-tui`. Repository: `EmilIvanichkovv/omni-scripts`. Source snapshot
+reviewed: `main` @ `8f14b6b`, 2026-10-12. Builds on
 [Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries, installers and install
 receipts this feature relies on.
 
@@ -174,7 +174,9 @@ Flags:
   key hints.
 - **CLI mode (`--cli`):** the same line on stderr after the command finishes, never mixed into
   stdout. Neither mode waits for a check still running when it exits; that check is dropped, writes
-  no cache, and the next run tries again.
+  no cache, and the next run tries again. (Found in phase 5: on exit the runtime cancels the check's
+  DNS lookup, which returned as an ordinary failure and was cached, hiding the notice for 24 hours.
+  The check now caches only while the app still waits for its answer.)
 - A failed check is cached too, keeping the version found by the check before, so a newer release
   already known still shows.
 - **Never checks when:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_NO_UPDATE_CHECK=1` (any value but empty or
@@ -289,7 +291,10 @@ Each phase is its own PR with atomic commits.
 Status (2026-10-13): phases 1 to 4 merged (PRs #47, #50, #51, #53; releases 0.3.0 and 0.4.0). The
 "update from the previous release" job (PR #53) was tested against the real releases before merging:
 on Linux x64, Linux arm64, macOS and Windows, `update` replaced an installed 0.3.0 with 0.4.0 in
-place, which meets acceptance criterion 1. Phase 5 is next.
+place, which meets acceptance criterion 1. Phase 5 was checked against github.com while this
+machine's API quota was used up (60 of 60): `update --check` and the notice reported the newest
+release from the feed without using the quota, and `update` ran `gh` for a token before its one tag
+lookup (section 12.7, criteria 1 to 3).
 
 ## 8. Acceptance criteria
 
@@ -368,7 +373,9 @@ It holds only the newest entries (10 for GitHub feeds).
 The lookup:
 
 1. GET the feed with our client (our `User-Agent`), the same timeout as today.
-2. Take each entry's tag from its `<link href>`, by plain string search (no XML library). Keep tags
+2. Take each entry's tag from the end of its `<id>`, by plain string search (no XML library). The
+   `<id>` is used rather than `<link href>` because each entry has exactly one, and the release
+   notes in the feed are escaped HTML, so a link in them cannot pass for a release. Keep tags
    `local-git-branch-cleanup-tui-vX.Y.Z`, skip versions with a prerelease part, take the highest.
 3. When the request fails, the feed does not parse, or no tag of this app is in it (for example
    after 10 releases of other apps in the monorepo), fall back to the API lookup of today.
@@ -384,11 +391,25 @@ The first non-empty of:
 1. `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN` (exists today);
 2. `GH_TOKEN`, then `GITHUB_TOKEN` (the `gh` CLI's and GitHub Actions' variables);
 3. `gh auth token --hostname github.com`, when `gh` is installed and logged in. Only `update` and
-   `update --check` run it, never the background check, so the TUI never starts a subprocess for
-   this. Its output is never printed or logged.
+   `update --check` run it, and only right before an API request (so `update --check` runs it only
+   when the feed failed); never the background check, so the TUI never starts a subprocess for this.
+   Its output is never printed or logged.
 
-The token is sent only to the GitHub API host, as axoupdater does today. The rate-limit hint stays
-for users without any token.
+The token is sent only to the GitHub API host, as axoupdater does today. Sources 2 and 3 hold
+github.com tokens, so they are skipped when an `..._INSTALLER_GHE_BASE_URL` or
+`..._INSTALLER_GITHUB_BASE_URL` override points at another host (which also keeps the developer's
+real token away from the tests' mock server). The rate-limit hint stays for users without any token.
+
+When a request made without a token fails, `update` asks GitHub's `rate_limit` endpoint (which does
+not count against the quota) whether this IP address has used its anonymous quota:
+
+- **Used up:** the error becomes "GitHub's limit for anonymous API requests from this network ... is
+  used up. It resets at 17:32 (in 23 minutes): try again then, or set ...". This replaces
+  axoupdater's own error, which reports a rate-limited tag lookup as "version ... was not found".
+- **Not used up:** the error is printed as it is, without a token hint, since the limit is not the
+  cause.
+- **Unknown** (the endpoint failed): the token hint follows the error only when the error itself
+  showed a rate limit (403, 429 or "rate limit").
 
 ### 12.4 Installing
 

@@ -3,6 +3,12 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.4.0 - 13-10-2026
+
+### Features
+
+- **tui:** Show a notice when a newer release is available
+
 ## 0.3.0 - 13-10-2026
 
 ### Features

@@ -84,8 +84,10 @@ Read from the crate source and checked with a prototype build against the real 0
   executable), restores it if the installer fails, and deletes it afterwards.
 - **GitHub API:** unauthenticated by default (60 requests per hour per IP address). A token can be
   passed with `set_github_token()`.
-- **Testing:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL` points it at another API
-  server, so tests can use a local mock instead of GitHub.
+- **Testing:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL` points it at another API server
+  (it appends `api/v3`), so tests can use a local mock instead of GitHub. The `..._GITHUB_BASE_URL`
+  variant does not work for a local mock: it prepends `api.` to the host name and rejects IP
+  addresses. `AXOUPDATER_CONFIG_PATH` sets the directory it reads the receipt from.
 
 Prototype results on Linux, with a probe calling `load_receipt`, `is_update_needed` and
 `query_new_version`:
@@ -112,6 +114,17 @@ or from `reqwest` 0.13's default crypto provider (`aws-lc-rs`), which is bigger 
 needs a C toolchain and CMake to build, a risk for the musl and cross builds. Hence the plan: move
 to `reqwest` 0.13 **with the `ring` provider** first (section 7, phase 1). Target: the binary grows
 by at most 1 MB.
+
+Found during phase 2: axoasset, which axoupdater uses, turns on `reqwest`'s default TLS from 2.0.1
+on, which builds `aws-lc-rs` next to `ring` again:
+
+| Build (phase 1 done: `reqwest` 0.13, `ring`, 9.1 MB) | Size    | Change      |
+| ---------------------------------------------------- | ------- | ----------- |
+| + axoupdater with axoasset 2.0.1                     | 12.7 MB | **+3.6 MB** |
+| + axoupdater with axoasset held at 2.0.0             | 9.7 MB  | +0.6 MB     |
+
+So axoasset is held at `=2.0.0` in `rust/Cargo.toml` (Dependabot ignores it). Revisit when
+axoupdater needs a newer axoasset, or when axoasset makes its TLS choice optional.
 
 ## 4. User experience
 
@@ -141,6 +154,8 @@ Flags:
 
 - `--check`: report only, change nothing. Exit code 0 when up to date, **10** when an update is
   available, 1 on error, so scripts can use it.
+- Without `--check`, a copy that cannot update itself exits 1 when an update is available, after
+  printing how to upgrade it: the requested update did not happen.
 - `--yes` is not needed: running `update` is the confirmation.
 
 ### 4.2 The "update available" notice
@@ -230,7 +245,7 @@ Option 1 is better for users; it is a small, temporary branch in `update.rs`.
 - **Unit tests (`update.rs`):** channel detection from fake receipts and binary paths; cache read,
   write and expiry; disabled conditions (env variable, flag, `CI`, non-terminal).
 - **Integration tests:** run axoupdater against a local mock GitHub API (via
-  `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL`) serving a fake newer release, and check
+  `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL`) serving a fake newer release, and check
   `update --check` exit codes 0 and 10 and the messages. No real network in tests.
 - **Smoke tests (`smoke-test.yml`):** after installing the new release, run `update --check` and
   expect "latest version" (exit 0). Once two releases exist, add a job that installs the previous

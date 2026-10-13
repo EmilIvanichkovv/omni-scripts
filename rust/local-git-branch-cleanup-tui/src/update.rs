@@ -17,9 +17,10 @@ const REPO: &str = "omni-scripts";
 const RELEASES_URL: &str = "https://github.com/EmilIvanichkovv/omni-scripts/releases/latest";
 /// Optional token for the GitHub API, for users behind a shared, rate-limited IP address.
 const TOKEN_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN";
-/// axoupdater's override of the GitHub host. The feed follows it; tests use it to reach a local
-/// mock.
+/// axoupdater's overrides of the GitHub host. The feed follows the GHE one; tests use it to reach a
+/// local mock.
 const GHE_BASE_URL_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL";
+const GITHUB_BASE_URL_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL";
 
 /// Exit code of `update --check` when a newer release exists.
 pub const EXIT_UPDATE_AVAILABLE: i32 = 10;
@@ -124,9 +125,58 @@ async fn newest_release_from_feed(client: &reqwest::Client) -> Option<(String, V
     newest_release_in_feed(&response.text().await.ok()?)
 }
 
-/// Give `updater` the token from our variable, if set. Returns whether it got one.
-fn authenticate(updater: &mut AxoUpdater) -> bool {
-    match std::env::var(TOKEN_ENV).ok().filter(|t| !t.is_empty()) {
+/// The first non-empty token from our variable, then, for github.com only, `GH_TOKEN`,
+/// `GITHUB_TOKEN` and the `gh` CLI. Those hold github.com tokens, so they are not sent to another
+/// host set with an override.
+fn pick_token(
+    var: impl Fn(&str) -> Option<String>,
+    github_com: bool,
+    gh_cli: impl FnOnce() -> Option<String>,
+) -> Option<String> {
+    let non_empty = |token: Option<String>| {
+        token
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+    };
+    non_empty(var(TOKEN_ENV)).or_else(|| {
+        if !github_com {
+            return None;
+        }
+        non_empty(var("GH_TOKEN"))
+            .or_else(|| non_empty(var("GITHUB_TOKEN")))
+            .or_else(|| non_empty(gh_cli()))
+    })
+}
+
+/// `gh`'s token for github.com, when `gh` is installed and logged in. Never printed.
+fn gh_cli_token() -> Option<String> {
+    let output = std::process::Command::new("gh")
+        .args(["auth", "token", "--hostname", "github.com"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout).ok()
+}
+
+/// A token for the GitHub API, if one can be found. `allow_gh_cli` runs `gh`, which only the
+/// `update` command does.
+fn discover_token(allow_gh_cli: bool) -> Option<String> {
+    let github_com = std::env::var_os(GHE_BASE_URL_ENV).is_none()
+        && std::env::var_os(GITHUB_BASE_URL_ENV).is_none();
+    pick_token(
+        |name| std::env::var(name).ok(),
+        github_com,
+        || allow_gh_cli.then(gh_cli_token).flatten(),
+    )
+}
+
+/// Give `updater` a token for its API requests, if one can be found. Returns whether it got one.
+fn authenticate(updater: &mut AxoUpdater, allow_gh_cli: bool) -> bool {
+    match discover_token(allow_gh_cli) {
         Some(token) => {
             updater.set_github_token(&token);
             true
@@ -232,14 +282,14 @@ fn upgrade_instructions(channel: &InstallChannel) -> String {
 }
 
 /// The newest release's version, or `None` on any error. For the background check
-/// (`update_notice`), which stays silent on failure.
+/// (`update_notice`), which stays silent on failure and never runs `gh`.
 pub async fn latest_version(timeout: Duration) -> Option<Version> {
     let client = http_client(timeout);
     if let Some((_, version)) = newest_release_from_feed(&client).await {
         return Some(version);
     }
     let (mut updater, _) = updater(client).ok()?;
-    authenticate(&mut updater);
+    authenticate(&mut updater, false);
     updater.query_new_version().await.ok().flatten().cloned()
 }
 
@@ -262,7 +312,7 @@ pub async fn run(check_only: bool) -> i32 {
     let latest = match &from_feed {
         Some((_, latest)) => latest.clone(),
         None => {
-            authenticated = authenticate(&mut updater);
+            authenticated = authenticate(&mut updater, true);
             match updater.query_new_version().await {
                 Ok(Some(latest)) => latest.clone(),
                 Ok(None) => {
@@ -298,7 +348,7 @@ pub async fn run(check_only: bool) -> i32 {
     // From the feed's tag, axoupdater makes one API request to find the installer. Otherwise it
     // reuses the release found above. The installer prints its own progress.
     if let Some((tag, _)) = from_feed {
-        authenticated = authenticate(&mut updater);
+        authenticated = authenticate(&mut updater, true);
         updater.configure_version_specifier(UpdateRequest::SpecificTag(tag));
     }
     match updater.run().await {
@@ -420,6 +470,56 @@ mod tests {
         assert_eq!(newest_release_in_feed(other), None);
         assert_eq!(newest_release_in_feed("<html>rate limited</html>"), None);
         assert_eq!(newest_release_in_feed("<id>unterminated"), None);
+    }
+
+    fn vars<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |name| {
+            pairs
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[test]
+    fn token_order_is_ours_then_gh_token_then_github_token_then_gh() {
+        let all = [
+            (TOKEN_ENV, "ours"),
+            ("GH_TOKEN", "gh-env"),
+            ("GITHUB_TOKEN", "actions"),
+        ];
+        let gh = || Some("gh-cli\n".to_string());
+        assert_eq!(pick_token(vars(&all), true, gh).as_deref(), Some("ours"));
+        assert_eq!(
+            pick_token(vars(&all[1..]), true, gh).as_deref(),
+            Some("gh-env")
+        );
+        assert_eq!(
+            pick_token(vars(&all[2..]), true, gh).as_deref(),
+            Some("actions")
+        );
+        assert_eq!(pick_token(vars(&[]), true, gh).as_deref(), Some("gh-cli"));
+        assert_eq!(pick_token(vars(&[]), true, || None), None);
+    }
+
+    #[test]
+    fn empty_variables_are_skipped() {
+        let empty = [(TOKEN_ENV, " "), ("GH_TOKEN", "")];
+        assert_eq!(
+            pick_token(vars(&empty), true, || Some("gh-cli".to_string())).as_deref(),
+            Some("gh-cli")
+        );
+    }
+
+    #[test]
+    fn only_our_variable_is_sent_to_another_host() {
+        let all = [("GH_TOKEN", "gh-env"), ("GITHUB_TOKEN", "actions")];
+        let gh_never_runs = || -> Option<String> { panic!("gh must not run") };
+        assert_eq!(pick_token(vars(&all), false, gh_never_runs), None);
+        assert_eq!(
+            pick_token(vars(&[(TOKEN_ENV, "ours")]), false, gh_never_runs).as_deref(),
+            Some("ours")
+        );
     }
 
     #[test]

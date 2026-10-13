@@ -164,15 +164,21 @@ Flags:
   runs. The result is cached; every later run in that window reads the cache and makes no request.
 - The request has a **2 second timeout**. Failures (offline, rate limit, proxy) are silent, and the
   next check happens after the next 24 hours.
-- **TUI:** one line in the status bar, for example
-  `Update available: 0.3.0 (run: local-git-branch-cleanup-tui update)`.
+- **TUI:** one line on the footer's bottom border, right-aligned, for example
+  `Update available: 0.3.0 (run: local-git-branch-cleanup-tui update)`. It takes no room from the
+  key hints.
 - **CLI mode (`--cli`):** the same line on stderr after the command finishes, never mixed into
-  stdout.
-- **Never checks when:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_NO_UPDATE_CHECK=1`, `--no-update-check`, the
-  `CI` environment variable is set, or stdout is not a terminal.
-- **Cache:** next to the existing PR cache (`dirs::cache_dir()/local-git-branch-cleanup-tui/`), as a
-  small JSON file: `{ "checked_at": ..., "latest": "0.3.0" }`. It never stores anything about the
-  user's repositories.
+  stdout. Neither mode waits for a check still running when it exits; that check is dropped, writes
+  no cache, and the next run tries again.
+- A failed check is cached too, keeping the version found by the check before, so a newer release
+  already known still shows.
+- **Never checks when:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_NO_UPDATE_CHECK=1` (any value but empty or
+  `0`), `--no-update-check`, the `CI` environment variable is set, or stdout is not a terminal.
+- **Cache:** next to the existing PR cache, as
+  `<cache dir>/omni-scripts/local-git-branch-cleanup-tui-update-check.json` (`<cache dir>` is
+  `$XDG_CACHE_HOME` when set, otherwise the platform cache directory), a small JSON file:
+  `{ "checked_at": ..., "latest": "0.3.0" }`. It never stores anything about the user's
+  repositories.
 
 ### 4.3 What is sent
 
@@ -223,10 +229,12 @@ A new `src/update.rs`, independent of the TUI:
   releases lookup for channels without a receipt (axoupdater needs a receipt for its query, so for
   other channels use `set_release_source` with the repository coordinates).
 - `async fn run_update(check_only: bool) -> Result<ExitCode>`.
-- `fn cached_notice() -> Option<String>` and `spawn_background_check()` for section 4.2.
+- `async fn latest_version(timeout) -> Option<Version>` for section 4.2.
 
-The background check runs as a `tokio::spawn` task with a timeout; the TUI polls its result each
-frame, so the UI never waits on the network.
+Section 4.2 lives in its own module, `src/update_notice.rs`: `UpdateNotice::start()` reads the cache
+and, when it is stale, starts the check as a `tokio::spawn` task with a timeout;
+`UpdateNotice::message()` picks up the answer from a `oneshot` channel without waiting. The TUI
+calls it each frame, so the UI never waits on the network.
 
 ### 5.3 Rename compatibility
 

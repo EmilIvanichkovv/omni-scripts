@@ -1,0 +1,213 @@
+//! `update` and `update --check` against a mock GitHub API. No real network: axoupdater is pointed
+//! at the mock server and at a temporary receipt directory through environment variables.
+#![allow(deprecated)] // Command::cargo_bin is deprecated but still functional
+
+use assert_cmd::Command;
+use predicates::prelude::*;
+use std::path::Path;
+use tempfile::TempDir;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
+const APP: &str = "local-git-branch-cleanup-tui";
+const CURRENT: &str = env!("CARGO_PKG_VERSION");
+const RELEASES: &str = "/api/v3/repos/EmilIvanichkovv/omni-scripts/releases";
+
+/// A command that talks to `server` and reads install receipts from `config_dir` only. It runs in
+/// `config_dir`, which is not a git repository: `update` must work from anywhere.
+fn update_cmd(server: &MockServer, config_dir: &Path) -> Command {
+    let mut cmd = Command::cargo_bin(APP).unwrap();
+    cmd.current_dir(config_dir)
+        .env("AXOUPDATER_CONFIG_PATH", config_dir)
+        // The GHE variable accepts a plain http://127.0.0.1 URL and appends /api/v3.
+        .env(
+            "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL",
+            format!("{}/", server.uri()),
+        )
+        .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL")
+        .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN");
+    cmd
+}
+
+fn release_json(version: &str) -> serde_json::Value {
+    let tag = format!("{APP}-v{version}");
+    let asset = |name: String| {
+        serde_json::json!({
+            "url": format!("https://example.invalid/assets/{name}"),
+            "browser_download_url": format!("https://example.invalid/{tag}/{name}"),
+            "name": name,
+        })
+    };
+    serde_json::json!({
+        "tag_name": tag,
+        "name": version,
+        "url": "https://example.invalid/release",
+        "prerelease": false,
+        "assets": [asset(format!("{APP}-installer.sh")), asset(format!("{APP}-installer.ps1"))],
+    })
+}
+
+async fn mock_latest_release(version: &str) -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{RELEASES}/latest")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(release_json(version)))
+        .mount(&server)
+        .await;
+    server
+}
+
+async fn mock_failing_api(status: u16) -> MockServer {
+    let server = MockServer::start().await;
+    for p in [format!("{RELEASES}/latest"), RELEASES.to_string()] {
+        Mock::given(method("GET"))
+            .and(path(p))
+            .respond_with(ResponseTemplate::new(status))
+            .mount(&server)
+            .await;
+    }
+    server
+}
+
+/// Write an installer receipt for `prefix` into `config_dir`.
+fn write_receipt(config_dir: &Path, prefix: &Path) {
+    let receipt = serde_json::json!({
+        "binaries": [APP],
+        "install_prefix": prefix,
+        "install_layout": "flat",
+        "modify_path": false,
+        "provider": { "source": "cargo-dist", "version": "0.33.0" },
+        "source": {
+            "app_name": APP,
+            "name": "omni-scripts",
+            "owner": "EmilIvanichkovv",
+            "release_type": "github"
+        },
+        "version": CURRENT,
+    });
+    std::fs::write(
+        config_dir.join(format!("{APP}-receipt.json")),
+        receipt.to_string(),
+    )
+    .unwrap();
+}
+
+/// The directory of the binary under test, as the receipt check sees it.
+fn test_binary_dir() -> std::path::PathBuf {
+    assert_cmd::cargo::cargo_bin(APP)
+        .canonicalize()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
+}
+
+#[tokio::test]
+async fn check_reports_a_newer_release_with_exit_code_10() {
+    let server = mock_latest_release("99.0.0").await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(10)
+        .stdout(predicate::str::contains(format!(
+            "Update available: {CURRENT} -> 99.0.0"
+        )))
+        // No receipt: this copy cannot update itself, so it says how to upgrade.
+        .stdout(predicate::str::contains("one-line installer"));
+}
+
+#[tokio::test]
+async fn check_reports_up_to_date_with_exit_code_0() {
+    let server = mock_latest_release(CURRENT).await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains(format!(
+            "{APP} {CURRENT} is the latest version."
+        )));
+}
+
+#[tokio::test]
+async fn update_without_receipt_explains_and_changes_nothing() {
+    // The installer assets are not served: if `update` tried to download one, it would fail
+    // with a different message.
+    let server = mock_latest_release("99.0.0").await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .arg("update")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("cannot update itself"));
+}
+
+#[tokio::test]
+async fn check_with_receipt_for_this_binary_offers_update_command() {
+    let server = mock_latest_release("99.0.0").await;
+    let config = TempDir::new().unwrap();
+    write_receipt(config.path(), &test_binary_dir());
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(10)
+        .stdout(predicate::str::contains(format!(
+            "Run `{APP} update` to install it."
+        )));
+}
+
+#[tokio::test]
+async fn update_with_receipt_for_another_directory_names_that_directory() {
+    let server = mock_latest_release("99.0.0").await;
+    let config = TempDir::new().unwrap();
+    let other = TempDir::new().unwrap();
+    let other_dir = other.path().canonicalize().unwrap();
+    write_receipt(config.path(), &other_dir);
+
+    update_cmd(&server, config.path())
+        .arg("update")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(other_dir.display().to_string()));
+}
+
+#[tokio::test]
+async fn server_error_exits_1() {
+    let server = mock_failing_api(500).await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("could not check for updates"));
+}
+
+#[tokio::test]
+async fn rate_limit_error_suggests_a_token() {
+    let server = mock_failing_api(403).await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN",
+        ));
+}
+
+#[test]
+fn update_conflicts_with_tui_flags() {
+    Command::cargo_bin(APP)
+        .unwrap()
+        .args(["--cli", "update"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("cannot be used with"));
+}

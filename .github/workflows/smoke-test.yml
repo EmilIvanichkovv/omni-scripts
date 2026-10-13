@@ -61,6 +61,16 @@ jobs:
       - name: Show help
         run: $APP --help
 
+      # The installer copy finds its receipt and this release as the newest. Runners share IP
+      # addresses, so authenticate the GitHub API request to stay clear of the anonymous limit.
+      - name: Check for updates
+        env:
+          LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          out=$("$APP" update --check)
+          echo "$out"
+          [ "$out" = "$APP $VERSION is the latest version." ]
+
       - name: Dry run in a scratch repository
         run: |
           cd "$(mktemp -d)"

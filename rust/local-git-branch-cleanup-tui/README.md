@@ -99,6 +99,18 @@ address, which a shared office network can use up; set `LOCAL_GIT_BRANCH_CLEANUP
 to any GitHub token to raise the limit, for example
 `export LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN=$(gh auth token)`.
 
+The app also tells you when a newer release exists: the TUI shows
+`Update available: X.Y.Z (run: local-git-branch-cleanup-tui update)` at the bottom right, and
+`--cli` prints the same line on stderr when it finishes. It checks at most once every 24 hours, in
+the background with a 2 second timeout, and stays silent when the check fails. The request contains
+only the app version (in the `User-Agent` header), nothing about your repositories; the answer is
+cached next to the PR cache. The check is off when any of these holds:
+
+- `--no-update-check` is passed;
+- `LOCAL_GIT_BRANCH_CLEANUP_TUI_NO_UPDATE_CHECK=1` is set;
+- the `CI` environment variable is set;
+- stdout is not a terminal.
+
 ### Download manually
 
 If you prefer not to pipe a script into your shell, download the archive for your platform from the
@@ -199,6 +211,10 @@ cargo run -p local-git-branch-cleanup-tui --release -- --cli
 
 ```
 Usage: local-git-branch-cleanup-tui [OPTIONS]
+       local-git-branch-cleanup-tui <COMMAND>
+
+Commands:
+  update                             Update to the newest release (see Updating)
 
 Options:
       --trunk <TRUNK>                Override the default trunk branch
@@ -211,6 +227,7 @@ Options:
       --bitbucket-base-url <URL>     Override the derived Bitbucket base URL
       --bitbucket-project <PROJECT>  Override the derived Bitbucket project key
       --bitbucket-repo <REPO>        Override the derived Bitbucket repository slug
+      --no-update-check              Do not check for new versions
   -h, --help                         Print help
 ```
 

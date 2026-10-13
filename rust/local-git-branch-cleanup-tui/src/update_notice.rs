@@ -72,6 +72,30 @@ fn write_cache(path: &Path, cache: &CheckCache) {
     }
 }
 
+/// Run `lookup`, cache its answer and send it to the app. A failed check is cached too, keeping the
+/// version known before, and waits for the next interval.
+///
+/// Unless the app has stopped waiting: when it exits, the runtime cancels the lookup's DNS
+/// resolution and the lookup fails, which is no answer to cache. The next run checks again.
+async fn check(
+    lookup: impl std::future::Future<Output = Option<Version>>,
+    path: PathBuf,
+    now: i64,
+    known: Option<String>,
+    sender: oneshot::Sender<Option<Version>>,
+) {
+    let found = lookup.await;
+    if sender.is_closed() {
+        return;
+    }
+    let cache = CheckCache {
+        checked_at: now,
+        latest: found.as_ref().map(ToString::to_string).or(known),
+    };
+    write_cache(&path, &cache);
+    sender.send(found).ok();
+}
+
 fn current_version() -> Version {
     env!("CARGO_PKG_VERSION")
         .parse()
@@ -116,19 +140,13 @@ impl UpdateNotice {
         }
 
         let (sender, receiver) = oneshot::channel();
-        tokio::spawn(async move {
-            let found = tokio::time::timeout(CHECK_TIMEOUT, update::latest_version(CHECK_TIMEOUT))
+        let lookup = async {
+            tokio::time::timeout(CHECK_TIMEOUT, update::latest_version(CHECK_TIMEOUT))
                 .await
                 .ok()
-                .flatten();
-            // A failed check keeps the version known before and waits for the next interval.
-            let cache = CheckCache {
-                checked_at: now,
-                latest: found.as_ref().map(ToString::to_string).or(known),
-            };
-            write_cache(&path, &cache);
-            sender.send(found).ok();
-        });
+                .flatten()
+        };
+        tokio::spawn(check(lookup, path, now, known, sender));
         Self {
             latest,
             pending: Some(receiver),
@@ -241,6 +259,44 @@ mod tests {
         sender.send(Some("99.0.0".parse().unwrap())).unwrap();
         assert!(notice.message().is_some());
         assert!(notice.pending.is_none());
+    }
+
+    #[tokio::test]
+    async fn check_caches_and_sends_its_answer() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("check.json");
+        let (sender, receiver) = oneshot::channel();
+
+        check(
+            async { None },
+            path.clone(),
+            42,
+            Some("1.0.0".into()),
+            sender,
+        )
+        .await;
+
+        assert_eq!(receiver.await.unwrap(), None);
+        // A failed check keeps the version known before.
+        assert_eq!(
+            read_cache(&path),
+            Some(CheckCache {
+                checked_at: 42,
+                latest: Some("1.0.0".into())
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn check_after_the_app_stopped_waiting_caches_nothing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("check.json");
+        let (sender, receiver) = oneshot::channel();
+        drop(receiver);
+
+        check(async { None }, path.clone(), 42, None, sender).await;
+
+        assert!(!path.exists());
     }
 
     #[test]

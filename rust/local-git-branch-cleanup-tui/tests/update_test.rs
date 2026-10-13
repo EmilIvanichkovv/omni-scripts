@@ -27,7 +27,9 @@ fn update_cmd(server: &MockServer, config_dir: &Path) -> Command {
             format!("{}/", server.uri()),
         )
         .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL")
-        .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN");
+        .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN")
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN");
     cmd
 }
 

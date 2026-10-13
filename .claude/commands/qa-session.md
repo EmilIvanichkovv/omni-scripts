@@ -1,7 +1,7 @@
 ---
 description:
   Run a QA session for local-git-branch-cleanup-tui — record reported bugs/features in
-  ISSUES_AND_FEATURES.md, then fix them one by one
+  ISSUES_AND_FEATURES.md and as GitHub issues, then fix them one by one
 argument-hint: [optional context about what is being tested]
 ---
 
@@ -12,6 +12,10 @@ time; you record them, and only after the list is complete do you start fixing.
 
 Tracking document: `rust/local-git-branch-cleanup-tui/docs/ISSUES_AND_FEATURES.md` Project root:
 `rust/local-git-branch-cleanup-tui/`
+
+Every tracker entry is mirrored as a GitHub issue in the repo `gh` resolves from the working
+directory (`gh repo view --json nameWithOwner,url`). The tracker stays the source of truth; the
+GitHub issue carries a copy of the entry and links back to it.
 
 Session context from the user: $ARGUMENTS
 
@@ -32,10 +36,13 @@ For each item the user describes:
      describe the desired behavior under `Expected Behavior` instead.
    - `Category` is `<Section> / Bug` or `<Section> / Enhancement`.
    - Write the description in present tense (it is still broken). Wrap prose at ~100 columns.
-4. **Update `Last Updated`** at the top (`YYYY-MM-DD HH:MM`, local time) and append a
+4. **Open the GitHub issue** (see GitHub issue mechanics) and fill the entry's `GitHub` bullet with
+   the link `gh issue create` prints.
+5. **Update `Last Updated`** at the top (`YYYY-MM-DD HH:MM`, local time) and append a
    `Reported: ...` row to the `Change Log` table at the bottom.
-5. **Do not touch source code** in this phase. Do not commit yet.
-6. Confirm to the user in one or two lines what you recorded, then wait for the next item.
+6. **Do not touch source code** in this phase. Do not commit yet.
+7. Confirm to the user in one or two lines what you recorded, with the GitHub issue link, then wait
+   for the next item.
 
 Entry template (open):
 
@@ -45,6 +52,7 @@ Entry template (open):
 - **Status:** 🔴 Open
 - **Reported:** YYYY-MM-DD
 - **Category:** <Critical|UI/UX|Performance|Minor/Cosmetic> / <Bug|Enhancement>
+- **GitHub:** [#G](https://github.com/<owner>/<repo>/issues/G)
 - **Description:**
   - <What is wrong, and the root cause if found, with the relevant function/field in backticks>
 - **Steps to Reproduce:**
@@ -65,7 +73,9 @@ a single commit**, doc only:
 
 - One issue: `docs(tui-issue): <issue title>`
 - Several issues: `docs(tui-issue): Report QA findings TUI-A..TUI-B` with one line per issue in the
-  body (`- TUI-A: <issue title>`).
+  body (`- TUI-A: <issue title> (#G)`).
+
+Do not use closing keywords (`Closes`, `Fixes`, `Resolves #G`) in this commit.
 
 ## Phase 2 — Fix
 
@@ -82,6 +92,7 @@ first). **One commit per issue.** For each:
    - Rename `Proposed Fix` to `Fix` and rewrite it to describe what was actually done.
    - Add `- **Commit:** \`<the commit subject>\`` as the last bullet.
    - Update `Last Updated` and append a `Resolved: ...` row to the `Change Log`.
+   - Keep the `GitHub` bullet as is.
 4. **Check related documentation and update it in the same commit** when the change affects it:
    - `README.md` and `docs/guides/TUI_USAGE_GUIDE.md` — keys, statuses, flags, footer/help text
    - `docs/guides/MIGRATION.md` — behavior comparisons with the bash script
@@ -92,9 +103,39 @@ first). **One commit per issue.** For each:
    Skim these with grep for the affected key/status/flag name; do not rewrite unrelated text.
 
 5. Commit: `fix(tui): <what changed>` for bugs, `feat(tui): <what changed>` for enhancements. Body
-   starts with `Resolves TUI-N.` followed by a short root-cause / approach paragraph.
-6. Report to the user: what was fixed, test results, which docs were touched. Then move to the next
-   issue.
+   starts with `Resolves TUI-N.` followed by a short root-cause / approach paragraph, and ends with
+   a `Closes #G` line so GitHub closes the issue when the commit reaches `main`.
+6. **Update the GitHub issue description** to match the resolved tracker entry (see GitHub issue
+   mechanics). Do not close the issue: the `Closes #G` line does that on merge.
+7. Report to the user: what was fixed, test results, which docs were touched, and that the GitHub
+   issue description was updated. Then move to the next issue.
+
+If the user asks for a pull request, list `Closes #G` for every issue resolved on the branch in the
+PR description too, so the issues still close if the PR is squash-merged with an edited message.
+
+## GitHub issue mechanics
+
+- **Title:** `TUI-N: <Short imperative title>`, the same title as the tracker heading.
+- **Label:** `bug` for `/ Bug` entries, `enhancement` for `/ Enhancement` entries.
+- **Body:** the tracker entry's bullets from `Reported` onward, copied verbatim, minus the `Status`
+  and `GitHub` bullets (GitHub tracks state itself). End the body with a footer:
+
+  ```markdown
+  ---
+
+  Tracked as TUI-N in
+  [`ISSUES_AND_FEATURES.md`](https://github.com/<owner>/<repo>/blob/main/rust/local-git-branch-cleanup-tui/docs/ISSUES_AND_FEATURES.md).
+  ```
+
+- Write the body to a file in the scratchpad directory and pass it with `--body-file`, never inline
+  `--body` (backticks and `$` in the entry break shell quoting).
+- Create: `gh issue create --title "..." --label <label> --body-file <file>`. It prints the issue
+  URL; `G` is the number at its end.
+- Update after a fix: rebuild the body from the resolved entry, then
+  `gh issue edit G --body-file <file>`. Change the title too (`--title`) if the tracker title
+  changed.
+- If `gh` fails (not authenticated, no network), still record the tracker entry, set the bullet to
+  `- **GitHub:** _not created_`, tell the user the error, and retry before committing.
 
 ## Build & commit mechanics
 
@@ -108,9 +149,11 @@ first). **One commit per issue.** For each:
   touches `.md` files usually fails because the hook rewrote them: `git add` the files again and
   re-run the same commit.
 - Never amend or rewrite a commit that is already pushed.
-- In commit messages and PR text, refer to tracker issues as `TUI-N`, never `#N`: GitHub autolinks
-  `#N` to the repo's own GitHub issues/PRs, which are unrelated. The tracker document itself keeps
-  `Issue #N` headings.
+- In commit messages and PR text, refer to tracker issues as `TUI-N` and to GitHub issues as `#G`.
+  Never write a tracker number as `#N`: GitHub autolinks it to whatever GitHub issue or PR has that
+  number. The tracker document itself keeps `Issue #N` headings.
+- Entries reported before GitHub mirroring was added have no `GitHub` bullet. Do not backfill them
+  unless the user asks.
 
 ## Style rules for the document
 

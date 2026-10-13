@@ -3,6 +3,15 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.4.1 - 13-10-2026
+
+### Bug fixes
+
+- **tui:** Check for updates through the releases feed
+- **tui:** Find a GitHub token for update from GH_TOKEN, GITHUB_TOKEN or gh
+- **tui:** Do not cache an update check cancelled at exit
+- **tui:** Say when GitHub's rate limit resets after a failed update
+
 ## 0.4.0 - 13-10-2026
 
 ### Features

@@ -1,9 +1,11 @@
 # Self-Update Specification
 
-Status: Accepted (decisions in section 9). Target project: `rust/local-git-branch-cleanup-tui`.
-Repository: `EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`,
-2026-10-12. Builds on [Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries,
-installers and install receipts this feature relies on.
+Status: Accepted (decisions in section 9). Phases 1 to 3 shipped (`update` in 0.3.0, the notice in
+0.4.0); phase 4 is in progress; phase 5 (section 12, the GitHub API rate limit) is accepted and not
+implemented yet. Target project: `rust/local-git-branch-cleanup-tui`. Repository:
+`EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`, 2026-10-12. Builds on
+[Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries, installers and install
+receipts this feature relies on.
 
 ## 1. Goals
 
@@ -83,7 +85,10 @@ Read from the crate source and checked with a prototype build against the real 0
   first renames the running `.exe` to `.previous.exe` (Windows cannot overwrite a running
   executable), restores it if the installer fails, and deletes it afterwards.
 - **GitHub API:** unauthenticated by default (60 requests per hour per IP address). A token can be
-  passed with `set_github_token()`.
+  passed with `set_github_token()`. Finding the newest release costs one request
+  (`releases/latest`), two when another app in the repo published the latest release (the list
+  follows). `update` then installs from the release already found, without another request. Each
+  request sets its own `User-Agent: axoupdate/<version>`, which replaces the one on our client.
 - **Testing:** `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL` points it at another API server
   (it appends `api/v3`), so tests can use a local mock instead of GitHub. The `..._GITHUB_BASE_URL`
   variant does not work for a local mock: it prepends `api.` to the host name and rejects IP
@@ -182,10 +187,10 @@ Flags:
 
 ### 4.3 What is sent
 
-One HTTPS request to `api.github.com` per 24 hours (and on every `update` or `update --check`),
-containing the app version in the `User-Agent` header. No identifiers, no repository data. Users can
-set `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN` to authenticate if they hit the rate limit behind a
-shared IP address. Document this in the README.
+One HTTPS request to `api.github.com` per 24 hours (and on every `update` or `update --check`). Its
+`User-Agent` is axoupdater's (section 3.2). No identifiers, no repository data. Phase 5 changes
+this: section 12.5. Users can set `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN` to authenticate if
+they hit the rate limit behind a shared IP address. Document this in the README.
 
 ## 5. Design
 
@@ -278,6 +283,12 @@ Each phase is its own PR with atomic commits.
    privacy note. Commit type `feat`.
 4. **Smoke tests.** The `update --check` step right away; the "update from the previous release" job
    once two releases exist with the command.
+5. **Rate limit (section 12).** Version lookup from the releases feed, token discovery, install from
+   the known tag. Commit type `fix`: releases a patch version.
+
+Status (2026-10-13): phases 1 to 3 merged (PRs #47, #50, #51; releases 0.3.0 and 0.4.0). In phase 4
+the `update --check` step runs in every release's smoke test; the "update from the previous release"
+job comes next, now that 0.3.0 and 0.4.0 both have the command. Phase 5 follows.
 
 ## 8. Acceptance criteria
 
@@ -298,6 +309,9 @@ Each phase is its own PR with atomic commits.
 2. ~~Command form?~~ **Decided 2026-10-12: an `update` subcommand**, with `update --check` to only
    report (section 5.1), as `rustup update` and `uv self update`.
 3. ~~Exit code for "update available"?~~ **Decided 2026-10-12: 10** (section 4.1).
+4. ~~How to deal with the anonymous API rate limit?~~ **Decided 2026-10-13: read the version from
+   the releases feed and discover a token** (section 12, options 1 and 3). Installing without the
+   API (option 2) only if users still hit the limit during installs.
 
 ## 10. Risks
 
@@ -305,7 +319,8 @@ Each phase is its own PR with atomic commits.
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `reqwest` 0.13 migration breaks GitHub/Bitbucket PR fetching                  | Phase 1 is separate with no behaviour change; existing tests plus a manual run with `--github` and `--bitbucket`.               |
 | `ring` provider not supported the way we need in `reqwest` 0.13               | Fall back to `aws-lc-rs` only if the five targets build, and accept the size growth in the acceptance criteria.                 |
-| GitHub API rate limit (60 per hour per IP) in offices sharing an IP           | 24-hour cache; silent failure; optional token variable.                                                                         |
+| GitHub API rate limit (60 per hour per IP) in offices sharing an IP           | 24-hour cache; silent failure; optional token variable; section 12.                                                             |
+| GitHub changes or drops the releases feed (section 12)                        | The feed is only a first try: on any failure the lookup falls back to the API, as before phase 5.                               |
 | A broken release is installed by `update`                                     | Smoke tests run on every release before people update; the user can reinstall a specific version with its tag-pinned installer. |
 | macOS users with a broken `~/.profile` symlink see installer errors on update | Same as the first install: harmless, documented in the README. axoupdater keeps `modify_path` from the receipt.                 |
 | The rename strands old installs                                               | Section 5.3.                                                                                                                    |
@@ -316,3 +331,91 @@ Each phase is its own PR with atomic commits.
 2. `update --prerelease` to opt into release candidates.
 3. Show what changed: print the new release's changelog entry after updating.
 4. Homebrew and winget packages, whose update commands replace this one for those users.
+5. Install without any API request (section 12.1, option 2).
+6. Our own version endpoint (section 12.1, option 4).
+
+## 12. GitHub API rate limit (phase 5)
+
+### 12.1 Problem and options
+
+Without a token, the GitHub API allows 60 requests per hour per IP address. Behind an office NAT
+everyone shares one address, and other tools use the same quota, so `update` and `update --check`
+fail with 403 ("rate limit exceeded") for users who did nothing wrong. Seen during phase 2 on the
+maintainer's machine. The background notice is silent on failure but then never shows. Today one
+lookup costs one request (two in the monorepo case, section 3.2).
+
+| Option                                                     | Effect                                               | Cost                                                                                                                                          |
+| ---------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Read the newest version from the releases feed          | Checks (notice, `update --check`) use no API request | A small feed reader; the feed is not a versioned API                                                                                          |
+| 2. Also install without the API (download the installer)   | `update` uses no API request at all                  | Re-implement what axoupdater does around the installer: install directory, `modify_path`, the Windows `.previous.exe` rename, about 150 lines |
+| 3. Discover a token (`GH_TOKEN`, `GITHUB_TOKEN`, `gh` CLI) | Users with a token get 5,000 requests per hour       | A few lines; helps only users with a token                                                                                                    |
+| 4. Our own version endpoint (for example on GitHub Pages)  | No limits                                            | One more thing to publish and run                                                                                                             |
+
+Decided: 1 and 3 (section 9, decision 4), with `update` installing from the tag that the feed found,
+so an install costs one API request (section 12.4).
+
+### 12.2 The releases feed
+
+`https://github.com/EmilIvanichkovv/omni-scripts/releases.atom` is GitHub's web feed of the
+repository's releases, newest first. Checked on 2026-10-13: it answers 200 with
+`application/atom+xml` and sends no `x-ratelimit-*` headers, so it does not count against the API
+quota. Each published release is an `<entry>` whose `<id>` ends in its tag
+(`tag:github.com,2008:Repository/840996177/local-git-branch-cleanup-tui-v0.4.0`) and whose
+`<link href>` is `.../releases/tag/<tag>`. Drafts are not listed; prereleases are, without a flag.
+It holds only the newest entries (10 for GitHub feeds).
+
+The lookup:
+
+1. GET the feed with our client (our `User-Agent`), the same timeout as today.
+2. Take each entry's tag from its `<link href>`, by plain string search (no XML library). Keep tags
+   `local-git-branch-cleanup-tui-vX.Y.Z`, skip versions with a prerelease part, take the highest.
+3. When the request fails, the feed does not parse, or no tag of this app is in it (for example
+   after 10 releases of other apps in the monorepo), fall back to the API lookup of today.
+
+The feed URL follows the API override: with `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL`
+set, it is `<base>/EmilIvanichkovv/omni-scripts/releases.atom`, as on GitHub Enterprise. So the
+tests' mock server serves both.
+
+### 12.3 Token discovery
+
+The first non-empty of:
+
+1. `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN` (exists today);
+2. `GH_TOKEN`, then `GITHUB_TOKEN` (the `gh` CLI's and GitHub Actions' variables);
+3. `gh auth token --hostname github.com`, when `gh` is installed and logged in. Only `update` and
+   `update --check` run it, never the background check, so the TUI never starts a subprocess for
+   this. Its output is never printed or logged.
+
+The token is sent only to the GitHub API host, as axoupdater does today. The rate-limit hint stays
+for users without any token.
+
+### 12.4 Installing
+
+When the feed found the newest tag, `update` sets axoupdater's version to that tag
+(`configure_version_specifier(UpdateRequest::SpecificTag(tag))`). axoupdater then makes one request,
+`releases/tags/<tag>`, to get the installer's URL, and installs as before. So a check costs no API
+request and an update costs one, authenticated when a token was found.
+
+### 12.5 What is sent (replaces section 4.3)
+
+- **Check (notice, `update --check`):** one request to `github.com` for the feed, with our
+  `User-Agent` (`local-git-branch-cleanup-tui/<version>`). No token, no identifiers, no repository
+  data. The API request of today only when the feed fails.
+- **`update` with a newer release:** additionally one request to `api.github.com`, with the
+  discovered token if any, then the installer download.
+
+### 12.6 Testing
+
+- **Unit tests:** feed parsing (this app's tags among other apps' tags, prereleases skipped, highest
+  version, a feed without our tags, garbage); token order with fake environment values.
+- **Integration tests:** the mock server serves the feed: `update --check` reports from the feed
+  while the API endpoints answer 403; with the feed missing, it falls back to the API as today.
+- **Manual:** on the rate-limited machine, `update --check` without any token succeeds.
+
+### 12.7 Acceptance criteria
+
+1. With the API quota used up and no token, `update --check` and the notice still report the newest
+   release.
+2. With `gh` logged in and no variable set, `update` makes its one API request with that token.
+3. When the feed is unreachable, behaviour is as before phase 5.
+4. No new crate dependency.

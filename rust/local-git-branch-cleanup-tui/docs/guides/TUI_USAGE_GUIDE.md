@@ -20,7 +20,7 @@ The TUI is divided into several sections:
 │ Action Log: Deletion results (appears after deletions)                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ Footer: Status legend and keyboard shortcuts                            │
-└─────────────────────────────────────────────────────────────────────────┘
+└──────────────────────────────── Update available: X.Y.Z (when there is) ┘
 ```
 
 ---
@@ -263,6 +263,10 @@ just cache-show    # pretty-print all cached entries
 just cache-db      # open interactive sqlite3 REPL
 just cache-clear   # delete all cached rows (forces fresh fetch on next run)
 ```
+
+The same directory holds `local-git-branch-cleanup-tui-update-check.json`, the result of the daily
+"update available" check (see the README, section Updating): when it last ran and the newest version
+it found. Delete it to check again on the next run.
 
 > **Note:** PR integration requires additional API calls at startup for cache misses, which may slow
 > down the initial load with many branches. Subsequent runs within the TTL are instant.

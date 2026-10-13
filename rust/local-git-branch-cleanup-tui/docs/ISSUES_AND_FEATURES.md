@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 2026-10-09 13:36
+**Last Updated:** 09-10-2026 13:36
 
 ---
 
@@ -51,8 +51,8 @@ _No open minor/cosmetic issues._
 ### Issue #18: Require a double Esc press to quit
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-10-09
-- **Resolved:** 2026-10-09
+- **Reported:** 09-10-2026
+- **Resolved:** 09-10-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - In normal mode a single `Esc` with an empty search query called `app.quit()` (the `KeyCode::Esc`
@@ -81,8 +81,8 @@ _No open minor/cosmetic issues._
 ### Issue #17: Down arrow does not browse branches after accepting `@author:me`
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-10-09
-- **Resolved:** 2026-10-09
+- **Reported:** 09-10-2026
+- **Resolved:** 09-10-2026
 - **Category:** UI/UX / Bug
 - **Description:**
   - After accepting the `me` author suggestion (Enter or Tab), the list was filtered correctly but
@@ -111,8 +111,8 @@ _No open minor/cosmetic issues._
 ### Issue #16: Search input panics on multi-byte characters
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-08-23
-- **Resolved:** 2026-08-23
+- **Reported:** 23-08-2026
+- **Resolved:** 23-08-2026
 - **Category:** Critical / Bug
 - **Description:**
   - Typing a multi-byte character in search (e.g. a Cyrillic author name after `@author:`) crashed
@@ -135,8 +135,8 @@ _No open minor/cosmetic issues._
 ### Issue #15: Branch pushed without tracking config shows as local
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-08-18
-- **Resolved:** 2026-08-19
+- **Reported:** 18-08-2026
+- **Resolved:** 19-08-2026
 - **Category:** Critical / Bug
 - **Description:**
   - A branch with a remote counterpart but no upstream tracking config (pushed without `-u`, or
@@ -159,8 +159,8 @@ _No open minor/cosmetic issues._
 ### Issue #14: pr-merged status lost when the list refreshes after deletion
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-08-14
-- **Resolved:** 2026-08-15
+- **Reported:** 14-08-2026
+- **Resolved:** 15-08-2026
 - **Category:** Critical / Bug
 - **Description:**
   - After deleting any branch, the branch list re-rendered and the remaining branches marked
@@ -182,8 +182,8 @@ _No open minor/cosmetic issues._
 ### Issue #13: Squash-merged branches with live upstream show as unmerged
 
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-08-13
-- **Resolved:** 2026-08-14
+- **Reported:** 13-08-2026
+- **Resolved:** 14-08-2026
 - **Category:** Critical / Bug
 - **Description:**
   - QA found branches whose PR was already merged showing as `! unmerged`. Squash/rebase merges
@@ -207,8 +207,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#27](https://github.com/EmilIvanichkovv/omni-scripts/issues/27)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-03-23
-- **Resolved:** 2026-03-23
+- **Reported:** 23-03-2026
+- **Resolved:** 23-03-2026
 - **Category:** UI/UX / Bug
 - **Description:**
   - When user is in search mode (typing a search query), they should be able to use Left and Right
@@ -269,8 +269,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#23](https://github.com/EmilIvanichkovv/omni-scripts/issues/23)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-25
+- **Reported:** 13-02-2026
+- **Resolved:** 25-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to see if a branch has an associated Pull Request on GitHub
@@ -322,8 +322,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#22](https://github.com/EmilIvanichkovv/omni-scripts/issues/22)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-25
+- **Reported:** 13-02-2026
+- **Resolved:** 25-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to filter branches by their creator (the author of the first commit on the
@@ -370,8 +370,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#21](https://github.com/EmilIvanichkovv/omni-scripts/issues/21)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-25
+- **Reported:** 13-02-2026
+- **Resolved:** 25-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Users should be able to sort branches by their creation date/time
@@ -408,8 +408,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#20](https://github.com/EmilIvanichkovv/omni-scripts/issues/20)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - The TUI is missing common keyboard shortcuts for efficient list navigation
@@ -440,8 +440,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#19](https://github.com/EmilIvanichkovv/omni-scripts/issues/19)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Bug
 - **Description:**
   - When navigating up from the bottom of the visible area, the viewport scrolls/re-renders even
@@ -470,8 +470,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#16](https://github.com/EmilIvanichkovv/omni-scripts/issues/16)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Improve the search workflow to allow seamless switching between search input and branch
@@ -494,8 +494,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#15](https://github.com/EmilIvanichkovv/omni-scripts/issues/15)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Bug + Enhancement
 - **Description:**
   - When many branches are selected for deletion, the confirmation prompt (Y/N) is cut off and not
@@ -514,8 +514,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#14](https://github.com/EmilIvanichkovv/omni-scripts/issues/14)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - Add an info modal accessible via the 'i' shortcut that provides users with brief information
@@ -536,8 +536,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#13](https://github.com/EmilIvanichkovv/omni-scripts/issues/13)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Enhancement
 - **Description:**
   - When user toggles force mode (f) or dry run mode (d), the selected option should be visually
@@ -556,8 +556,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#12](https://github.com/EmilIvanichkovv/omni-scripts/issues/12)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** UI/UX / Bug
 - **Description:**
   - When there are many branches in the repository, the branch list box does not scroll properly
@@ -578,8 +578,8 @@ _No open minor/cosmetic issues._
 
 - **GitHub:** [#11](https://github.com/EmilIvanichkovv/omni-scripts/issues/11)
 - **Status:** 🟢 Resolved
-- **Reported:** 2026-02-13
-- **Resolved:** 2026-02-13
+- **Reported:** 13-02-2026
+- **Resolved:** 13-02-2026
 - **Category:** Critical / Bug
 - **Description:**
   - When attempting to delete a merged branch (marked as "gone") with force mode enabled, the
@@ -607,33 +607,33 @@ _No open minor/cosmetic issues._
 
 | Date       | Time  | Issue | Change                                                                 |
 | ---------- | ----- | ----- | ---------------------------------------------------------------------- |
-| 2026-02-13 | 14:30 | -     | Document created                                                       |
-| 2026-02-13 | 14:45 | #1    | Reported: Force delete mode not using `git branch -D`                  |
-| 2026-02-13 | 15:00 | #1    | Resolved: Fixed force delete logic in `app.rs`                         |
-| 2026-02-13 | 15:15 | #2    | Reported: Branch list scrolling not working                            |
-| 2026-02-13 | 15:30 | #2    | Resolved: Implemented `TableState` for proper scrolling                |
-| 2026-02-13 | 15:45 | #3    | Reported: No visual feedback for active modes                          |
-| 2026-02-13 | 16:00 | #3    | Resolved: Added background highlighting for force/dry modes            |
-| 2026-02-13 | 16:15 | #4    | Reported: Missing info modal                                           |
-| 2026-02-13 | 16:30 | #4    | Resolved: Added info modal with 'i' shortcut                           |
-| 2026-02-13 | 16:45 | #5    | Reported: Confirmation modal issues                                    |
-| 2026-02-13 | 17:00 | #5    | Resolved: Dynamic modal height, Enter/Esc support, centered hints      |
-| 2026-02-13 | 17:15 | #6    | Reported: Search focus behavior needs improvement                      |
-| 2026-02-13 | 17:50 | #6    | Resolved: Arrow keys exit search but keep query, `/` re-enters search  |
-| 2026-02-13 | 18:30 | #7    | Reported: Scrolling causes unnecessary viewport movement               |
-| 2026-02-13 | 18:35 | #8    | Reported: Missing keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D) |
-| 2026-02-13 | 18:40 | #9    | Reported: Add ability to sort branches by creation date                |
-| 2026-02-13 | 18:45 | #10   | Reported: Add filter by branch creator/author                          |
-| 2026-02-13 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |
-| 2026-02-13 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
-| 2026-02-13 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |
-| 2026-02-25 | 13:15 | #9    | Resolved: Added sort by date with 's' key (Status/Name/Newest/Oldest)  |
-| 2026-02-25 | 14:00 | #10   | Resolved: Added @author: filter with autocomplete suggestions          |
-| 2026-02-25 | 14:30 | #11   | Resolved: Added GitHub PR integration with --github flag               |
-| 2026-02-25 | 16:05 | -     | Migrated resolved issues #7-#11 to Resolved Issues section             |
-| 2026-03-23 | 17:40 | #12   | Reported: Cannot edit search query with left/right arrow keys          |
-| 2026-03-23 | 18:30 | #12   | Resolved: Added cursor position tracking and text editing support      |
-| 2026-10-09 | 12:58 | #17   | Reported: Down arrow does not browse branches after `@author:me`       |
-| 2026-10-09 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |
-| 2026-10-09 | 13:35 | #17   | Resolved: Close autocomplete dropdown after accepting an author        |
-| 2026-10-09 | 13:36 | #18   | Resolved: Esc must be pressed twice within 1s to quit                  |
+| 13-02-2026 | 14:30 | -     | Document created                                                       |
+| 13-02-2026 | 14:45 | #1    | Reported: Force delete mode not using `git branch -D`                  |
+| 13-02-2026 | 15:00 | #1    | Resolved: Fixed force delete logic in `app.rs`                         |
+| 13-02-2026 | 15:15 | #2    | Reported: Branch list scrolling not working                            |
+| 13-02-2026 | 15:30 | #2    | Resolved: Implemented `TableState` for proper scrolling                |
+| 13-02-2026 | 15:45 | #3    | Reported: No visual feedback for active modes                          |
+| 13-02-2026 | 16:00 | #3    | Resolved: Added background highlighting for force/dry modes            |
+| 13-02-2026 | 16:15 | #4    | Reported: Missing info modal                                           |
+| 13-02-2026 | 16:30 | #4    | Resolved: Added info modal with 'i' shortcut                           |
+| 13-02-2026 | 16:45 | #5    | Reported: Confirmation modal issues                                    |
+| 13-02-2026 | 17:00 | #5    | Resolved: Dynamic modal height, Enter/Esc support, centered hints      |
+| 13-02-2026 | 17:15 | #6    | Reported: Search focus behavior needs improvement                      |
+| 13-02-2026 | 17:50 | #6    | Resolved: Arrow keys exit search but keep query, `/` re-enters search  |
+| 13-02-2026 | 18:30 | #7    | Reported: Scrolling causes unnecessary viewport movement               |
+| 13-02-2026 | 18:35 | #8    | Reported: Missing keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D) |
+| 13-02-2026 | 18:40 | #9    | Reported: Add ability to sort branches by creation date                |
+| 13-02-2026 | 18:45 | #10   | Reported: Add filter by branch creator/author                          |
+| 13-02-2026 | 18:50 | #11   | Reported: Show GitHub PR association for branches                      |
+| 13-02-2026 | 19:10 | #7    | Resolved: Implemented edge-only scrolling with scroll_offset           |
+| 13-02-2026 | 21:00 | #8    | Resolved: Added keyboard shortcuts (Home/End/g/G/PgUp/PgDn/Ctrl+U/D)   |
+| 25-02-2026 | 13:15 | #9    | Resolved: Added sort by date with 's' key (Status/Name/Newest/Oldest)  |
+| 25-02-2026 | 14:00 | #10   | Resolved: Added @author: filter with autocomplete suggestions          |
+| 25-02-2026 | 14:30 | #11   | Resolved: Added GitHub PR integration with --github flag               |
+| 25-02-2026 | 16:05 | -     | Migrated resolved issues #7-#11 to Resolved Issues section             |
+| 23-03-2026 | 17:40 | #12   | Reported: Cannot edit search query with left/right arrow keys          |
+| 23-03-2026 | 18:30 | #12   | Resolved: Added cursor position tracking and text editing support      |
+| 09-10-2026 | 12:58 | #17   | Reported: Down arrow does not browse branches after `@author:me`       |
+| 09-10-2026 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |
+| 09-10-2026 | 13:35 | #17   | Resolved: Close autocomplete dropdown after accepting an author        |
+| 09-10-2026 | 13:36 | #18   | Resolved: Esc must be pressed twice within 1s to quit                  |

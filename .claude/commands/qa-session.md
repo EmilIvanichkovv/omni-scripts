@@ -38,7 +38,7 @@ For each item the user describes:
    - Write the description in present tense (it is still broken). Wrap prose at ~100 columns.
 4. **Open the GitHub issue** (see GitHub issue mechanics) and fill the entry's `GitHub` bullet with
    the link `gh issue create` prints.
-5. **Update `Last Updated`** at the top (`YYYY-MM-DD HH:MM`, local time) and append a
+5. **Update `Last Updated`** at the top (`DD-MM-YYYY HH:MM`, local time) and append a
    `Reported: ...` row to the `Change Log` table at the bottom.
 6. **Do not touch source code** in this phase. Do not commit yet.
 7. Confirm to the user in one or two lines what you recorded, with the GitHub issue link, then wait
@@ -50,7 +50,7 @@ Entry template (open):
 ### Issue #N: <Short imperative title>
 
 - **Status:** 🔴 Open
-- **Reported:** YYYY-MM-DD
+- **Reported:** DD-MM-YYYY
 - **Category:** <Critical|UI/UX|Performance|Minor/Cosmetic> / <Bug|Enhancement>
 - **GitHub:** [#G](https://github.com/<owner>/<repo>/issues/G)
 - **Description:**
@@ -87,7 +87,7 @@ first). **One commit per issue.** For each:
 3. **Update the tracking document in the same commit:**
    - Move the entry from its open section to the top of `Resolved Issues`. Restore the
      `_No open ... issues._` placeholder if the section becomes empty.
-   - `Status` → `🟢 Resolved`, add `- **Resolved:** YYYY-MM-DD` after `Reported`.
+   - `Status` → `🟢 Resolved`, add `- **Resolved:** DD-MM-YYYY` after `Reported`.
    - Rewrite `Description`/`Actual Behavior` in past tense (it _crashed_, it _showed_).
    - Rename `Proposed Fix` to `Fix` and rewrite it to describe what was actually done.
    - Add `- **Commit:** \`<the commit subject>\`` as the last bullet.

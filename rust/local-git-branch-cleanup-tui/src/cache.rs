@@ -84,7 +84,7 @@ pub struct PrCache {
 /// `$XDG_CACHE_HOME` when set to an absolute path, otherwise the platform cache directory.
 /// `dirs::cache_dir()` reads `XDG_CACHE_HOME` on Linux only; honouring it everywhere lets users
 /// move the cache and lets tests isolate it on macOS and Windows too.
-fn cache_root() -> Option<std::path::PathBuf> {
+pub(crate) fn cache_root() -> Option<std::path::PathBuf> {
     std::env::var_os("XDG_CACHE_HOME")
         .map(std::path::PathBuf::from)
         .filter(|path| path.is_absolute())

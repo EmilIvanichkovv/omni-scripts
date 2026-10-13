@@ -159,6 +159,8 @@ pub struct App {
     pub show_suggestions: bool,
     /// Which PR provider is enabled (None = PR integration disabled)
     pub pr_provider: Option<PrProviderKind>,
+    /// "Update available" line for the footer, when a newer release is known
+    pub update_notice: Option<String>,
 }
 
 impl App {
@@ -206,6 +208,7 @@ impl App {
             suggestion_index: None,
             show_suggestions: false,
             pr_provider: None,
+            update_notice: None,
         }
     }
 

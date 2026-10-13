@@ -1,8 +1,8 @@
 # Self-Update Specification
 
-Status: Accepted (decisions in section 9). Phases 1 to 3 shipped (`update` in 0.3.0, the notice in
-0.4.0); phase 4 is in progress; phase 5 (section 12, the GitHub API rate limit) is accepted and not
-implemented yet. Target project: `rust/local-git-branch-cleanup-tui`. Repository:
+Status: Accepted (decisions in section 9). Phases 1 to 4 done (`update` in 0.3.0, the notice in
+0.4.0, the smoke tests in every release run); phase 5 (section 12, the GitHub API rate limit) is
+accepted and not implemented yet. Target project: `rust/local-git-branch-cleanup-tui`. Repository:
 `EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `8f14b6b`, 2026-10-12. Builds on
 [Release & Distribution](RELEASE_DISTRIBUTION.md), which ships the binaries, installers and install
 receipts this feature relies on.
@@ -261,9 +261,9 @@ Option 1 is better for users; it is a small, temporary branch in `update.rs`.
   `LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL`) serving a fake newer release, and check
   `update --check` exit codes 0 and 10 and the messages. No real network in tests.
 - **Smoke tests (`smoke-test.yml`):** after installing the new release, run `update --check` and
-  expect "latest version" (exit 0). Once two releases exist, add a job that installs the previous
-  release with its tag-pinned installer, runs `update`, and checks `--version` shows the new one; on
-  Windows this exercises the `.previous.exe` rename.
+  expect "latest version" (exit 0). A second job installs the previous release (skipped while it
+  predates the command, 0.3.0) with its tag-pinned installer, runs `update`, and checks `--version`
+  shows the new one in the same directory; on Windows this exercises the `.previous.exe` rename.
 - **Manual check before merging the implementation:** Linux, macOS (Apple Silicon) and Windows, each
   updating a real older install with the one-line installer.
 
@@ -286,9 +286,10 @@ Each phase is its own PR with atomic commits.
 5. **Rate limit (section 12).** Version lookup from the releases feed, token discovery, install from
    the known tag. Commit type `fix`: releases a patch version.
 
-Status (2026-10-13): phases 1 to 3 merged (PRs #47, #50, #51; releases 0.3.0 and 0.4.0). In phase 4
-the `update --check` step runs in every release's smoke test; the "update from the previous release"
-job comes next, now that 0.3.0 and 0.4.0 both have the command. Phase 5 follows.
+Status (2026-10-13): phases 1 to 4 merged (PRs #47, #50, #51, #53; releases 0.3.0 and 0.4.0). The
+"update from the previous release" job (PR #53) was tested against the real releases before merging:
+on Linux x64, Linux arm64, macOS and Windows, `update` replaced an installed 0.3.0 with 0.4.0 in
+place, which meets acceptance criterion 1. Phase 5 is next.
 
 ## 8. Acceptance criteria
 

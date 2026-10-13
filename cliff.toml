@@ -5,7 +5,7 @@
 [changelog]
 # The tag passed with --tag is "<tool>-v<version>"; the heading shows just the version.
 body = """
-## {{ version | split(pat="-v") | last }} - {{ timestamp | date(format="%Y-%m-%d") }}
+## {{ version | split(pat="-v") | last }} - {{ timestamp | date(format="%d-%m-%Y") }}
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}

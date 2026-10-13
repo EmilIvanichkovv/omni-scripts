@@ -64,23 +64,24 @@ fn current_version() -> Version {
         .expect("CARGO_PKG_VERSION is valid semver")
 }
 
-fn http_client() -> reqwest::Client {
+/// A client whose requests give up after `timeout`.
+fn http_client(timeout: Duration) -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(concat!(
             env!("CARGO_PKG_NAME"),
             "/",
             env!("CARGO_PKG_VERSION")
         ))
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(120))
+        .connect_timeout(timeout.min(Duration::from_secs(10)))
+        .timeout(timeout)
         .build()
         .expect("HTTP client with static settings builds")
 }
 
 /// An updater for this app, with its receipt loaded when there is one, and the channel it implies.
-fn updater() -> Result<(AxoUpdater, InstallChannel), String> {
+fn updater(client: reqwest::Client) -> Result<(AxoUpdater, InstallChannel), String> {
     let mut updater = AxoUpdater::new_for(APP);
-    updater.set_client(http_client());
+    updater.set_client(client);
     if let Some(token) = std::env::var(TOKEN_ENV).ok().filter(|t| !t.is_empty()) {
         updater.set_github_token(&token);
     }
@@ -161,10 +162,17 @@ fn upgrade_instructions(channel: &InstallChannel) -> String {
     }
 }
 
+/// The newest release's version, or `None` on any error. For the background check
+/// (`update_notice`), which stays silent on failure.
+pub async fn latest_version(timeout: Duration) -> Option<Version> {
+    let (mut updater, _) = updater(http_client(timeout)).ok()?;
+    updater.query_new_version().await.ok().flatten().cloned()
+}
+
 /// Run `update` (or `update --check`) and return the process exit code: 0 when up to date or
 /// updated, `EXIT_UPDATE_AVAILABLE` when `--check` finds a newer release, 1 otherwise.
 pub async fn run(check_only: bool) -> i32 {
-    let (mut updater, channel) = match updater() {
+    let (mut updater, channel) = match updater(http_client(Duration::from_secs(120))) {
         Ok(found) => found,
         Err(e) => {
             eprintln!("error: {e}");

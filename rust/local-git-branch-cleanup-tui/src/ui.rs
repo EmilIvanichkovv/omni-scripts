@@ -1197,11 +1197,20 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         key_hints
     };
 
-    let footer = Paragraph::new(key_hints).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(COLOR_MUTED)),
-    );
+    let mut block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(COLOR_MUTED));
+    // On the bottom border, so it takes no room from the key hints
+    if let Some(notice) = &app.update_notice {
+        block = block.title_bottom(
+            Line::from(Span::styled(
+                format!(" {notice} "),
+                Style::default().fg(COLOR_SUCCESS),
+            ))
+            .right_aligned(),
+        );
+    }
+    let footer = Paragraph::new(key_hints).block(block);
 
     frame.render_widget(footer, area);
 }
@@ -1937,4 +1946,33 @@ fn render_info_modal(frame: &mut Frame) {
         .alignment(Alignment::Left);
 
     frame.render_widget(modal, modal_area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    fn footer_text(app: &App) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(120, 3)).unwrap();
+        terminal
+            .draw(|frame| render_footer(frame, app, frame.area()))
+            .unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    #[test]
+    fn footer_shows_the_update_notice_when_one_is_set() {
+        let mut app = App::new(Vec::new(), "/repo".into(), "main".into(), String::new());
+        assert!(!footer_text(&app).contains("Update available"));
+
+        app.update_notice = Some("Update available: 9.9.9 (run: x update)".into());
+        assert!(footer_text(&app).contains("Update available: 9.9.9 (run: x update)"));
+    }
 }

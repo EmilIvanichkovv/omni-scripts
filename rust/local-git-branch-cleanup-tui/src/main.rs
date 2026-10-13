@@ -6,6 +6,7 @@ mod remote;
 mod tls;
 mod ui;
 mod update;
+mod update_notice;
 
 use app::App;
 use clap::{Parser, Subcommand};
@@ -73,6 +74,10 @@ struct Args {
     /// Fetch PR data and print timing stats, then exit. For benchmarking only.
     #[arg(long, hide = true)]
     fetch_only: bool,
+
+    /// Do not check for new versions
+    #[arg(long)]
+    no_update_check: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -106,6 +111,9 @@ async fn main() -> Result<()> {
             std::process::exit(1);
         }
     };
+
+    // Runs in the background while branches and PRs load; never delays startup.
+    let mut update_notice = update_notice::UpdateNotice::start(args.no_update_check);
 
     // Get the trunk branch
     let trunk = git::get_default_branch(args.trunk.as_deref())?;
@@ -187,7 +195,12 @@ async fn main() -> Result<()> {
 
     // Use CLI mode if --cli flag is set
     if args.cli {
-        return run_cli_mode(&branches, &trunk, args.force, args.dry_run, pr_provider);
+        let result = run_cli_mode(&branches, &trunk, args.force, args.dry_run, pr_provider);
+        // On stderr, so it never mixes with the output scripts read.
+        if let Some(message) = update_notice.message() {
+            eprintln!("{message}");
+        }
+        return result;
     }
 
     // Run TUI mode
@@ -198,6 +211,7 @@ async fn main() -> Result<()> {
         args.force,
         args.dry_run,
         pr_provider,
+        update_notice,
     )
 }
 
@@ -277,6 +291,7 @@ fn run_tui_mode(
     force_mode: bool,
     dry_run: bool,
     pr_provider: Option<pr::PrProviderKind>,
+    mut update_notice: update_notice::UpdateNotice,
 ) -> Result<()> {
     // Set up terminal
     enable_raw_mode()?;
@@ -297,6 +312,7 @@ fn run_tui_mode(
     // Main loop
     loop {
         app.expire_esc_quit(std::time::Instant::now());
+        app.update_notice = update_notice.message();
 
         // Draw UI
         terminal.draw(|frame| ui::render(frame, &mut app))?;

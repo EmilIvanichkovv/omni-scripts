@@ -12,6 +12,8 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 const APP: &str = "local-git-branch-cleanup-tui";
 const CURRENT: &str = env!("CARGO_PKG_VERSION");
 const RELEASES: &str = "/api/v3/repos/EmilIvanichkovv/omni-scripts/releases";
+/// The releases feed, which follows the GHE base URL like the API.
+const FEED: &str = "/EmilIvanichkovv/omni-scripts/releases.atom";
 
 /// A command that talks to `server` and reads install receipts from `config_dir` only. It runs in
 /// `config_dir`, which is not a git repository: `update` must work from anywhere.
@@ -27,6 +29,46 @@ fn update_cmd(server: &MockServer, config_dir: &Path) -> Command {
         .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL")
         .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN");
     cmd
+}
+
+/// A releases feed listing `versions` of this app, newest first, plus another app's release.
+fn feed_xml(versions: &[&str]) -> String {
+    let entry = |tag: String| {
+        format!(
+            "<entry><id>tag:github.com,2008:Repository/1/{tag}</id><title>{tag}</title></entry>"
+        )
+    };
+    let mut entries = vec![entry("other-tool-v100.0.0".to_string())];
+    entries.extend(versions.iter().map(|v| entry(format!("{APP}-v{v}"))));
+    format!(
+        "<?xml version=\"1.0\"?><feed><id>tag:github.com,2008:x/releases</id>{}</feed>",
+        entries.concat()
+    )
+}
+
+async fn mount_feed(server: &MockServer, versions: &[&str]) {
+    Mock::given(method("GET"))
+        .and(path(FEED))
+        .respond_with(ResponseTemplate::new(200).set_body_string(feed_xml(versions)))
+        .mount(server)
+        .await;
+}
+
+/// Answers `status` on the API endpoints, `expect`ing that many requests to each: the server
+/// checks the counts when the test ends.
+async fn mount_api(server: &MockServer, status: u16, endpoints: &[String], expect: u64) {
+    for p in endpoints {
+        Mock::given(method("GET"))
+            .and(path(p.as_str()))
+            .respond_with(ResponseTemplate::new(status))
+            .expect(expect)
+            .mount(server)
+            .await;
+    }
+}
+
+fn lookup_endpoints() -> Vec<String> {
+    vec![format!("{RELEASES}/latest"), RELEASES.to_string()]
 }
 
 fn release_json(version: &str) -> serde_json::Value {
@@ -210,4 +252,59 @@ fn update_conflicts_with_tui_flags() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("cannot be used with"));
+}
+
+#[tokio::test]
+async fn check_reads_the_feed_when_the_api_is_rate_limited() {
+    let server = MockServer::start().await;
+    mount_feed(&server, &["99.0.0", CURRENT]).await;
+    mount_api(&server, 403, &lookup_endpoints(), 0).await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(10)
+        .stdout(predicate::str::contains(format!(
+            "Update available: {CURRENT} -> 99.0.0"
+        )));
+}
+
+#[tokio::test]
+async fn check_up_to_date_from_the_feed_makes_no_api_request() {
+    let server = MockServer::start().await;
+    mount_feed(&server, &[CURRENT]).await;
+    mount_api(&server, 200, &lookup_endpoints(), 0).await;
+    let config = TempDir::new().unwrap();
+
+    update_cmd(&server, config.path())
+        .args(["update", "--check"])
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains(format!(
+            "{APP} {CURRENT} is the latest version."
+        )));
+}
+
+#[tokio::test]
+async fn update_from_the_feed_looks_up_only_that_tag() {
+    let server = MockServer::start().await;
+    mount_feed(&server, &["99.0.0"]).await;
+    mount_api(&server, 200, &lookup_endpoints(), 0).await;
+    // Rate limited, so nothing gets installed; the one request is all this test needs.
+    mount_api(&server, 403, &[format!("{RELEASES}/tags/{APP}-v99.0.0")], 1).await;
+    let config = TempDir::new().unwrap();
+    write_receipt(config.path(), &test_binary_dir());
+
+    update_cmd(&server, config.path())
+        .arg("update")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(format!(
+            "Update available: {CURRENT} -> 99.0.0"
+        )))
+        .stderr(predicate::str::contains("the update failed"))
+        .stderr(predicate::str::contains(
+            "LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN",
+        ));
 }

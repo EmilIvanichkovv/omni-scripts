@@ -26,3 +26,6 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    ignore:
+      # Held at 2.0.0 on purpose: see the comment in rust/Cargo.toml.
+      - dependency-name: axoasset

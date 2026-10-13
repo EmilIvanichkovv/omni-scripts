@@ -68,7 +68,8 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/EmilIvanichkovv/om
 
 The installer picks the build for your platform and puts `local-git-branch-cleanup-tui` in
 `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows), adding it to your `PATH` if needed. To
-uninstall, delete that file. Run the same command again to upgrade.
+uninstall, delete that file. To upgrade, run `local-git-branch-cleanup-tui update` (see
+[Updating](#updating)) or the same install command again.
 
 The `PATH` change applies to new terminals only, so the terminal you installed from will not find
 the command yet. Open a new terminal, or run the `source` line the installer prints (Linux and
@@ -82,6 +83,21 @@ source ~/.config/local-git-branch-cleanup-tui/env.fish   # fish
 If the installer prints `~/.profile: No such file or directory`, `~/.profile` is most likely a
 symlink to a missing file (common with dotfile managers). The binary is still installed; fix or
 remove the link, or add `~/.local/bin` to your `PATH` yourself.
+
+### Updating
+
+```bash
+local-git-branch-cleanup-tui update           # install the newest release
+local-git-branch-cleanup-tui update --check   # only report; exit code 10 if an update is available
+```
+
+`update` replaces a copy installed with the one-line installer in place. A copy installed another
+way (Nix, Cargo or a manual download) is never modified: `update` prints how to upgrade it instead.
+
+The check is one request to the GitHub API. GitHub allows 60 anonymous requests per hour per IP
+address, which a shared office network can use up; set `LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN`
+to any GitHub token to raise the limit, for example
+`export LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN=$(gh auth token)`.
 
 ### Download manually
 

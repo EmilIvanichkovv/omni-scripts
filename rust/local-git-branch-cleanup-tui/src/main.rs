@@ -5,9 +5,10 @@ mod pr;
 mod remote;
 mod tls;
 mod ui;
+mod update;
 
 use app::App;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
@@ -22,7 +23,11 @@ use std::io::{self, Write};
 #[command(name = "local-git-branch-cleanup-tui")]
 #[command(about = "Interactive TUI for cleaning up local Git branches", long_about = None)]
 #[command(version)]
+#[command(args_conflicts_with_subcommands = true)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Override the default trunk branch
     #[arg(long)]
     trunk: Option<String>,
@@ -70,6 +75,16 @@ struct Args {
     fetch_only: bool,
 }
 
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Update to the newest release
+    Update {
+        /// Only report whether an update is available (exit code 10 if one is)
+        #[arg(long)]
+        check: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize error handling
@@ -77,6 +92,11 @@ async fn main() -> Result<()> {
     tls::install_crypto_provider();
 
     let args = Args::parse();
+
+    // Works from any directory, so it runs before the git repository check.
+    if let Some(Command::Update { check }) = args.command {
+        std::process::exit(update::run(check).await);
+    }
 
     // Verify we're in a git repository
     let repo_path = match git::verify_repo() {

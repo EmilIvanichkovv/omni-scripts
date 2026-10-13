@@ -1,7 +1,8 @@
 name: Smoke test
 
 # Called by release.yml (dist post-announce job, see dist-workspace.toml) once a release is
-# published: installs it the way users do, on every supported platform, and runs it.
+# published: installs it the way users do, on every supported platform, and runs it. Then installs
+# the previous release and updates it to this one with `update`.
 # A failure fails the release run but does not unpublish anything. Releases are immutable, so fix
 # forward with the next merge.
 on:
@@ -102,3 +103,100 @@ jobs:
           sha256sum -c "$archive.sha256"
           tar -xJf "$archive"
           "./${archive%.tar.xz}/$APP" --version
+
+  previous:
+    name: Find the previous release
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ fromJson(inputs.plan).releases[0].app_name }}
+      TAG: ${{ fromJson(inputs.plan).announcement_tag }}
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      tag: ${{ steps.find.outputs.tag }}
+      version: ${{ steps.find.outputs.version }}
+    steps:
+      # The release just before this one, if it already has the update command (0.3.0 and later).
+      - name: Find the previous release with the update command
+        id: find
+        run: |
+          prev=$(gh release list -R "$REPO" --limit 100 --exclude-drafts --exclude-pre-releases \
+              --json tagName --jq '.[].tagName' \
+            | grep -E "^$APP-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | grep -B1 -xF "$TAG" | head -1)
+          version=${prev#"$APP-v"}
+          if [ -z "$prev" ] || [ "$prev" = "$TAG" ] \
+            || [ "$(printf '%s\n' 0.3.0 "$version" | sort -V | head -1)" != 0.3.0 ]; then
+            echo "No earlier release with the update command; skipping."
+            exit 0
+          fi
+          echo "Previous release: $prev"
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # Installs the previous release the way users did and updates it to this one with `update`, as
+  # users will. On Windows this also covers renaming the running .exe out of the way.
+  update:
+    name: Update from ${{ needs.previous.outputs.version }} (${{ matrix.os }})
+    needs: previous
+    if: needs.previous.outputs.tag != ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      APP: ${{ fromJson(inputs.plan).releases[0].app_name }}
+      VERSION: ${{ fromJson(inputs.plan).releases[0].app_version }}
+      PREVIOUS_TAG: ${{ needs.previous.outputs.tag }}
+      PREVIOUS_VERSION: ${{ needs.previous.outputs.version }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Install the previous release with the shell installer
+        if: runner.os != 'Windows'
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/$REPO/releases/download/$PREVIOUS_TAG/$APP-installer.sh" | sh
+
+      - name: Install the previous release with the PowerShell installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: irm "https://github.com/$env:REPO/releases/download/$env:PREVIOUS_TAG/$env:APP-installer.ps1" | iex
+
+      - name: Add the install directory to PATH
+        run: |
+          dir="$HOME/.local/bin"
+          if [ "$RUNNER_OS" = Windows ]; then dir=$(cygpath -w "$dir"); fi
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: Check the previous version is installed
+        run: |
+          out=$("$APP" --version)
+          echo "$out"
+          [ "$out" = "$APP $PREVIOUS_VERSION" ]
+
+      # A newer release published in the meantime would also be installed and fail the last
+      # check; rerun the job then.
+      - name: Update
+        env:
+          LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN: ${{ github.token }}
+        run: '"$APP" update'
+
+      - name: Check the new version is installed in the same place
+        run: |
+          ls -l "$HOME/.local/bin"
+          command -v "$APP"
+          out=$("$APP" --version)
+          echo "$out"
+          [ "$out" = "$APP $VERSION" ]
+
+      - name: Check for updates again
+        env:
+          LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          out=$("$APP" update --check)
+          echo "$out"
+          [ "$out" = "$APP $VERSION is the latest version." ]

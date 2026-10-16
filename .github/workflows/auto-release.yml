@@ -66,7 +66,7 @@ jobs:
       # RELEASE_DISTRIBUTION.md, section 6.4). Dry runs do not push and need no App.
       - id: app-token
         if: ${{ !inputs.dry-run }}
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

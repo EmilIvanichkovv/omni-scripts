@@ -944,22 +944,30 @@ impl App {
         self.show_confirmation = false;
     }
 
-    /// Refresh the branch list (after deletion)
+    /// Refresh the branch list (after deletion). Classifies against the
+    /// trunk resolved at startup, so a `--trunk` override is kept.
     pub fn refresh_branches(&mut self) {
-        if let Ok(mut branches) = git::get_branches_with_classification(None) {
-            // Carry over PR info fetched at startup; a refresh only re-reads
-            // git, so without this PrMerged branches revert to Unmerged.
-            for branch in branches.iter_mut() {
-                if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
-                    branch.pr_info = old.pr_info.clone();
-                }
+        if let Ok(branches) = git::get_branches_with_classification(Some(&self.trunk)) {
+            self.replace_branches(branches);
+        }
+    }
+
+    /// Swap in a freshly read branch list, keeping the PR info already known
+    /// and the sort order the user chose
+    pub fn replace_branches(&mut self, mut branches: Vec<BranchInfo>) {
+        // Carry over PR info fetched at startup; a refresh only re-reads
+        // git, so without this PrMerged branches revert to Unmerged.
+        for branch in branches.iter_mut() {
+            if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
+                branch.pr_info = old.pr_info.clone();
             }
-            git::apply_pr_merge_status(&mut branches);
-            self.branches = branches;
-            // Reset selection index if out of bounds
-            if self.selected_index >= self.branches.len() {
-                self.selected_index = self.branches.len().saturating_sub(1);
-            }
+        }
+        git::apply_pr_merge_status(&mut branches);
+        self.branches = branches;
+        self.sort_branches();
+        // Reset selection index if out of bounds
+        if self.selected_index >= self.branches.len() {
+            self.selected_index = self.branches.len().saturating_sub(1);
         }
     }
 
@@ -2125,6 +2133,19 @@ mod tests {
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"feature/merged"));
         assert!(names.contains(&"feature/gone"));
+    }
+
+    #[test]
+    fn replacing_branches_keeps_the_sort_mode() {
+        let mut app = create_test_app();
+        app.cycle_sort_mode(); // Status -> Name
+        let fresh = vec![
+            create_test_branch("zeta", BranchStatus::SafeMerged),
+            create_test_branch("alpha", BranchStatus::SafeMerged),
+        ];
+        app.replace_branches(fresh);
+        assert_eq!(app.branches[0].name, "alpha");
+        assert_eq!(app.branches[1].name, "zeta");
     }
 
     #[test]

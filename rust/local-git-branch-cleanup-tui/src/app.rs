@@ -136,8 +136,9 @@ pub struct App {
     pub branches: Vec<BranchInfo>,
     /// Currently selected branch index (cursor) - relative to filtered list
     pub selected_index: usize,
-    /// Set of selected branch indices (for deletion) - relative to all branches
-    pub selected_branches: HashSet<usize>,
+    /// Names of the branches selected for deletion. Stored by name, so the
+    /// selection follows its branches when the list is re-sorted or reloaded.
+    pub selected_branches: HashSet<String>,
     /// Whether the app should quit
     pub should_quit: bool,
     /// When Esc was pressed in normal mode; a second Esc within `ESC_QUIT_WINDOW` quits
@@ -803,10 +804,8 @@ impl App {
                 return;
             }
 
-            if self.selected_branches.contains(&index) {
-                self.selected_branches.remove(&index);
-            } else {
-                self.selected_branches.insert(index);
+            if !self.selected_branches.remove(&branch.name) {
+                self.selected_branches.insert(branch.name.clone());
             }
         }
     }
@@ -814,28 +813,23 @@ impl App {
     /// Select all safe (deletable) branches
     pub fn select_all_safe(&mut self) {
         // If all safe branches are selected, deselect all
-        let safe_indices: Vec<usize> = self
+        let safe_names: Vec<String> = self
             .branches
             .iter()
-            .enumerate()
-            .filter(|(_, b)| {
-                b.status.is_deletable() && (self.force_mode || !b.status.requires_force())
-            })
-            .map(|(i, _)| i)
+            .filter(|b| b.status.is_deletable() && (self.force_mode || !b.status.requires_force()))
+            .map(|b| b.name.clone())
             .collect();
 
-        let all_selected = safe_indices
+        let all_selected = safe_names
             .iter()
-            .all(|i| self.selected_branches.contains(i));
+            .all(|name| self.selected_branches.contains(name));
 
         if all_selected {
             // Deselect all
             self.selected_branches.clear();
         } else {
             // Select all safe branches
-            for i in safe_indices {
-                self.selected_branches.insert(i);
-            }
+            self.selected_branches.extend(safe_names);
         }
     }
 
@@ -861,18 +855,21 @@ impl App {
             return;
         }
         let branches = &self.branches;
-        self.selected_branches
-            .retain(|&i| branches.get(i).is_some_and(|b| !b.status.requires_force()));
+        self.selected_branches.retain(|name| {
+            branches
+                .iter()
+                .any(|b| &b.name == name && !b.status.requires_force())
+        });
         if let Some(wt) = self.worktrees.as_mut() {
             wt.retain_selectable(false);
         }
     }
 
-    /// Get the branches that are selected for deletion
+    /// Get the branches that are selected for deletion, in list order
     pub fn get_selected_branches(&self) -> Vec<&BranchInfo> {
-        self.selected_branches
+        self.branches
             .iter()
-            .filter_map(|&i| self.branches.get(i))
+            .filter(|b| self.selected_branches.contains(&b.name))
             .collect()
     }
 
@@ -884,9 +881,11 @@ impl App {
         }
     }
 
-    /// Check if a branch index is selected
+    /// Check if the branch at `index` (in all branches) is selected
     pub fn is_branch_selected(&self, index: usize) -> bool {
-        self.selected_branches.contains(&index)
+        self.branches
+            .get(index)
+            .is_some_and(|b| self.selected_branches.contains(&b.name))
     }
 
     /// Show the confirmation modal
@@ -905,17 +904,13 @@ impl App {
 
     /// Execute deletion of selected branches
     pub fn delete_selected_branches(&mut self) {
-        let selected: Vec<(usize, String, BranchStatus)> = self
-            .selected_branches
-            .iter()
-            .filter_map(|&i| {
-                self.branches
-                    .get(i)
-                    .map(|b| (i, b.name.clone(), b.status.clone()))
-            })
+        let selected: Vec<(String, BranchStatus)> = self
+            .get_selected_branches()
+            .into_iter()
+            .map(|b| (b.name.clone(), b.status.clone()))
             .collect();
 
-        for (_, branch_name, status) in &selected {
+        for (branch_name, status) in &selected {
             // Auto-force for "gone" branches (squash/rebase merges) and
             // force-only branches (unmerged, pr-diverged)
             // Also respect user's force_mode setting
@@ -2109,7 +2104,27 @@ mod tests {
         app.toggle_selection(2); // feature/gone
         app.toggle_force_mode();
         assert!(app.force_mode);
-        assert_eq!(app.selected_branches, HashSet::from([1, 2]));
+        assert_eq!(
+            app.selected_branches,
+            HashSet::from(["feature/merged".to_string(), "feature/gone".to_string()])
+        );
+    }
+
+    #[test]
+    fn selection_follows_its_branches_when_the_list_is_re_sorted() {
+        let mut app = create_test_app();
+        app.toggle_selection(1); // feature/merged
+        app.toggle_selection(2); // feature/gone
+        app.cycle_sort_mode(); // Status -> Name moves both branches
+        assert_ne!(app.branches[1].name, "feature/merged");
+        let names: Vec<&str> = app
+            .get_selected_branches()
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"feature/merged"));
+        assert!(names.contains(&"feature/gone"));
     }
 
     #[test]
@@ -2123,7 +2138,10 @@ mod tests {
 
         app.toggle_force_mode();
         assert!(!app.force_mode);
-        assert_eq!(app.selected_branches, HashSet::from([1, 2]));
+        assert_eq!(
+            app.selected_branches,
+            HashSet::from(["feature/merged".to_string(), "feature/gone".to_string()])
+        );
     }
 
     #[test]
@@ -2151,7 +2169,10 @@ mod tests {
             *selected,
             HashSet::from([std::path::PathBuf::from("/wt/clean")])
         );
-        assert_eq!(app.selected_branches, HashSet::from([1]));
+        assert_eq!(
+            app.selected_branches,
+            HashSet::from(["feature/merged".to_string()])
+        );
     }
 
     #[test]

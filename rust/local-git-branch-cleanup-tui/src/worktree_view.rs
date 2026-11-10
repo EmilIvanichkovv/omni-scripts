@@ -636,6 +636,27 @@ impl WorktreeView {
         }
     }
 
+    /// After a reload, keep what `old` knew: the filter tab, statuses already
+    /// read (fresh ones replace them as they arrive), and the selection of
+    /// worktrees that still exist and are still selectable
+    pub fn carry_over_from(&mut self, old: &WorktreeView, force_mode: bool) {
+        self.filter = old.filter;
+        for wt in self.worktrees.iter_mut() {
+            if wt.changes != Changes::Loading {
+                continue;
+            }
+            if let Some(known) = old
+                .worktrees
+                .iter()
+                .find(|o| o.entry.path == wt.entry.path && o.changes != Changes::Loading)
+            {
+                wt.changes = known.changes.clone();
+            }
+        }
+        self.selected = old.selected.clone();
+        self.retain_selectable(force_mode);
+    }
+
     /// Drop selected worktrees that are not selectable with `force_mode`
     /// (dirty ones once force mode is off)
     pub fn retain_selectable(&mut self, force_mode: bool) {

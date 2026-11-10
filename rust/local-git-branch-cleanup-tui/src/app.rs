@@ -122,6 +122,19 @@ pub fn branch_delete_needs_force(status: &BranchStatus, force_mode: bool) -> boo
     force_mode || status.requires_force() || *status == BranchStatus::GoneUpstream
 }
 
+/// Unique branch authors, sorted case-insensitively, for `@author:` completion
+fn collect_authors(branches: &[BranchInfo]) -> Vec<String> {
+    let mut authors: Vec<String> = branches
+        .iter()
+        .map(|b| b.branch_author.clone())
+        .filter(|a| !a.is_empty())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    authors.sort_by_key(|a| a.to_lowercase());
+    authors
+}
+
 /// Log entry for deletion actions
 #[derive(Debug, Clone)]
 pub struct ActionLogEntry {
@@ -214,15 +227,7 @@ impl App {
         trunk: String,
         current_git_user: String,
     ) -> Self {
-        // Collect unique branch authors for autocomplete
-        let mut unique_authors: Vec<String> = branches
-            .iter()
-            .map(|b| b.branch_author.clone())
-            .filter(|a| !a.is_empty())
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
-        unique_authors.sort_by_key(|a| a.to_lowercase());
+        let unique_authors = collect_authors(&branches);
 
         Self {
             branches,
@@ -949,12 +954,19 @@ impl App {
     pub fn refresh_branches(&mut self) {
         if let Ok(branches) = git::get_branches_with_classification(Some(&self.trunk)) {
             self.replace_branches(branches);
+            self.reload_worktrees_if_loaded();
         }
     }
 
-    /// Swap in a freshly read branch list, keeping the PR info already known
-    /// and the sort order the user chose
+    /// Swap in a freshly read branch list. Keeps the PR info already known,
+    /// the sort order, the cursor (by branch name) and the selection of
+    /// branches that still exist and are still selectable.
     pub fn replace_branches(&mut self, mut branches: Vec<BranchInfo>) {
+        let cursor_name = match self.view {
+            ViewMode::Branches => self.selected_branch().map(|b| b.name.clone()),
+            ViewMode::Worktrees => None,
+        };
+
         // Carry over PR info fetched at startup; a refresh only re-reads
         // git, so without this PrMerged branches revert to Unmerged.
         for branch in branches.iter_mut() {
@@ -965,9 +977,49 @@ impl App {
         git::apply_pr_merge_status(&mut branches);
         self.branches = branches;
         self.sort_branches();
-        // Reset selection index if out of bounds
-        if self.selected_index >= self.branches.len() {
-            self.selected_index = self.branches.len().saturating_sub(1);
+        self.unique_authors = collect_authors(&self.branches);
+
+        // A branch that is gone, or whose new status makes it unselectable
+        // (e.g. a new commit turned it unmerged), leaves the selection
+        let force_mode = self.force_mode;
+        let branches = &self.branches;
+        self.selected_branches.retain(|name| {
+            branches.iter().any(|b| {
+                &b.name == name
+                    && b.status.is_deletable()
+                    && (force_mode || !b.status.requires_force())
+            })
+        });
+
+        match self.view {
+            ViewMode::Branches => self.restore_branch_cursor(cursor_name.as_deref()),
+            ViewMode::Worktrees => {
+                let last = self.branches.len().saturating_sub(1);
+                self.other_nav.selected_index = self.other_nav.selected_index.min(last);
+            }
+        }
+    }
+
+    /// Put the cursor back on `name` in the filtered list, or keep its row
+    /// (clamped) when that branch is no longer listed
+    fn restore_branch_cursor(&mut self, name: Option<&str>) {
+        let filtered = self.filtered_branches();
+        let position = name.and_then(|name| filtered.iter().position(|b| b.name == name));
+        self.selected_index = match position {
+            Some(position) => position,
+            None => self.selected_index.min(filtered.len().saturating_sub(1)),
+        };
+        self.scroll_offset = self.scroll_offset.min(self.selected_index);
+        self.adjust_scroll_for_selection();
+    }
+
+    /// Re-read the worktree list after the branches changed, when the
+    /// worktree view has been opened
+    pub fn reload_worktrees_if_loaded(&mut self) {
+        if self.worktrees.is_some() {
+            if let Err(e) = self.load_worktrees() {
+                self.flash = Some(format!("Cannot list worktrees: {}", e));
+            }
         }
     }
 
@@ -1029,17 +1081,36 @@ impl App {
         self.view = target;
     }
 
-    /// (Re)load the worktree list and start reading each worktree's status
+    /// (Re)load the worktree list and start reading each worktree's status.
+    /// On a reload, the filter, the statuses already read, the selection and
+    /// the cursor (by path) carry over.
     pub fn load_worktrees(&mut self) -> color_eyre::Result<()> {
-        let mut view = WorktreeView::load(&self.branches, Path::new(&self.repo_path))?;
+        let view = WorktreeView::load(&self.branches, Path::new(&self.repo_path))?;
+        self.set_worktree_view(view);
+        Ok(())
+    }
+
+    /// Install a freshly loaded worktree view (see `load_worktrees`)
+    fn set_worktree_view(&mut self, mut view: WorktreeView) {
+        let cursor_path = match self.view {
+            ViewMode::Worktrees => self.selected_worktree().map(|w| w.entry.path.clone()),
+            ViewMode::Branches => None,
+        };
         if let Some(old) = &self.worktrees {
-            view.filter = old.filter;
+            view.carry_over_from(old, self.force_mode);
         }
         self.worktrees = Some(view);
-        if self.view == ViewMode::Worktrees && self.selected_index >= self.visible_len() {
-            self.selected_index = self.visible_len().saturating_sub(1);
+        if self.view == ViewMode::Worktrees {
+            let filtered = self.filtered_worktrees();
+            let position =
+                cursor_path.and_then(|path| filtered.iter().position(|w| w.entry.path == path));
+            self.selected_index = match position {
+                Some(position) => position,
+                None => self.selected_index.min(filtered.len().saturating_sub(1)),
+            };
+            self.scroll_offset = self.scroll_offset.min(self.selected_index);
+            self.adjust_scroll_for_selection();
         }
-        Ok(())
     }
 
     /// Apply background `git status` results (called every tick)
@@ -1161,9 +1232,6 @@ impl App {
         self.show_confirmation = false;
         if !self.dry_run {
             self.refresh_branches();
-            if let Err(e) = self.load_worktrees() {
-                self.flash = Some(format!("Cannot list worktrees: {}", e));
-            }
         }
     }
 
@@ -2020,6 +2088,45 @@ mod tests {
     }
 
     #[test]
+    fn reloading_worktrees_keeps_selection_status_and_cursor() {
+        use crate::worktree_view::{parse_porcelain_status, Changes};
+
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        app.worktree_remove_mode = true;
+        app.selected_index = 1; // /wt/b
+        app.worktrees
+            .as_mut()
+            .unwrap()
+            .toggle(std::path::Path::new("/wt/a"), false);
+
+        // The fresh list has a new worktree first and statuses not read yet
+        let mut fresh = vec![
+            test_worktree("/wt/0", "feature/zero", BranchStatus::SafeMerged),
+            test_worktree("/wt/a", "feature/merged", BranchStatus::SafeMerged),
+            test_worktree("/wt/b", "feature/unmerged", BranchStatus::Unmerged),
+        ];
+        for wt in fresh.iter_mut() {
+            wt.changes = Changes::Loading;
+        }
+        app.set_worktree_view(WorktreeView::from_infos(fresh));
+
+        let view = app.worktrees.as_ref().unwrap();
+        assert_eq!(
+            view.selected,
+            HashSet::from([std::path::PathBuf::from("/wt/a")])
+        );
+        assert_eq!(
+            view.worktrees[1].changes,
+            Changes::Loaded(parse_porcelain_status(""))
+        );
+        assert_eq!(
+            app.selected_worktree().unwrap().entry.path.to_str(),
+            Some("/wt/b")
+        );
+    }
+
+    #[test]
     fn test_toggle_view_keeps_cursor_and_search_per_view() {
         let mut app = create_test_app_with_worktrees();
         app.selected_index = 3;
@@ -2146,6 +2253,60 @@ mod tests {
         app.replace_branches(fresh);
         assert_eq!(app.branches[0].name, "alpha");
         assert_eq!(app.branches[1].name, "zeta");
+    }
+
+    #[test]
+    fn replacing_branches_keeps_the_cursor_on_the_same_branch() {
+        let mut app = create_test_app();
+        app.selected_index = 2; // feature/gone
+        let mut fresh: Vec<BranchInfo> = app.branches.clone();
+        fresh.insert(
+            1,
+            create_test_branch("feature/new", BranchStatus::SafeMerged),
+        );
+        app.replace_branches(fresh);
+        assert_eq!(app.selected_branch().unwrap().name, "feature/gone");
+    }
+
+    #[test]
+    fn replacing_branches_keeps_the_row_when_the_cursor_branch_is_gone() {
+        let mut app = create_test_app();
+        app.selected_index = 4; // current-branch, last row
+        let fresh: Vec<BranchInfo> = app.branches[..3].to_vec();
+        app.replace_branches(fresh);
+        assert_eq!(app.selected_index, 2);
+    }
+
+    #[test]
+    fn replacing_branches_drops_vanished_and_unselectable_selections() {
+        let mut app = create_test_app();
+        app.toggle_selection(1); // feature/merged
+        app.toggle_selection(2); // feature/gone
+        let mut fresh: Vec<BranchInfo> = app.branches.clone();
+        fresh.retain(|b| b.name != "feature/gone");
+        // A new commit on feature/merged made it unmerged
+        fresh
+            .iter_mut()
+            .find(|b| b.name == "feature/merged")
+            .unwrap()
+            .status = BranchStatus::Unmerged;
+        fresh.push(create_test_branch(
+            "feature/other",
+            BranchStatus::SafeMerged,
+        ));
+        app.replace_branches(fresh);
+        assert!(app.selected_branches.is_empty());
+    }
+
+    #[test]
+    fn replacing_branches_updates_author_completion() {
+        let mut app = create_test_app();
+        let mut newcomer = create_test_branch("feature/new", BranchStatus::SafeMerged);
+        newcomer.branch_author = "Newcomer".to_string();
+        let mut fresh: Vec<BranchInfo> = app.branches.clone();
+        fresh.push(newcomer);
+        app.replace_branches(fresh);
+        assert!(app.unique_authors.contains(&"Newcomer".to_string()));
     }
 
     #[test]

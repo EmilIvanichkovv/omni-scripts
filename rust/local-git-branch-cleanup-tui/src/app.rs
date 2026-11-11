@@ -3,6 +3,7 @@
 use crate::cache::PrCache;
 use crate::git::{self, BranchInfo, BranchStatus};
 use crate::pr::PrProviderKind;
+use crate::refresh::{JobResult, RefreshKind, Refresher};
 use crate::worktree_view::{WorktreeFilter, WorktreeInfo, WorktreeView};
 use std::collections::HashSet;
 use std::path::Path;
@@ -10,6 +11,9 @@ use std::time::{Duration, Instant};
 
 /// How long after a first Esc press a second one quits the app
 pub const ESC_QUIT_WINDOW: Duration = Duration::from_secs(1);
+
+/// How long the footer shows "updated HH:MM:SS" after a reload
+pub const RELOAD_NOTICE_DURATION: Duration = Duration::from_secs(5);
 
 /// Sort mode for branch list
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -215,6 +219,10 @@ pub struct App {
     /// Whether the worktree view can select and remove worktrees (`x`).
     /// Off on every launch: the view starts as a read-only explorer.
     pub worktree_remove_mode: bool,
+    /// Background reloads of the branch list
+    pub refresher: Refresher,
+    /// When the last reload changed the list, and that time as HH:MM:SS
+    pub last_reload: Option<(Instant, String)>,
 }
 
 /// Footer hint shown when a removal key is pressed while removal is off
@@ -264,6 +272,8 @@ impl App {
             other_nav: NavState::default(),
             flash: None,
             worktree_remove_mode: false,
+            refresher: Refresher::default(),
+            last_reload: None,
         }
     }
 
@@ -952,9 +962,50 @@ impl App {
     /// Refresh the branch list (after deletion). Classifies against the
     /// trunk resolved at startup, so a `--trunk` override is kept.
     pub fn refresh_branches(&mut self) {
+        // A background reload that read git before this point is out of date
+        self.refresher.invalidate();
         if let Ok(branches) = git::get_branches_with_classification(Some(&self.trunk)) {
             self.replace_branches(branches);
             self.reload_worktrees_if_loaded();
+        }
+    }
+
+    /// Start a background reload (`r`); one running already queues it
+    pub fn request_refresh(&mut self, kind: RefreshKind) {
+        self.refresher.request(kind, &self.trunk);
+    }
+
+    /// Apply a finished background reload (called every tick). Results wait
+    /// while the delete confirmation is open, so the list and the selection
+    /// never change under a pending delete.
+    pub fn poll_refresh(&mut self) {
+        let hold = self.show_confirmation;
+        match self.refresher.poll(hold, &self.trunk) {
+            Some(JobResult::Reloaded { branches, .. }) => {
+                self.replace_branches(branches);
+                self.reload_worktrees_if_loaded();
+                self.last_reload = Some((
+                    Instant::now(),
+                    chrono::Local::now().format("%H:%M:%S").to_string(),
+                ));
+            }
+            Some(JobResult::Failed { error, .. }) => {
+                self.flash = Some(format!("Reload failed: {}", error));
+            }
+            None => {}
+        }
+    }
+
+    /// Footer status of background reloads: running, or recently finished
+    pub fn refresh_status(&self, now: Instant) -> Option<String> {
+        if self.refresher.running().is_some() {
+            return Some("⟳ reloading…".to_string());
+        }
+        match &self.last_reload {
+            Some((at, time)) if now.duration_since(*at) <= RELOAD_NOTICE_DURATION => {
+                Some(format!("updated {}", time))
+            }
+            _ => None,
         }
     }
 
@@ -2240,6 +2291,20 @@ mod tests {
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"feature/merged"));
         assert!(names.contains(&"feature/gone"));
+    }
+
+    #[test]
+    fn refresh_status_shows_a_recent_reload_for_a_few_seconds() {
+        let mut app = create_test_app();
+        let now = Instant::now();
+        assert_eq!(app.refresh_status(now), None);
+        app.last_reload = Some((now, "14:32:05".to_string()));
+        assert_eq!(
+            app.refresh_status(now),
+            Some("updated 14:32:05".to_string())
+        );
+        let later = now + RELOAD_NOTICE_DURATION + Duration::from_secs(1);
+        assert_eq!(app.refresh_status(later), None);
     }
 
     #[test]

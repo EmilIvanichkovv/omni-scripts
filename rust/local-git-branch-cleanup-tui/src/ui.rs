@@ -1334,7 +1334,16 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let mut block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(COLOR_MUTED));
-    // On the bottom border, so it takes no room from the key hints
+    // On the bottom border, so they take no room from the key hints
+    if let Some(status) = app.refresh_status(std::time::Instant::now()) {
+        block = block.title_bottom(
+            Line::from(Span::styled(
+                format!(" {status} "),
+                Style::default().fg(COLOR_ACCENT),
+            ))
+            .left_aligned(),
+        );
+    }
     if let Some(notice) = &app.update_notice {
         block = block.title_bottom(
             Line::from(Span::styled(
@@ -1547,9 +1556,9 @@ fn get_pr_state_color(state: &PrState) -> Color {
 fn render_help_modal(frame: &mut Frame, view: ViewMode) {
     let area = frame.area();
 
-    // Calculate modal size (larger for help content): 50 lines + border
+    // Calculate modal size (larger for help content): 51 lines + border
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 52.min(area.height - 4);
+    let modal_height = 53.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1948,6 +1957,18 @@ fn render_help_modal(frame: &mut Frame, view: ViewMode) {
             ),
             Span::styled(
                 "             Copy the branch name to the clipboard",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    r",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "             Reload the branch list",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
@@ -2960,6 +2981,7 @@ fn worktree_help_lines() -> Vec<Line<'static>> {
         Line::from(""),
         help_heading("  Other"),
         help_row("w", "Switch back to the branch view", COLOR_SUCCESS),
+        help_row("r", "Reload worktrees and branches", COLOR_SUCCESS),
         help_row("i", "Show worktree states", COLOR_SUCCESS),
         help_row("?", "Show this help", COLOR_SUCCESS),
         help_row("q / Esc Esc", "Quit application", COLOR_SUCCESS),

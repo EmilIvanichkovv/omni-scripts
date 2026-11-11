@@ -3,6 +3,7 @@ mod cache;
 mod clipboard;
 mod git;
 mod pr;
+mod refresh;
 mod remote;
 mod tls;
 mod ui;
@@ -363,6 +364,7 @@ fn run_tui_mode(
         app.expire_esc_quit(std::time::Instant::now());
         app.update_notice = update_notice.message();
         app.poll_worktree_status();
+        app.poll_refresh();
 
         // Draw UI
         terminal.draw(|frame| ui::render(frame, &mut app))?;
@@ -641,6 +643,10 @@ fn run_tui_mode(
                                     // Switch to the worktree view
                                     app.toggle_view();
                                 }
+                                KeyCode::Char('r') => {
+                                    // Reload the branch list in the background
+                                    app.request_refresh(refresh::RefreshKind::Local);
+                                }
                                 KeyCode::Enter => {
                                     // Show confirmation if branches are selected
                                     if app.selected_count() > 0 {
@@ -708,6 +714,7 @@ fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
             }
         }
         KeyCode::Char('x') => app.toggle_worktree_remove_mode(),
+        KeyCode::Char('r') => app.request_refresh(refresh::RefreshKind::Local),
         KeyCode::Char('f') => app.toggle_force_mode(),
         KeyCode::Char('d') => app.dry_run = !app.dry_run,
         KeyCode::Char('?') => app.show_help = !app.show_help,

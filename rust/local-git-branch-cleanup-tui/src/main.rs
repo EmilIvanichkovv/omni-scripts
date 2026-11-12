@@ -83,6 +83,11 @@ struct Args {
     #[arg(long)]
     no_update_check: bool,
 
+    /// Do not reload the branch list when branches change in another
+    /// terminal (r still reloads)
+    #[arg(long)]
+    no_auto_refresh: bool,
+
     /// Start in the worktree view (press `w` to switch views); with --cli,
     /// print the worktree table and exit
     #[arg(long, short = 'w')]
@@ -126,6 +131,9 @@ async fn main() -> Result<()> {
 
     // Get the trunk branch
     let trunk = git::get_default_branch(args.trunk.as_deref())?;
+
+    // Read before the branches, so live refresh notices any change after it
+    let refs_fingerprint = git::refs_fingerprint().ok();
 
     // Get branches with classification
     let mut branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
@@ -243,8 +251,20 @@ async fn main() -> Result<()> {
         args.dry_run,
         pr_session,
         args.worktrees,
+        LiveRefresh {
+            auto: !args.no_auto_refresh,
+            fingerprint: refs_fingerprint,
+        },
         update_notice,
     )
+}
+
+/// Live refresh settings for the TUI
+struct LiveRefresh {
+    /// Reload when the refs change (off with --no-auto-refresh)
+    auto: bool,
+    /// Refs fingerprint read just before the branches at startup
+    fingerprint: Option<String>,
 }
 
 /// Resolve Bitbucket configuration (CLI > env > derived-from-origin), require
@@ -332,6 +352,7 @@ fn run_tui_mode(
     dry_run: bool,
     pr_session: Option<PrSession>,
     start_in_worktrees: bool,
+    live_refresh: LiveRefresh,
     mut update_notice: update_notice::UpdateNotice,
 ) -> Result<()> {
     // Get current git user for @author:me support
@@ -341,6 +362,8 @@ fn run_tui_mode(
     let mut app = App::new(branches, repo_path, trunk, current_git_user);
     app.force_mode = force_mode;
     app.dry_run = dry_run;
+    app.refresher.auto = live_refresh.auto;
+    app.refresher.set_fingerprint(live_refresh.fingerprint);
     if let Some(session) = pr_session {
         app.pr_provider = Some(session.kind);
         app.pr_cache = session.cache;

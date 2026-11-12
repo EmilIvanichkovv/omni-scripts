@@ -964,6 +964,8 @@ impl App {
     pub fn refresh_branches(&mut self) {
         // A background reload that read git before this point is out of date
         self.refresher.invalidate();
+        // Read before the branches, so a change in between is seen later
+        self.refresher.set_fingerprint(git::refs_fingerprint().ok());
         if let Ok(branches) = git::get_branches_with_classification(Some(&self.trunk)) {
             self.replace_branches(branches);
             self.reload_worktrees_if_loaded();
@@ -980,7 +982,7 @@ impl App {
     /// never change under a pending delete.
     pub fn poll_refresh(&mut self) {
         let hold = self.show_confirmation;
-        match self.refresher.poll(hold, &self.trunk) {
+        match self.refresher.poll(hold, &self.trunk, Instant::now()) {
             Some(JobResult::Reloaded { branches, .. }) => {
                 self.replace_branches(branches);
                 self.reload_worktrees_if_loaded();
@@ -992,13 +994,15 @@ impl App {
             Some(JobResult::Failed { error, .. }) => {
                 self.flash = Some(format!("Reload failed: {}", error));
             }
-            None => {}
+            // poll() keeps unchanged checks to itself
+            Some(JobResult::Unchanged { .. }) | None => {}
         }
     }
 
     /// Footer status of background reloads: running, or recently finished
     pub fn refresh_status(&self, now: Instant) -> Option<String> {
-        if self.refresher.running().is_some() {
+        // Automatic checks run every few seconds; only show reloads asked for
+        if self.refresher.running() == Some(RefreshKind::Local) {
             return Some("⟳ reloading…".to_string());
         }
         match &self.last_reload {

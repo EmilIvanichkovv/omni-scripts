@@ -668,9 +668,95 @@ pub fn open_url_in_browser(url: &str) -> Result<()> {
     Ok(())
 }
 
+/// A cheap snapshot of everything a reload would show differently: branch
+/// and remote-tracking tips with their upstreams, the checked-out branch,
+/// and the worktree list. Live refresh re-reads the branches only when this
+/// changes (3 git calls instead of about 6 per branch).
+pub fn refs_fingerprint() -> Result<String> {
+    refs_fingerprint_in(Path::new("."))
+}
+
+/// `refs_fingerprint` for the repository at `dir`
+pub fn refs_fingerprint_in(dir: &Path) -> Result<String> {
+    let run = |args: &[&str]| Command::new("git").arg("-C").arg(dir).args(args).output();
+
+    let refs = run(&[
+        "for-each-ref",
+        "--format=%(refname) %(objectname) %(upstream) %(upstream:track)",
+        "refs/heads",
+        "refs/remotes",
+    ])?;
+    if !refs.status.success() {
+        return Err(color_eyre::eyre::eyre!(
+            "git for-each-ref failed: {}",
+            String::from_utf8_lossy(&refs.stderr).trim()
+        ));
+    }
+    // Detached HEAD makes symbolic-ref fail; its empty output is still a state
+    let head = run(&["symbolic-ref", "-q", "HEAD"])?;
+    let worktrees = run(&["worktree", "list", "--porcelain"])?;
+
+    let mut fingerprint = String::from_utf8_lossy(&refs.stdout).into_owned();
+    fingerprint.push_str("\nHEAD ");
+    fingerprint.push_str(&String::from_utf8_lossy(&head.stdout));
+    fingerprint.push('\n');
+    fingerprint.push_str(&String::from_utf8_lossy(&worktrees.stdout));
+    Ok(fingerprint)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn git_in(dir: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .expect("run git")
+            .status;
+        assert!(status.success(), "git {:?} failed", args);
+    }
+
+    fn temp_repo() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().unwrap();
+        git_in(dir.path(), &["init", "-q"]);
+        git_in(dir.path(), &["config", "user.name", "Test User"]);
+        git_in(dir.path(), &["config", "user.email", "test@example.com"]);
+        git_in(
+            dir.path(),
+            &["commit", "-q", "--allow-empty", "-m", "initial"],
+        );
+        dir
+    }
+
+    #[test]
+    fn refs_fingerprint_changes_only_when_refs_change() {
+        let repo = temp_repo();
+        let first = refs_fingerprint_in(repo.path()).unwrap();
+        assert_eq!(refs_fingerprint_in(repo.path()).unwrap(), first);
+
+        git_in(repo.path(), &["branch", "feature/new"]);
+        let with_branch = refs_fingerprint_in(repo.path()).unwrap();
+        assert_ne!(with_branch, first);
+
+        git_in(repo.path(), &["checkout", "-q", "feature/new"]);
+        let checked_out = refs_fingerprint_in(repo.path()).unwrap();
+        assert_ne!(checked_out, with_branch);
+
+        git_in(
+            repo.path(),
+            &["commit", "-q", "--allow-empty", "-m", "more"],
+        );
+        assert_ne!(refs_fingerprint_in(repo.path()).unwrap(), checked_out);
+    }
+
+    #[test]
+    fn refs_fingerprint_fails_outside_a_repository() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert!(refs_fingerprint_in(dir.path()).is_err());
+    }
 
     #[test]
     fn test_branch_status_label() {

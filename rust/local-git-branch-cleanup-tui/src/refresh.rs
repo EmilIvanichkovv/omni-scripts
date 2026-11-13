@@ -139,6 +139,12 @@ impl Refresher {
         }
     }
 
+    /// Make an automatic check due now (e.g. the terminal regained focus).
+    /// Does nothing while automatic refresh is off.
+    pub fn check_soon(&mut self) {
+        self.last_started = None;
+    }
+
     /// Record the refs the branch list on screen was read from
     pub fn set_fingerprint(&mut self, fingerprint: Option<String>) {
         self.fingerprint = fingerprint;
@@ -299,6 +305,29 @@ mod tests {
 
         refresher.poll(false, "main", now + AUTO_CHECK_INTERVAL);
         assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn check_soon_makes_a_check_due_at_once() {
+        let (mut refresher, jobs) = recording();
+        refresher.auto = true;
+        let now = Instant::now();
+        refresher.poll(false, "main", now);
+        finish_unchanged(&jobs, 0);
+        refresher.poll(false, "main", now);
+        assert_eq!(jobs.borrow().len(), 1);
+
+        refresher.check_soon();
+        refresher.poll(false, "main", now);
+        assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn check_soon_does_nothing_while_automatic_refresh_is_off() {
+        let (mut refresher, jobs) = recording();
+        refresher.check_soon();
+        refresher.poll(false, "main", Instant::now());
+        assert!(jobs.borrow().is_empty());
     }
 
     #[test]

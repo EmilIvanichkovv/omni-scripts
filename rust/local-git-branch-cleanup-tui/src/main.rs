@@ -16,7 +16,9 @@ use app::App;
 use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+    event::{
+        self, DisableFocusChange, EnableFocusChange, Event, KeyCode, KeyEventKind, KeyModifiers,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -378,7 +380,8 @@ fn run_tui_mode(
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    // Focus events let live refresh check for changes when the user comes back
+    execute!(stdout, EnterAlternateScreen, EnableFocusChange)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -394,7 +397,11 @@ fn run_tui_mode(
 
         // Handle events
         if event::poll(std::time::Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
+            let event = event::read()?;
+            if matches!(event, Event::FocusGained) {
+                app.refresher.check_soon();
+            }
+            if let Event::Key(key) = event {
                 if key.kind == KeyEventKind::Press {
                     // Any key other than Esc cancels a pending Esc quit
                     if key.code != KeyCode::Esc {
@@ -691,7 +698,11 @@ fn run_tui_mode(
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        DisableFocusChange,
+        LeaveAlternateScreen
+    )?;
     terminal.show_cursor()?;
 
     Ok(())

@@ -134,6 +134,8 @@ When a non-default sort mode is active, the header displays a sort indicator: `�
 | `o`     | Open PR in browser (when PR integration enabled) |
 | `w`     | Switch to the worktree view                      |
 | `y`     | Copy the branch name to the clipboard            |
+| `r`     | Reload the branch list (see Live Refresh)        |
+| `R`     | Fetch the remote, reload, re-fetch PR data       |
 | `i`     | Show info modal (about the tool)                 |
 | `?`     | Show help modal                                  |
 
@@ -396,6 +398,40 @@ No branches are actually deleted in dry run mode. This is useful for:
 
 ---
 
+## Live Refresh
+
+The branch list follows the repository while the TUI is open.
+
+- **Automatically:** every 2 s the TUI checks the branch and remote-tracking refs, the checked-out
+  branch and the worktree list (3 cheap git calls). When something changed in another terminal (a
+  branch created, deleted, committed to, merged or checked out), it re-reads the branches in the
+  background. Switching back to the terminal window checks at once in terminals that report focus.
+  `--no-auto-refresh` turns this off.
+- **`r`:** reload the branch list now.
+- **`R`:** full sync: `git fetch --prune` on the primary remote, reload, and with `--github` /
+  `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it). This is
+  the only way the TUI touches the network after startup; it is never automatic.
+
+What stays put across a reload: the selection (by branch name; a branch that is gone or no longer
+selectable leaves it), the cursor (same branch, or the same row if that branch is gone), search,
+filter tab, sort mode, and in the worktree view its selection and the statuses already read.
+
+While the delete confirmation is open, nothing is applied: a finished reload waits until the modal
+closes, so the list never changes under a pending delete.
+
+The bottom-left corner of the footer shows `⟳ reloading…`, or the steps of a full sync
+(`⟳ fetching origin…`, `⟳ reloading…`, `⟳ fetching PRs…`), then `updated HH:MM:SS` for 5 s.
+Automatic checks that find nothing new show nothing.
+
+`R` never prompts for credentials: prompts would draw over the TUI. HTTPS prompts, Git Credential
+Manager dialogs (also the Windows one under WSL) and SSH passphrase or host-key questions are turned
+off, so a remote that needs them fails with
+`Fetch failed: authentication required (run git fetch in a terminal)`; stored credentials and
+ssh-agent keep working. A fetch running for more than 60 s is stopped. The reload still runs on
+local data when the fetch fails.
+
+---
+
 ## Details Pane
 
 The right panel (30% of screen) shows detailed information about the highlighted branch:
@@ -497,6 +533,8 @@ prunable reason, and the PR.
 | `d`        | Toggle dry run mode                                              |
 | `y`        | Copy the worktree path to the clipboard                          |
 | `o`        | Open the branch's PR in the browser (PR integration enabled)     |
+| `r`        | Reload worktrees and branches                                    |
+| `R`        | Fetch the remote, reload, re-fetch PR data                       |
 | `w`        | Switch back to the branch view                                   |
 
 `Space`, `a`, `c` and `Enter` need remove mode (`x`); while it is off they only show

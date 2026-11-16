@@ -48,6 +48,9 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
+- **Live Refresh** - Branches created, deleted, committed to or checked out in another terminal show
+  up within 2 s (or as soon as you switch back to the TUI); `r` reloads on demand and `R` also
+  fetches the remote and re-fetches PR data
 - **Worktree View** - `--worktrees` / `-w` (or `w` in the TUI) lists every `git worktree` with its
   branch, state (current, prunable, locked, dirty, detached, or the branch's status), uncommitted
   changes, last commit and PR; removes stale ones with `git worktree remove` / `git worktree prune`
@@ -238,6 +241,8 @@ Options:
       --bitbucket-project <PROJECT>  Override the derived Bitbucket project key
       --bitbucket-repo <REPO>        Override the derived Bitbucket repository slug
       --no-update-check              Do not check for new versions
+      --no-auto-refresh              Do not reload when branches change in another
+                                     terminal (r still reloads)
   -w, --worktrees                    Start in the worktree view; with --cli, print the
                                      worktree table and exit
   -h, --help                         Print help
@@ -338,6 +343,8 @@ interactive interface.
 | `o`                | Open PR in browser (with --github / --bitbucket) |
 | `w`                | Switch between branch and worktree view          |
 | `y`                | Copy the branch name to the clipboard            |
+| `r`                | Reload the branch list                           |
+| `R`                | Fetch the remote, reload, re-fetch PR data       |
 | `?`                | Show help                                        |
 | `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 
@@ -369,6 +376,7 @@ The view starts read-only, as an explorer: there are no checkboxes and nothing c
 | `f`              | Force mode: dirty worktrees become selectable (`--force`)            |
 | `y`              | Copy the worktree path to the clipboard                              |
 | `o`              | Open the branch's PR in the browser                                  |
+| `r` / `R`        | Reload / fetch the remote and reload (as in the branch view)         |
 | `w`              | Back to the branch view                                              |
 
 | Icon | State      | Meaning                                              | Removal                                    |
@@ -452,6 +460,7 @@ local-git-branch-cleanup-tui/
 │   │   ├── ROADMAP.md
 │   │   ├── GITHUB_PR_CACHE.md
 │   │   ├── BITBUCKET_SUPPORT.md
+│   │   ├── LIVE_REFRESH.md
 │   │   └── SEARCH_FEATURE.md
 │   └── testing/        # Testing docs
 │       ├── TESTING.md
@@ -462,6 +471,7 @@ local-git-branch-cleanup-tui/
 │   ├── git.rs          # Local Git integration and branch classification
 │   ├── worktree.rs     # Parse `git worktree list --porcelain -z`
 │   ├── worktree_view.rs # Worktree view model, status loading, filters, removal
+│   ├── refresh.rs      # Live refresh: background reloads, automatic checks, full sync
 │   ├── remote.rs       # Parse the origin remote into a normalized identity
 │   ├── cache.rs        # SQLite PR cache (XDG_CACHE_HOME/omni-scripts/pr-cache.db)
 │   ├── ui.rs           # TUI rendering with Ratatui

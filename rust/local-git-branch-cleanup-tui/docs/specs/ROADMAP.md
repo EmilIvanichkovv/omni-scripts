@@ -1071,4 +1071,5 @@ local SQLite database. A cached entry is valid for 1 hour (configurable).
 - [x] Phase 2.0: Parallel `gh` execution via `rayon` — 8.4× speedup (2026-06-04) ✅
 - [x] Phase 2.1: Replace `rayon` with `tokio` JoinSet + Semaphore(20) — **17.6× speedup**, 60.7s →
       3.5s for 81 branches (2026-06-04) ✅
-- [ ] Phase 3: `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags; TUI Ctrl+R keybinding
+- [ ] Phase 3: `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags (the TUI refresh key shipped
+      as `R` with [Live Refresh](LIVE_REFRESH.md))

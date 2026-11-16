@@ -810,6 +810,9 @@ Set this field to `true` in pass 1 of `fetch_pr_info_for_branches()` (cache hit)
 
 #### Keybinding: Force Refresh
 
+> **Superseded** by [Live Refresh](LIVE_REFRESH.md) (issue #71): `R` re-fetches PR data in the
+> background (with `git fetch` and a reload) instead of `Ctrl+R` on the main thread.
+
 Add a new keybinding visible in the footer when GitHub integration is active:
 
 | Key      | Action                                             |
@@ -853,7 +856,8 @@ impl App {
 - [ ] `--cache-ttl 0` disables cache reads for that run (still writes)
 - [ ] Header shows cache status indicator when `--github` is active
 - [ ] Details pane shows `[cached]` or `[live]` label next to PR info
-- [ ] `Ctrl+R` in TUI triggers a full PR data refresh
+- [x] ~~`Ctrl+R`~~ `R` in TUI triggers a full PR data refresh (done in
+      [Live Refresh](LIVE_REFRESH.md))
 - [ ] `cargo test` passes
 
 ---

@@ -974,7 +974,8 @@ impl App {
 
     /// Start a background reload (`r`); one running already queues it
     pub fn request_refresh(&mut self, kind: RefreshKind) {
-        self.refresher.request(kind, &self.trunk);
+        self.refresher
+            .request(kind, &self.trunk, &mut self.pr_cache);
     }
 
     /// Apply a finished background reload (called every tick). Results wait
@@ -982,28 +983,49 @@ impl App {
     /// never change under a pending delete.
     pub fn poll_refresh(&mut self) {
         let hold = self.show_confirmation;
-        match self.refresher.poll(hold, &self.trunk, Instant::now()) {
-            Some(JobResult::Reloaded { branches, .. }) => {
-                self.replace_branches(branches);
+        let result = self
+            .refresher
+            .poll(hold, Instant::now(), &self.trunk, &mut self.pr_cache);
+        match result {
+            Some(JobResult::Reloaded {
+                branches,
+                fetch_error,
+                prs_refetched,
+                pr_failures,
+                ..
+            }) => {
+                self.replace_branches_with(branches, !prs_refetched);
                 self.reload_worktrees_if_loaded();
                 self.last_reload = Some((
                     Instant::now(),
                     chrono::Local::now().format("%H:%M:%S").to_string(),
                 ));
+                if let Some(error) = fetch_error {
+                    self.flash = Some(format!("Fetch failed: {}", error));
+                } else if pr_failures > 0 {
+                    self.flash = Some(format!("PR lookup failed for {} branches", pr_failures));
+                }
             }
             Some(JobResult::Failed { error, .. }) => {
                 self.flash = Some(format!("Reload failed: {}", error));
             }
-            // poll() keeps unchanged checks to itself
-            Some(JobResult::Unchanged { .. }) | None => {}
+            // poll() keeps progress and unchanged checks to itself
+            Some(JobResult::Progress { .. } | JobResult::Unchanged { .. }) | None => {}
         }
     }
 
     /// Footer status of background reloads: running, or recently finished
     pub fn refresh_status(&self, now: Instant) -> Option<String> {
         // Automatic checks run every few seconds; only show reloads asked for
-        if self.refresher.running() == Some(RefreshKind::Local) {
-            return Some("⟳ reloading…".to_string());
+        match self.refresher.running() {
+            Some(RefreshKind::Local) => return Some("⟳ reloading…".to_string()),
+            Some(RefreshKind::Full) => {
+                return Some(format!(
+                    "⟳ {}",
+                    self.refresher.stage().unwrap_or("syncing…")
+                ))
+            }
+            Some(RefreshKind::Check) | None => {}
         }
         match &self.last_reload {
             Some((at, time)) if now.duration_since(*at) <= RELOAD_NOTICE_DURATION => {
@@ -1016,7 +1038,13 @@ impl App {
     /// Swap in a freshly read branch list. Keeps the PR info already known,
     /// the sort order, the cursor (by branch name) and the selection of
     /// branches that still exist and are still selectable.
-    pub fn replace_branches(&mut self, mut branches: Vec<BranchInfo>) {
+    pub fn replace_branches(&mut self, branches: Vec<BranchInfo>) {
+        self.replace_branches_with(branches, true);
+    }
+
+    /// `replace_branches`, where `carry_pr_info = false` keeps the PR info
+    /// that came with `branches` (a full sync re-fetched it)
+    pub fn replace_branches_with(&mut self, mut branches: Vec<BranchInfo>, carry_pr_info: bool) {
         let cursor_name = match self.view {
             ViewMode::Branches => self.selected_branch().map(|b| b.name.clone()),
             ViewMode::Worktrees => None,
@@ -1024,9 +1052,11 @@ impl App {
 
         // Carry over PR info fetched at startup; a refresh only re-reads
         // git, so without this PrMerged branches revert to Unmerged.
-        for branch in branches.iter_mut() {
-            if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
-                branch.pr_info = old.pr_info.clone();
+        if carry_pr_info {
+            for branch in branches.iter_mut() {
+                if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
+                    branch.pr_info = old.pr_info.clone();
+                }
             }
         }
         git::apply_pr_merge_status(&mut branches);
@@ -2309,6 +2339,46 @@ mod tests {
         );
         let later = now + RELOAD_NOTICE_DURATION + Duration::from_secs(1);
         assert_eq!(app.refresh_status(later), None);
+    }
+
+    #[test]
+    fn a_full_sync_replaces_the_pr_info() {
+        use crate::pr::{PrInfo, PrState};
+        let pr = |number| PrInfo {
+            number,
+            state: PrState::Open,
+            title: String::new(),
+            url: String::new(),
+        };
+        let mut app = create_test_app();
+        app.branches[1].pr_info = Some(pr(7));
+
+        let mut fresh = app.branches.clone();
+        fresh[1].pr_info = None;
+        app.replace_branches(fresh.clone());
+        assert_eq!(
+            app.branches
+                .iter()
+                .find(|b| b.name == "feature/merged")
+                .unwrap()
+                .pr_info
+                .as_ref()
+                .map(|p| p.number),
+            Some(7)
+        );
+
+        fresh[1].pr_info = Some(pr(9));
+        app.replace_branches_with(fresh, false);
+        assert_eq!(
+            app.branches
+                .iter()
+                .find(|b| b.name == "feature/merged")
+                .unwrap()
+                .pr_info
+                .as_ref()
+                .map(|p| p.number),
+            Some(9)
+        );
     }
 
     #[test]

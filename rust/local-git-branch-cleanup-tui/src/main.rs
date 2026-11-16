@@ -183,6 +183,8 @@ async fn main() -> Result<()> {
             eprintln!("🔗 Fetching {} PR info...", kind.label());
             let t0 = std::time::Instant::now();
             let mut pr_cache = None;
+            // Kept for the TUI's full sync (R)
+            let tui_provider = std::sync::Arc::clone(&provider);
             let report = match cache::PrCache::open(&cache_key, ttl) {
                 Ok(opened) => {
                     let opened = pr_cache.insert(opened);
@@ -212,6 +214,7 @@ async fn main() -> Result<()> {
             }
             Some(PrSession {
                 kind,
+                provider: tui_provider,
                 cache: pr_cache,
             })
         }
@@ -341,6 +344,7 @@ fn print_fetch_summary(report: &pr::FetchReport, elapsed: std::time::Duration) {
 /// fetch so deleting a branch can drop its cached PR entry.
 struct PrSession {
     kind: pr::PrProviderKind,
+    provider: std::sync::Arc<dyn pr::PullRequestProvider>,
     cache: Option<cache::PrCache>,
 }
 
@@ -369,6 +373,7 @@ fn run_tui_mode(
     if let Some(session) = pr_session {
         app.pr_provider = Some(session.kind);
         app.pr_cache = session.cache;
+        app.refresher.provider = Some(session.provider);
     }
 
     // Fail before the terminal is taken over when the worktree list is unreadable
@@ -677,6 +682,10 @@ fn run_tui_mode(
                                     // Reload the branch list in the background
                                     app.request_refresh(refresh::RefreshKind::Local);
                                 }
+                                KeyCode::Char('R') => {
+                                    // Fetch the remote, reload, re-fetch PR data
+                                    app.request_refresh(refresh::RefreshKind::Full);
+                                }
                                 KeyCode::Enter => {
                                     // Show confirmation if branches are selected
                                     if app.selected_count() > 0 {
@@ -749,6 +758,7 @@ fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
         }
         KeyCode::Char('x') => app.toggle_worktree_remove_mode(),
         KeyCode::Char('r') => app.request_refresh(refresh::RefreshKind::Local),
+        KeyCode::Char('R') => app.request_refresh(refresh::RefreshKind::Full),
         KeyCode::Char('f') => app.toggle_force_mode(),
         KeyCode::Char('d') => app.dry_run = !app.dry_run,
         KeyCode::Char('?') => app.show_help = !app.show_help,

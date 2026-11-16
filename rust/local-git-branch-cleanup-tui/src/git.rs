@@ -668,6 +668,97 @@ pub fn open_url_in_browser(url: &str) -> Result<()> {
     Ok(())
 }
 
+/// How long `fetch_remote` waits before killing `git fetch`
+const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// `git fetch --prune <remote>` without any interactive prompt: the TUI owns
+/// the terminal, so a credential or host-key prompt would draw over it and
+/// hang. HTTPS prompts are turned off with `GIT_TERMINAL_PROMPT=0`, Git
+/// Credential Manager's own dialogs with `GCM_INTERACTIVE=never` (passed on
+/// to the Windows GCM through `WSLENV` under WSL), and SSH runs with
+/// `BatchMode=yes` unless the user set their own SSH command. Stored
+/// credentials and ssh-agent keep working. A fetch still running after
+/// `FETCH_TIMEOUT` is killed.
+pub fn fetch_remote(remote: &str) -> Result<()> {
+    fetch_remote_in(Path::new("."), remote)
+}
+
+/// `fetch_remote` for the repository at `dir`
+pub fn fetch_remote_in(dir: &Path, remote: &str) -> Result<()> {
+    let has_ssh_command = std::env::var_os("GIT_SSH_COMMAND").is_some()
+        || Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["config", "--get", "core.sshCommand"])
+            .output()
+            .is_ok_and(|o| o.status.success());
+
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(dir);
+    if !has_ssh_command {
+        cmd.args(["-c", "core.sshCommand=ssh -o BatchMode=yes"]);
+    }
+    cmd.args(["fetch", "--prune", "--quiet", remote])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "never")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    if std::env::var_os("WSL_DISTRO_NAME").is_some() {
+        let wslenv = std::env::var("WSLENV").unwrap_or_default();
+        cmd.env("WSLENV", format!("GCM_INTERACTIVE:{wslenv}"));
+    }
+
+    let mut child = cmd.spawn()?;
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if started.elapsed() >= FETCH_TIMEOUT {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(color_eyre::eyre::eyre!(
+                "git fetch timed out after {} s",
+                FETCH_TIMEOUT.as_secs()
+            ));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    if status.success() {
+        return Ok(());
+    }
+    let mut stderr = String::new();
+    if let Some(mut pipe) = child.stderr.take() {
+        use std::io::Read;
+        let _ = pipe.read_to_string(&mut stderr);
+    }
+    Err(color_eyre::eyre::eyre!("{}", describe_fetch_error(&stderr)))
+}
+
+/// One line for the footer from `git fetch`'s stderr
+fn describe_fetch_error(stderr: &str) -> String {
+    const AUTH_HINTS: [&str; 7] = [
+        "terminal prompts disabled",
+        "user interactivity has been disabled",
+        "could not read username",
+        "could not read password",
+        "authentication failed",
+        "permission denied",
+        "host key verification failed",
+    ];
+    let lower = stderr.to_lowercase();
+    if AUTH_HINTS.iter().any(|hint| lower.contains(hint)) {
+        return "authentication required (run git fetch in a terminal)".to_string();
+    }
+    stderr
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("git fetch failed")
+        .to_string()
+}
+
 /// A cheap snapshot of everything a reload would show differently: branch
 /// and remote-tracking tips with their upstreams, the checked-out branch,
 /// and the worktree list. Live refresh re-reads the branches only when this
@@ -750,6 +841,54 @@ mod tests {
             &["commit", "-q", "--allow-empty", "-m", "more"],
         );
         assert_ne!(refs_fingerprint_in(repo.path()).unwrap(), checked_out);
+    }
+
+    #[test]
+    fn fetch_remote_prunes_branches_deleted_on_the_remote() {
+        let remote = tempfile::TempDir::new().unwrap();
+        git_in(remote.path(), &["init", "-q", "--bare"]);
+        let repo = temp_repo();
+        let remote_path = remote.path().to_str().unwrap();
+        git_in(repo.path(), &["remote", "add", "origin", remote_path]);
+        git_in(repo.path(), &["branch", "feature/x"]);
+        git_in(repo.path(), &["push", "-q", "origin", "feature/x"]);
+        git_in(repo.path(), &["fetch", "-q", "origin"]);
+
+        git_in(remote.path(), &["branch", "-D", "feature/x"]);
+        fetch_remote_in(repo.path(), "origin").unwrap();
+
+        let refs = Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args(["for-each-ref", "refs/remotes/origin/feature/x"])
+            .output()
+            .unwrap();
+        assert!(refs.stdout.is_empty(), "the remote-tracking ref is pruned");
+    }
+
+    #[test]
+    fn fetch_remote_reports_a_missing_remote() {
+        let repo = temp_repo();
+        let error = fetch_remote_in(repo.path(), "nowhere").unwrap_err();
+        assert!(!error.to_string().is_empty());
+    }
+
+    #[test]
+    fn fetch_errors_that_need_credentials_say_so() {
+        let stderr =
+            "fatal: could not read Username for 'https://example.com': terminal prompts disabled\n";
+        assert_eq!(
+            describe_fetch_error(stderr),
+            "authentication required (run git fetch in a terminal)"
+        );
+        assert_eq!(
+            describe_fetch_error("git@example.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n"),
+            "authentication required (run git fetch in a terminal)"
+        );
+        assert_eq!(
+            describe_fetch_error("\nfatal: 'nowhere' does not appear to be a git repository\n"),
+            "fatal: 'nowhere' does not appear to be a git repository"
+        );
     }
 
     #[test]

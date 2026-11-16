@@ -1556,9 +1556,9 @@ fn get_pr_state_color(state: &PrState) -> Color {
 fn render_help_modal(frame: &mut Frame, view: ViewMode) {
     let area = frame.area();
 
-    // Calculate modal size (larger for help content): 51 lines + border
+    // Calculate modal size (larger for help content): 52 lines + border
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 53.min(area.height - 4);
+    let modal_height = 54.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1969,6 +1969,18 @@ fn render_help_modal(frame: &mut Frame, view: ViewMode) {
             ),
             Span::styled(
                 "             Reload the branch list",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    R",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "             Fetch the remote, reload, re-fetch PRs",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
@@ -2982,6 +2994,7 @@ fn worktree_help_lines() -> Vec<Line<'static>> {
         help_heading("  Other"),
         help_row("w", "Switch back to the branch view", COLOR_SUCCESS),
         help_row("r", "Reload worktrees and branches", COLOR_SUCCESS),
+        help_row("R", "Fetch the remote, reload, re-fetch PRs", COLOR_SUCCESS),
         help_row("i", "Show worktree states", COLOR_SUCCESS),
         help_row("?", "Show this help", COLOR_SUCCESS),
         help_row("q / Esc Esc", "Quit application", COLOR_SUCCESS),

@@ -171,6 +171,27 @@ pub async fn fetch_pr_info_for_branches(
     cache: Option<&mut PrCache>,
     sequential: bool,
 ) -> FetchReport {
+    fetch_pr_info(provider, branches, cache, sequential, false).await
+}
+
+/// Like `fetch_pr_info_for_branches`, but every branch is fetched from the
+/// provider even when the cache has a fresh entry; the results are still
+/// written to the cache. Used by the TUI's full sync (`R`).
+pub async fn refetch_pr_info_for_branches(
+    provider: Arc<dyn PullRequestProvider>,
+    branches: &mut [BranchInfo],
+    cache: Option<&mut PrCache>,
+) -> FetchReport {
+    fetch_pr_info(provider, branches, cache, false, true).await
+}
+
+async fn fetch_pr_info(
+    provider: Arc<dyn PullRequestProvider>,
+    branches: &mut [BranchInfo],
+    cache: Option<&mut PrCache>,
+    sequential: bool,
+    force_refresh: bool,
+) -> FetchReport {
     use std::collections::HashMap;
     use tokio::sync::Semaphore;
     use tokio::task::JoinSet;
@@ -228,6 +249,10 @@ pub async fn fetch_pr_info_for_branches(
             let mut miss_indices: Vec<usize> = Vec::new();
 
             for (i, branch) in branches.iter_mut().enumerate() {
+                if force_refresh {
+                    miss_indices.push(i);
+                    continue;
+                }
                 match pr_cache.get(&branch.name) {
                     CacheResult::Hit(pr_info) => {
                         branch.pr_info = pr_info;
@@ -445,6 +470,31 @@ mod tests {
         assert_eq!(branches[0].pr_info.as_ref().map(|p| p.number), Some(7));
         assert_eq!(report.cache_hits, 1);
         assert_eq!(report.cache_misses, 0);
+    }
+
+    #[tokio::test]
+    async fn refetch_skips_a_fresh_cache_entry_and_updates_it() {
+        let mut cache = open_cache(Duration::from_secs(3600));
+        cache.set("feature/a", Some(&make_pr(7))).unwrap();
+
+        let mut responses = HashMap::new();
+        responses.insert("feature/a".to_string(), Ok(Some(make_pr(9))));
+        let provider = Arc::new(FakeProvider::new(responses));
+        let mut branches = vec![make_branch("feature/a")];
+        let report = refetch_pr_info_for_branches(
+            Arc::clone(&provider) as _,
+            &mut branches,
+            Some(&mut cache),
+        )
+        .await;
+
+        assert_eq!(provider.call_count(), 1);
+        assert_eq!(report.cache_hits, 0);
+        assert_eq!(branches[0].pr_info.as_ref().map(|p| p.number), Some(9));
+        match cache.get("feature/a") {
+            CacheResult::Hit(Some(pr)) => assert_eq!(pr.number, 9),
+            other => panic!("expected the refetched PR in the cache, got {other:?}"),
+        }
     }
 
     #[tokio::test]

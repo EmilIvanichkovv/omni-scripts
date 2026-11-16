@@ -6,59 +6,93 @@
 //! it was started with, and a result from an older generation is dropped, so
 //! a reload that read git before a deletion can never bring deleted branches
 //! back.
+//!
+//! A full sync (`R`) takes the PR cache with it and hands it back with its
+//! result; `poll` puts it back in the caller's slot as soon as any result
+//! arrives, even one that is dropped as stale.
 
+use crate::cache::PrCache;
 use crate::git::{self, BranchInfo};
+use crate::pr::{self, PullRequestProvider};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 /// How often automatic refresh checks whether the refs changed
 pub const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(2);
 
-/// What a reload re-reads
+/// What a reload re-reads (ordered from least to most work)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RefreshKind {
     /// Automatic: reload only when the refs fingerprint changed
     Check,
     /// Local git state only (`r`)
     Local,
+    /// Fetch the remote, reload, and re-fetch PR data (`R`)
+    Full,
+}
+
+/// PR re-fetch part of a full sync
+struct PrJob {
+    provider: Arc<dyn PullRequestProvider>,
+    cache: Option<PrCache>,
+    runtime: tokio::runtime::Handle,
 }
 
 /// A reload to run in the background
-#[derive(Debug, Clone)]
 pub struct Job {
     pub generation: u64,
+    pub kind: RefreshKind,
     /// Trunk to classify against (the one the TUI started with)
     pub trunk: String,
     /// Skip the reload when the refs still match this fingerprint
     pub known_fingerprint: Option<String>,
+    pr: Option<PrJob>,
 }
 
-/// The outcome of a background reload
-#[derive(Debug)]
+/// What a background reload reports
 pub enum JobResult {
+    /// A step of a full sync started (shown in the footer)
+    Progress { generation: u64, stage: String },
     Reloaded {
         generation: u64,
         branches: Vec<BranchInfo>,
         /// Refs fingerprint read just before the branches
         fingerprint: Option<String>,
+        /// `git fetch` failed; the reload still ran on local data
+        fetch_error: Option<String>,
+        /// PR data was re-fetched, so it replaces what the app had
+        prs_refetched: bool,
+        /// PR lookups that failed during the re-fetch
+        pr_failures: usize,
+        pr_cache: Option<PrCache>,
     },
     /// The refs still match the known fingerprint; nothing was re-read
-    Unchanged {
-        generation: u64,
-    },
+    Unchanged { generation: u64 },
     Failed {
         generation: u64,
         error: String,
+        pr_cache: Option<PrCache>,
     },
 }
 
 impl JobResult {
     fn generation(&self) -> u64 {
         match self {
-            JobResult::Reloaded { generation, .. }
+            JobResult::Progress { generation, .. }
+            | JobResult::Reloaded { generation, .. }
             | JobResult::Unchanged { generation }
             | JobResult::Failed { generation, .. } => *generation,
+        }
+    }
+
+    fn take_pr_cache(&mut self) -> Option<PrCache> {
+        match self {
+            JobResult::Reloaded { pr_cache, .. } | JobResult::Failed { pr_cache, .. } => {
+                pr_cache.take()
+            }
+            _ => None,
         }
     }
 }
@@ -66,8 +100,8 @@ impl JobResult {
 /// Starts a job; the real one spawns a thread, tests record the jobs
 type Launcher = Box<dyn Fn(Job, Sender<JobResult>)>;
 
-/// Run a reload on the calling thread
-fn run_job(job: &Job) -> JobResult {
+/// Reload for `Check` and `Local`, on the calling thread
+fn run_local(job: &Job) -> JobResult {
     // Read before the branches: a change in between triggers another reload
     let fingerprint = git::refs_fingerprint().ok();
     if fingerprint.is_some() && fingerprint == job.known_fingerprint {
@@ -80,11 +114,75 @@ fn run_job(job: &Job) -> JobResult {
             generation: job.generation,
             branches,
             fingerprint,
+            fetch_error: None,
+            prs_refetched: false,
+            pr_failures: 0,
+            pr_cache: None,
         },
         Err(e) => JobResult::Failed {
             generation: job.generation,
             error: e.to_string(),
+            pr_cache: None,
         },
+    }
+}
+
+/// Full sync on the calling thread: fetch, reload, re-fetch PRs
+fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
+    let generation = job.generation;
+    let progress = |stage: String| {
+        let _ = tx.send(JobResult::Progress { generation, stage });
+    };
+
+    let mut fetch_error = None;
+    if let Some(remote) = git::get_primary_remote() {
+        progress(format!("fetching {remote}…"));
+        if let Err(e) = git::fetch_remote(&remote) {
+            fetch_error = Some(e.to_string());
+        }
+    }
+
+    progress("reloading…".to_string());
+    let fingerprint = git::refs_fingerprint().ok();
+    let mut branches = match git::get_branches_with_classification(Some(&job.trunk)) {
+        Ok(branches) => branches,
+        Err(e) => {
+            return JobResult::Failed {
+                generation,
+                error: e.to_string(),
+                pr_cache: job.pr.and_then(|pr| pr.cache),
+            }
+        }
+    };
+
+    let mut prs_refetched = false;
+    let mut pr_failures = 0;
+    let mut pr_cache = None;
+    if let Some(PrJob {
+        provider,
+        mut cache,
+        runtime,
+    }) = job.pr
+    {
+        progress("fetching PRs…".to_string());
+        let report = runtime.block_on(pr::refetch_pr_info_for_branches(
+            provider,
+            &mut branches,
+            cache.as_mut(),
+        ));
+        prs_refetched = true;
+        pr_failures = report.failed;
+        pr_cache = cache;
+    }
+
+    JobResult::Reloaded {
+        generation,
+        branches,
+        fingerprint,
+        fetch_error,
+        prs_refetched,
+        pr_failures,
+        pr_cache,
     }
 }
 
@@ -92,7 +190,11 @@ fn run_job(job: &Job) -> JobResult {
 /// shutdown would wait for a slow git call when the user quits)
 fn spawn_job(job: Job, tx: Sender<JobResult>) {
     thread::spawn(move || {
-        let _ = tx.send(run_job(&job));
+        let result = match job.kind {
+            RefreshKind::Full => run_full(job, &tx),
+            RefreshKind::Check | RefreshKind::Local => run_local(&job),
+        };
+        let _ = tx.send(result);
     });
 }
 
@@ -101,6 +203,8 @@ pub struct Refresher {
     generation: u64,
     /// Generation and kind of the reload that is running
     in_flight: Option<(u64, RefreshKind)>,
+    /// Latest progress message of the running full sync
+    stage: Option<String>,
     /// Reload to start when the running one finishes
     queued: Option<RefreshKind>,
     /// Finished result held back while the app cannot apply it
@@ -110,6 +214,8 @@ pub struct Refresher {
     launcher: Launcher,
     /// Whether to check for ref changes every `AUTO_CHECK_INTERVAL`
     pub auto: bool,
+    /// PR provider for full syncs (None: `R` only fetches and reloads)
+    pub provider: Option<Arc<dyn PullRequestProvider>>,
     /// Fingerprint of the refs the branch list on screen was read from
     fingerprint: Option<String>,
     /// When the last reload or check started
@@ -128,12 +234,14 @@ impl Refresher {
         Self {
             generation: 0,
             in_flight: None,
+            stage: None,
             queued: None,
             pending: None,
             tx,
             rx,
             launcher,
             auto: false,
+            provider: None,
             fingerprint: None,
             last_started: None,
         }
@@ -155,13 +263,19 @@ impl Refresher {
         self.in_flight.map(|(_, kind)| kind)
     }
 
+    /// Latest progress message of the running full sync
+    pub fn stage(&self) -> Option<&str> {
+        self.stage.as_deref()
+    }
+
     /// Start a reload, or queue it behind the running one. Queued requests
-    /// merge into one, keeping the widest kind.
-    pub fn request(&mut self, kind: RefreshKind, trunk: &str) {
+    /// merge into one, keeping the widest kind. A full sync takes the PR
+    /// cache out of `pr_cache` until it finishes.
+    pub fn request(&mut self, kind: RefreshKind, trunk: &str, pr_cache: &mut Option<PrCache>) {
         if self.in_flight.is_some() {
             self.queued = self.queued.max(Some(kind));
         } else {
-            self.start(kind, trunk, Instant::now());
+            self.start(kind, trunk, Instant::now(), pr_cache);
         }
     }
 
@@ -169,20 +283,36 @@ impl Refresher {
     /// branches on the main thread, e.g. deleting)
     pub fn invalidate(&mut self) {
         self.generation += 1;
-        self.pending = None;
     }
 
-    fn start(&mut self, kind: RefreshKind, trunk: &str, now: Instant) {
+    fn start(
+        &mut self,
+        kind: RefreshKind,
+        trunk: &str,
+        now: Instant,
+        pr_cache: &mut Option<PrCache>,
+    ) {
         self.generation += 1;
         self.in_flight = Some((self.generation, kind));
+        self.stage = None;
         self.last_started = Some(now);
+        let pr = match (kind, &self.provider, tokio::runtime::Handle::try_current()) {
+            (RefreshKind::Full, Some(provider), Ok(runtime)) => Some(PrJob {
+                provider: Arc::clone(provider),
+                cache: pr_cache.take(),
+                runtime,
+            }),
+            _ => None,
+        };
         let job = Job {
             generation: self.generation,
+            kind,
             trunk: trunk.to_string(),
             known_fingerprint: match kind {
                 RefreshKind::Check => self.fingerprint.clone(),
-                RefreshKind::Local => None,
+                RefreshKind::Local | RefreshKind::Full => None,
             },
+            pr,
         };
         (self.launcher)(job, self.tx.clone());
     }
@@ -190,12 +320,30 @@ impl Refresher {
     /// Collect finished reloads, start a queued one or an automatic check
     /// that is due, and return the newest current result unless `hold` is
     /// set (the app keeps it until `hold` clears, e.g. while the delete
-    /// confirmation is open)
-    pub fn poll(&mut self, hold: bool, trunk: &str, now: Instant) -> Option<JobResult> {
-        while let Ok(result) = self.rx.try_recv() {
+    /// confirmation is open). A PR cache coming back from a full sync goes
+    /// into `pr_cache` straight away.
+    pub fn poll(
+        &mut self,
+        hold: bool,
+        now: Instant,
+        trunk: &str,
+        pr_cache: &mut Option<PrCache>,
+    ) -> Option<JobResult> {
+        while let Ok(mut result) = self.rx.try_recv() {
+            if let Some(cache) = result.take_pr_cache() {
+                *pr_cache = Some(cache);
+            }
             let generation = result.generation();
-            if self.in_flight.is_some_and(|(g, _)| g == generation) {
+            let is_in_flight = self.in_flight.is_some_and(|(g, _)| g == generation);
+            if let JobResult::Progress { stage, .. } = result {
+                if is_in_flight {
+                    self.stage = Some(stage);
+                }
+                continue;
+            }
+            if is_in_flight {
                 self.in_flight = None;
+                self.stage = None;
             }
             if generation != self.generation {
                 continue;
@@ -208,9 +356,9 @@ impl Refresher {
         }
         if self.in_flight.is_none() {
             if let Some(kind) = self.queued.take() {
-                self.start(kind, trunk, now);
+                self.start(kind, trunk, now, pr_cache);
             } else if self.auto_check_due(hold, now) {
-                self.start(RefreshKind::Check, trunk, now);
+                self.start(RefreshKind::Check, trunk, now, pr_cache);
             }
         }
         // A result is only current while no newer reload was started
@@ -262,36 +410,173 @@ mod tests {
         (refresher, jobs)
     }
 
-    fn finish(jobs: &Recorded, index: usize) {
+    fn poll_at(refresher: &mut Refresher, hold: bool, now: Instant) -> Option<JobResult> {
+        refresher.poll(hold, now, "main", &mut None)
+    }
+
+    fn poll(refresher: &mut Refresher, hold: bool) -> Option<JobResult> {
+        poll_at(refresher, hold, Instant::now())
+    }
+
+    fn request(refresher: &mut Refresher, kind: RefreshKind, trunk: &str) {
+        refresher.request(kind, trunk, &mut None);
+    }
+
+    fn send(jobs: &Recorded, index: usize, result: impl FnOnce(u64) -> JobResult) {
         let jobs = jobs.borrow();
         let (job, tx) = &jobs[index];
-        tx.send(JobResult::Reloaded {
-            generation: job.generation,
+        tx.send(result(job.generation)).unwrap();
+    }
+
+    fn finish(jobs: &Recorded, index: usize) {
+        send(jobs, index, |generation| JobResult::Reloaded {
+            generation,
             branches: Vec::new(),
-            fingerprint: Some(format!("refs-{}", job.generation)),
-        })
-        .unwrap();
+            fingerprint: Some(format!("refs-{generation}")),
+            fetch_error: None,
+            prs_refetched: false,
+            pr_failures: 0,
+            pr_cache: None,
+        });
     }
 
     fn finish_unchanged(jobs: &Recorded, index: usize) {
-        let jobs = jobs.borrow();
-        let (job, tx) = &jobs[index];
-        tx.send(JobResult::Unchanged {
-            generation: job.generation,
-        })
-        .unwrap();
+        send(jobs, index, |generation| JobResult::Unchanged {
+            generation,
+        });
+    }
+
+    #[test]
+    fn a_finished_reload_is_returned_once() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        assert_eq!(refresher.running(), Some(RefreshKind::Local));
+        assert!(poll(&mut refresher, false).is_none());
+
+        finish(&jobs, 0);
+        assert!(poll(&mut refresher, false).is_some());
+        assert_eq!(refresher.running(), None);
+        assert!(poll(&mut refresher, false).is_none());
+    }
+
+    #[test]
+    fn requests_during_a_reload_queue_a_single_follow_up() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        assert_eq!(jobs.borrow().len(), 1);
+
+        finish(&jobs, 0);
+        // The first result is superseded by the follow-up that starts now
+        assert!(poll(&mut refresher, false).is_none());
+        assert_eq!(jobs.borrow().len(), 2);
+
+        finish(&jobs, 1);
+        assert!(poll(&mut refresher, false).is_some());
+        assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn a_queued_full_sync_wins_over_a_local_reload() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        request(&mut refresher, RefreshKind::Full, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 0);
+        poll(&mut refresher, false);
+        assert_eq!(jobs.borrow()[1].0.kind, RefreshKind::Full);
+    }
+
+    #[test]
+    fn a_reload_started_before_invalidate_is_dropped() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        refresher.invalidate();
+        finish(&jobs, 0);
+        assert!(poll(&mut refresher, false).is_none());
+        assert_eq!(refresher.running(), None);
+    }
+
+    #[test]
+    fn a_held_result_is_returned_when_the_hold_ends() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 0);
+        assert!(poll(&mut refresher, true).is_none());
+        assert!(poll(&mut refresher, true).is_none());
+        assert!(poll(&mut refresher, false).is_some());
+    }
+
+    #[test]
+    fn a_held_result_is_dropped_by_invalidate() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 0);
+        assert!(poll(&mut refresher, true).is_none());
+        refresher.invalidate();
+        assert!(poll(&mut refresher, false).is_none());
+    }
+
+    #[test]
+    fn jobs_carry_the_trunk() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Local, "develop");
+        assert_eq!(jobs.borrow()[0].0.trunk, "develop");
+    }
+
+    #[test]
+    fn progress_of_the_running_sync_is_shown_until_it_finishes() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Full, "main");
+        send(&jobs, 0, |generation| JobResult::Progress {
+            generation,
+            stage: "fetching origin…".to_string(),
+        });
+        assert!(poll(&mut refresher, false).is_none());
+        assert_eq!(refresher.stage(), Some("fetching origin…"));
+        assert_eq!(refresher.running(), Some(RefreshKind::Full));
+
+        finish(&jobs, 0);
+        assert!(poll(&mut refresher, false).is_some());
+        assert_eq!(refresher.stage(), None);
+    }
+
+    #[test]
+    fn a_stale_result_still_returns_the_pr_cache() {
+        use rusqlite::Connection;
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Full, "main");
+        refresher.invalidate();
+        send(&jobs, 0, |generation| JobResult::Failed {
+            generation,
+            error: "boom".to_string(),
+            pr_cache: Some(
+                PrCache::open_with_conn(
+                    Connection::open_in_memory().unwrap(),
+                    "test/repo",
+                    Duration::from_secs(60),
+                )
+                .unwrap(),
+            ),
+        });
+        let mut slot = None;
+        assert!(refresher
+            .poll(false, Instant::now(), "main", &mut slot)
+            .is_none());
+        assert!(slot.is_some());
     }
 
     #[test]
     fn automatic_checks_run_only_when_on_and_due() {
         let (mut refresher, jobs) = recording();
         let now = Instant::now();
-        refresher.poll(false, "main", now);
+        poll_at(&mut refresher, false, now);
         assert!(jobs.borrow().is_empty(), "off by default");
 
         refresher.auto = true;
         refresher.set_fingerprint(Some("refs-0".into()));
-        refresher.poll(false, "main", now);
+        poll_at(&mut refresher, false, now);
         assert_eq!(jobs.borrow().len(), 1);
         assert_eq!(refresher.running(), Some(RefreshKind::Check));
         assert_eq!(
@@ -300,10 +585,10 @@ mod tests {
         );
 
         finish_unchanged(&jobs, 0);
-        assert!(refresher.poll(false, "main", now).is_none());
+        assert!(poll_at(&mut refresher, false, now).is_none());
         assert_eq!(jobs.borrow().len(), 1, "not due yet");
 
-        refresher.poll(false, "main", now + AUTO_CHECK_INTERVAL);
+        poll_at(&mut refresher, false, now + AUTO_CHECK_INTERVAL);
         assert_eq!(jobs.borrow().len(), 2);
     }
 
@@ -312,13 +597,13 @@ mod tests {
         let (mut refresher, jobs) = recording();
         refresher.auto = true;
         let now = Instant::now();
-        refresher.poll(false, "main", now);
+        poll_at(&mut refresher, false, now);
         finish_unchanged(&jobs, 0);
-        refresher.poll(false, "main", now);
+        poll_at(&mut refresher, false, now);
         assert_eq!(jobs.borrow().len(), 1);
 
         refresher.check_soon();
-        refresher.poll(false, "main", now);
+        poll_at(&mut refresher, false, now);
         assert_eq!(jobs.borrow().len(), 2);
     }
 
@@ -326,7 +611,7 @@ mod tests {
     fn check_soon_does_nothing_while_automatic_refresh_is_off() {
         let (mut refresher, jobs) = recording();
         refresher.check_soon();
-        refresher.poll(false, "main", Instant::now());
+        poll(&mut refresher, false);
         assert!(jobs.borrow().is_empty());
     }
 
@@ -335,11 +620,9 @@ mod tests {
         let (mut refresher, jobs) = recording();
         refresher.auto = true;
         let now = Instant::now();
-        refresher.request(RefreshKind::Local, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
         finish(&jobs, 0);
-        assert!(refresher
-            .poll(true, "main", now + AUTO_CHECK_INTERVAL)
-            .is_none());
+        assert!(poll_at(&mut refresher, true, now + AUTO_CHECK_INTERVAL).is_none());
         assert_eq!(jobs.borrow().len(), 1);
     }
 
@@ -347,84 +630,16 @@ mod tests {
     fn manual_reloads_ignore_the_fingerprint_and_update_it() {
         let (mut refresher, jobs) = recording();
         refresher.set_fingerprint(Some("old".into()));
-        refresher.request(RefreshKind::Local, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
         assert_eq!(jobs.borrow()[0].0.known_fingerprint, None);
         finish(&jobs, 0);
-        refresher.poll(false, "main", Instant::now());
+        poll(&mut refresher, false);
 
         refresher.auto = true;
-        refresher.poll(false, "main", Instant::now() + AUTO_CHECK_INTERVAL);
+        poll_at(&mut refresher, false, Instant::now() + AUTO_CHECK_INTERVAL);
         assert_eq!(
             jobs.borrow()[1].0.known_fingerprint.as_deref(),
             Some("refs-1")
         );
-    }
-
-    #[test]
-    fn a_finished_reload_is_returned_once() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "main");
-        assert_eq!(refresher.running(), Some(RefreshKind::Local));
-        assert!(refresher.poll(false, "main", Instant::now()).is_none());
-
-        finish(&jobs, 0);
-        assert!(refresher.poll(false, "main", Instant::now()).is_some());
-        assert_eq!(refresher.running(), None);
-        assert!(refresher.poll(false, "main", Instant::now()).is_none());
-    }
-
-    #[test]
-    fn requests_during_a_reload_queue_a_single_follow_up() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "main");
-        refresher.request(RefreshKind::Local, "main");
-        refresher.request(RefreshKind::Local, "main");
-        assert_eq!(jobs.borrow().len(), 1);
-
-        finish(&jobs, 0);
-        // The first result is superseded by the follow-up that starts now
-        assert!(refresher.poll(false, "main", Instant::now()).is_none());
-        assert_eq!(jobs.borrow().len(), 2);
-
-        finish(&jobs, 1);
-        assert!(refresher.poll(false, "main", Instant::now()).is_some());
-        assert_eq!(jobs.borrow().len(), 2);
-    }
-
-    #[test]
-    fn a_reload_started_before_invalidate_is_dropped() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "main");
-        refresher.invalidate();
-        finish(&jobs, 0);
-        assert!(refresher.poll(false, "main", Instant::now()).is_none());
-        assert_eq!(refresher.running(), None);
-    }
-
-    #[test]
-    fn a_held_result_is_returned_when_the_hold_ends() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "main");
-        finish(&jobs, 0);
-        assert!(refresher.poll(true, "main", Instant::now()).is_none());
-        assert!(refresher.poll(true, "main", Instant::now()).is_none());
-        assert!(refresher.poll(false, "main", Instant::now()).is_some());
-    }
-
-    #[test]
-    fn a_held_result_is_dropped_by_invalidate() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "main");
-        finish(&jobs, 0);
-        assert!(refresher.poll(true, "main", Instant::now()).is_none());
-        refresher.invalidate();
-        assert!(refresher.poll(false, "main", Instant::now()).is_none());
-    }
-
-    #[test]
-    fn jobs_carry_the_trunk() {
-        let (mut refresher, jobs) = recording();
-        refresher.request(RefreshKind::Local, "develop");
-        assert_eq!(jobs.borrow()[0].0.trunk, "develop");
     }
 }

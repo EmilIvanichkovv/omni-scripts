@@ -518,6 +518,26 @@ launch) gates every removal path through `App::require_worktree_remove_mode()`: 
 `a`, `c`), opening the confirmation (`App::request_worktree_removal()`) and
 `App::remove_selected_worktrees()` itself. Turning it off clears the worktree selection.
 
+### 9. `refresh.rs` — Live Refresh
+
+See [LIVE_REFRESH.md](LIVE_REFRESH.md).
+
+- `Refresher` (on `App::refresher`) runs reloads on plain threads (not tokio's blocking pool, so
+  quitting never waits for git) and receives results over an `mpsc` channel that
+  `App::poll_refresh()` drains every tick. One reload runs at a time; requests made meanwhile merge
+  into one queued reload (`Check` < `Local` < `Full`).
+- Every reload carries a generation; `Refresher::invalidate()` (called before a deletion's
+  synchronous reload) makes older results stale, and stale results are dropped.
+- `Check` (automatic, every 2 s and on `FocusGained`) compares `git::refs_fingerprint()` with the
+  fingerprint the list was read from and only re-reads the branches when it differs. `Local` (`r`)
+  always re-reads. `Full` (`R`) runs `git::fetch_remote()`, re-reads, and calls
+  `pr::refetch_pr_info_for_branches()` on the runtime handle with the `PrCache` taken out of `App`;
+  the cache comes back with any result, even a stale one.
+- `App::replace_branches()` applies a result: PR info carried over (unless re-fetched), sort order,
+  selection and cursor by name, `@author:` completion; `App::set_worktree_view()` carries the
+  worktree selection, cursor and statuses over.
+- Results are held while the delete confirmation is open.
+
 ---
 
 ## Data Flow

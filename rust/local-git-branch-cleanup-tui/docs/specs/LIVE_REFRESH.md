@@ -1,8 +1,9 @@
 # Live Refresh Specification
 
-Status: Proposed. Target project: `rust/local-git-branch-cleanup-tui`. Source snapshot reviewed:
-`main` @ `0cb5a89` (v0.7.0), 2026-11-19. Related: [GitHub PR Cache](GITHUB_PR_CACHE.md) phase 3
-(issue #31), whose `Ctrl+R` keybinding this spec replaces (section 9).
+Status: Implemented (phases 1 to 3; deviations from the proposal in section 12). Target project:
+`rust/local-git-branch-cleanup-tui`. Source snapshot reviewed: `main` @ `0cb5a89` (v0.7.0),
+2026-11-19. Related: [GitHub PR Cache](GITHUB_PR_CACHE.md) phase 3 (issue #31), whose `Ctrl+R`
+keybinding this spec replaces (section 9).
 
 ## 1. Goals
 
@@ -104,7 +105,7 @@ provider does the fetch and the reload only.
 
 ### 4.3 Footer status
 
-- While running: `⟳ reloading…` or `⟳ fetching origin…` / `⟳ fetching PRs 12/48`.
+- While running: `⟳ reloading…` or `⟳ fetching origin…` / `⟳ fetching PRs…`.
 - After a refresh that changed something: `updated 14:32:05` for 5 s, then nothing.
 - On failure: a one-line `flash` message (`Fetch failed: …`), and the list keeps its old data.
 
@@ -228,19 +229,19 @@ Each phase is one PR and leaves the tool releasable.
 
 ## 8. Acceptance criteria
 
-- [ ] Selecting branches, then creating a branch elsewhere and refreshing, keeps exactly the same
+- [x] Selecting branches, then creating a branch elsewhere and refreshing, keeps exactly the same
       branches selected
-- [ ] A selected branch deleted elsewhere is dropped from the selection after a refresh
-- [ ] `r` reloads without freezing the UI (keys keep responding during the reload)
-- [ ] `--trunk` is kept after a deletion and after a reload
-- [ ] With auto refresh on, a branch created in another terminal appears within 2 s, and on focus
+- [x] A selected branch deleted elsewhere is dropped from the selection after a refresh
+- [x] `r` reloads without freezing the UI (keys keep responding during the reload)
+- [x] `--trunk` is kept after a deletion and after a reload
+- [x] With auto refresh on, a branch created in another terminal appears within 2 s, and on focus
       where the terminal reports it
-- [ ] With the confirmation modal open, no refresh changes the list or the selection
-- [ ] `R` marks a branch whose remote was deleted as `gone`
-- [ ] `R` with an auth-required remote fails with a message and does not hang or draw over the TUI
-- [ ] `R` re-fetches PR data and writes it to the cache
-- [ ] `--no-auto-refresh` stops the poll; `r` and `R` still work
-- [ ] `cargo test` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] With the confirmation modal open, no refresh changes the list or the selection
+- [x] `R` marks a branch whose remote was deleted as `gone`
+- [x] `R` with an auth-required remote fails with a message and does not hang or draw over the TUI
+- [x] `R` re-fetches PR data and writes it to the cache
+- [x] `--no-auto-refresh` stops the poll; `r` and `R` still work
+- [x] `cargo test` and `cargo clippy --all-targets -- -D warnings` pass
 
 ## 9. Decisions log
 
@@ -269,3 +270,29 @@ Each phase is one PR and leaves the tool releasable.
 - Re-fetch PR data only for branches whose tip changed.
 - The CLI-only parts of GITHUB_PR_CACHE phase 3 (`--refresh-cache`, `--cache-stats`, `--cache-ttl`,
   cache status in the header).
+
+## 12. Implementation notes
+
+Built on `feat/live-refresh` (issue #71). Where the implementation differs from the proposal above:
+
+- **Post-deletion reloads stay synchronous** (section 5.3 proposed `request(Local)`). The list is
+  re-read right after the deletion, as before, so deleted rows never linger; the reload calls
+  `Refresher::invalidate()` first and records the new fingerprint, so a background result read
+  before the deletion is dropped and the next check does not reload again.
+- **No `trunk_override` field** (section 5.4): `App::trunk` already holds the trunk resolved at
+  startup, and `get_default_branch(Some(trunk))` returns it unchanged, so reloads pass it.
+- **Re-sorting also moved the selection:** with positions, `s` after selecting moved the checkmarks.
+  Selection by name fixes that as well, and reloads now keep the sort mode.
+- **Worktree view:** a reload keeps its selection (by path), cursor and the `git status` results
+  already read (fresh ones replace them as they arrive), instead of resetting every row to loading.
+- **Footer:** the refresh status sits on the footer's bottom-left border; `r`/`R` are in the help
+  modals, not in the crowded key-hint line. Progress has no counts (`⟳ fetching PRs…`).
+- **Credentials:** `git fetch` also sets `GCM_INTERACTIVE=never`. Under WSL the Windows Git
+  Credential Manager ignores `GIT_TERMINAL_PROMPT` and `-c` settings (environment variables do not
+  reach Windows programs) and waited for a sign-in dialog; `WSLENV` now forwards `GCM_INTERACTIVE`.
+  A fetch still running after 60 s is killed.
+- **Verified manually** in tmux on WSL: automatic refresh within 2 s, selection kept when a branch
+  is inserted above it, nothing applied while the confirmation is open, `R` turning a branch `gone`,
+  `R` failing with the authentication message in about 3 s, `R` re-fetching PR data with `--github`,
+  a new worktree appearing in the worktree view, and `q` quitting at once during a fetch. Focus
+  events were not checked: tmux does not forward them by default.

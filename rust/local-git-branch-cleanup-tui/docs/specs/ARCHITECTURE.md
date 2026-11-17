@@ -528,11 +528,11 @@ See [LIVE_REFRESH.md](LIVE_REFRESH.md).
   into one queued reload (`Check` < `Local` < `Full`).
 - Every reload carries a generation; `Refresher::invalidate()` (called before a deletion's
   synchronous reload) makes older results stale, and stale results are dropped.
-- `Check` (automatic, every 2 s and on `FocusGained`) compares `git::refs_fingerprint()` with the
-  fingerprint the list was read from and only re-reads the branches when it differs. `Local` (`r`)
-  always re-reads. `Full` (`R`) runs `git::fetch_remote()`, re-reads, and calls
-  `pr::refetch_pr_info_for_branches()` on the runtime handle with the `PrCache` taken out of `App`;
-  the cache comes back with any result, even a stale one.
+- `Check` (automatic, every `Refresher::interval`, 10 s by default, and on `FocusGained`) compares
+  `git::refs_fingerprint()` with the fingerprint the list was read from and only re-reads the
+  branches when it differs. `Local` (`r`) always re-reads. `Full` (`R`) runs `git::fetch_remote()`,
+  re-reads, and calls `pr::refetch_pr_info_for_branches()` on the runtime handle with the `PrCache`
+  taken out of `App`; the cache comes back with any result, even a stale one.
 - `App::replace_branches()` applies a result: PR info carried over (unless re-fetched), sort order,
   selection and cursor by name, `@author:` completion; `App::set_worktree_view()` carries the
   worktree selection, cursor and statuses over.

@@ -49,8 +49,8 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
 - **Live Refresh** - Branches created, deleted, committed to or checked out in another terminal show
-  up within 2 s (or as soon as you switch back to the TUI); `r` reloads on demand and `R` also
-  fetches the remote and re-fetches PR data
+  up within 10 s (`--auto-refresh-interval`) or as soon as you switch back to the TUI; `r` reloads
+  on demand and `R` also fetches the remote and re-fetches PR data
 - **Worktree View** - `--worktrees` / `-w` (or `w` in the TUI) lists every `git worktree` with its
   branch, state (current, prunable, locked, dirty, detached, or the branch's status), uncommitted
   changes, last commit and PR; removes stale ones with `git worktree remove` / `git worktree prune`
@@ -243,6 +243,8 @@ Options:
       --no-update-check              Do not check for new versions
       --no-auto-refresh              Do not reload when branches change in another
                                      terminal (r still reloads)
+      --auto-refresh-interval <SECONDS>
+                                     Seconds between automatic checks [default: 10]
   -w, --worktrees                    Start in the worktree view; with --cli, print the
                                      worktree table and exit
   -h, --help                         Print help

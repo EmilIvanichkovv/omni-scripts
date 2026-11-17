@@ -402,11 +402,11 @@ No branches are actually deleted in dry run mode. This is useful for:
 
 The branch list follows the repository while the TUI is open.
 
-- **Automatically:** every 2 s the TUI checks the branch and remote-tracking refs, the checked-out
-  branch and the worktree list (3 cheap git calls). When something changed in another terminal (a
-  branch created, deleted, committed to, merged or checked out), it re-reads the branches in the
-  background. Switching back to the terminal window checks at once in terminals that report focus.
-  `--no-auto-refresh` turns this off.
+- **Automatically:** every 10 s (`--auto-refresh-interval <SECONDS>`) the TUI checks the branch and
+  remote-tracking refs, the checked-out branch and the worktree list (3 cheap git calls). When
+  something changed in another terminal (a branch created, deleted, committed to, merged or checked
+  out), it re-reads the branches in the background. Switching back to the terminal window checks at
+  once in terminals that report focus. `--no-auto-refresh` turns this off.
 - **`r`:** reload the branch list now.
 - **`R`:** full sync: `git fetch --prune` on the primary remote, reload, and with `--github` /
   `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it). This is

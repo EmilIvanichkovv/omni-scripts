@@ -56,12 +56,12 @@ files with `inotify` or FSEvents (section 3.1), and live updates in CLI mode.
 
 ### 3.1 Detecting local changes
 
-| Option                                                                                | Cost per check          | Works on                                                                             | Verdict    |
-| ------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------ | ---------- |
-| Re-read everything every N seconds                                                    | ~6 git calls per branch | everywhere                                                                           | too costly |
-| File watcher (`notify` crate) on `.git/refs`, `packed-refs`, `HEAD`, `worktrees/`     | none while idle         | unreliable on WSL `/mnt` paths and network drives; must also handle linked worktrees | rejected   |
-| **Fingerprint poll:** one cheap snapshot every 2 s, full re-read only when it changes | 3 git calls             | everywhere                                                                           | **chosen** |
-| Terminal focus events (`FocusGained`)                                                 | none                    | most terminals; not all report focus                                                 | **add-on** |
+| Option                                                                                 | Cost per check          | Works on                                                                             | Verdict    |
+| -------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------ | ---------- |
+| Re-read everything every N seconds                                                     | ~6 git calls per branch | everywhere                                                                           | too costly |
+| File watcher (`notify` crate) on `.git/refs`, `packed-refs`, `HEAD`, `worktrees/`      | none while idle         | unreliable on WSL `/mnt` paths and network drives; must also handle linked worktrees | rejected   |
+| **Fingerprint poll:** one cheap snapshot every 10 s, full re-read only when it changes | 3 git calls             | everywhere                                                                           | **chosen** |
+| Terminal focus events (`FocusGained`)                                                  | none                    | most terminals; not all report focus                                                 | **add-on** |
 
 The fingerprint is the concatenated output of:
 
@@ -75,7 +75,7 @@ Hashing is not needed; the strings are compared directly. A full re-read runs on
 fingerprint differs from the last applied one.
 
 `FocusGained` (crossterm `EnableFocusChange`) triggers an immediate fingerprint check, so switching
-back from another terminal updates the list at once instead of within 2 s.
+back from another terminal updates the list at once instead of within 10 s.
 
 ### 3.2 Remote and PR data
 
@@ -101,7 +101,8 @@ provider does the fetch and the reload only.
 
 - On by default. `--no-auto-refresh` turns off the fingerprint poll and the focus trigger; `r` and
   `R` still work.
-- Interval 2 s, fixed. A check is skipped while one is running.
+- Interval 10 s by default; `--auto-refresh-interval <SECONDS>` (at least 1) changes it and
+  conflicts with `--no-auto-refresh`. A check is skipped while one is running.
 
 ### 4.3 Footer status
 
@@ -149,7 +150,8 @@ pub struct Refresher {
 ```
 
 - `Refresher::tick(&mut App, now)` runs every loop iteration next to `poll_worktree_status`: drains
-  the channel, applies or holds the result, and every 2 s starts a fingerprint check on a thread.
+  the channel, applies or holds the result, and every interval starts a fingerprint check on a
+  thread.
 - `request(kind)` starts a refresh, or queues one if a refresh is in flight. A second `r` during a
   refresh queues one follow-up instead of starting a second thread.
 - **Stale results:** every result carries the generation it was started with. A result older than
@@ -215,7 +217,7 @@ ssh-agent keep working.
 - **Credentials:** `git fetch` against a remote URL that requires auth fails without hanging
   (timeout in the test).
 - **Manual:** WSL on `/mnt/c`, macOS and Windows Terminal: create and delete branches in another
-  terminal and confirm the list follows within 2 s and on focus.
+  terminal and confirm the list follows within the interval and on focus.
 
 ## 7. Implementation phases
 
@@ -234,8 +236,8 @@ Each phase is one PR and leaves the tool releasable.
 - [x] A selected branch deleted elsewhere is dropped from the selection after a refresh
 - [x] `r` reloads without freezing the UI (keys keep responding during the reload)
 - [x] `--trunk` is kept after a deletion and after a reload
-- [x] With auto refresh on, a branch created in another terminal appears within 2 s, and on focus
-      where the terminal reports it
+- [x] With auto refresh on, a branch created in another terminal appears within the interval, and on
+      focus where the terminal reports it
 - [x] With the confirmation modal open, no refresh changes the list or the selection
 - [x] `R` marks a branch whose remote was deleted as `gone`
 - [x] `R` with an auth-required remote fails with a message and does not hang or draw over the TUI
@@ -296,3 +298,7 @@ Built on `feat/live-refresh` (issue #71). Where the implementation differs from 
   `R` failing with the authentication message in about 3 s, `R` re-fetching PR data with `--github`,
   a new worktree appearing in the worktree view, and `q` quitting at once during a fetch. Focus
   events were not checked: tmux does not forward them by default.
+- **Interval:** proposed as a fixed 2 s; shipped as 10 s by default with `--auto-refresh-interval`.
+  A check costs about 6 ms on a Linux file system, so cost does not force a long interval, but focus
+  events already cover coming back from another terminal, and a longer default keeps checks rare
+  where git is slow (WSL `/mnt/c`, repos with hundreds of branches).

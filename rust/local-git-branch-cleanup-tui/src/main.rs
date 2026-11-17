@@ -90,6 +90,16 @@ struct Args {
     #[arg(long)]
     no_auto_refresh: bool,
 
+    /// Seconds between automatic checks for branch changes
+    #[arg(
+        long,
+        value_name = "SECONDS",
+        default_value_t = 10,
+        value_parser = clap::value_parser!(u64).range(1..),
+        conflicts_with = "no_auto_refresh"
+    )]
+    auto_refresh_interval: u64,
+
     /// Start in the worktree view (press `w` to switch views); with --cli,
     /// print the worktree table and exit
     #[arg(long, short = 'w')]
@@ -258,6 +268,7 @@ async fn main() -> Result<()> {
         args.worktrees,
         LiveRefresh {
             auto: !args.no_auto_refresh,
+            interval: std::time::Duration::from_secs(args.auto_refresh_interval),
             fingerprint: refs_fingerprint,
         },
         update_notice,
@@ -268,6 +279,8 @@ async fn main() -> Result<()> {
 struct LiveRefresh {
     /// Reload when the refs change (off with --no-auto-refresh)
     auto: bool,
+    /// Time between automatic checks (--auto-refresh-interval)
+    interval: std::time::Duration,
     /// Refs fingerprint read just before the branches at startup
     fingerprint: Option<String>,
 }
@@ -369,6 +382,7 @@ fn run_tui_mode(
     app.force_mode = force_mode;
     app.dry_run = dry_run;
     app.refresher.auto = live_refresh.auto;
+    app.refresher.interval = live_refresh.interval;
     app.refresher.set_fingerprint(live_refresh.fingerprint);
     if let Some(session) = pr_session {
         app.pr_provider = Some(session.kind);

@@ -19,8 +19,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// How often automatic refresh checks whether the refs changed
-pub const AUTO_CHECK_INTERVAL: Duration = Duration::from_secs(2);
+/// How often automatic refresh checks whether the refs changed, unless
+/// `--auto-refresh-interval` says otherwise
+pub const DEFAULT_AUTO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
 /// What a reload re-reads (ordered from least to most work)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -212,8 +213,10 @@ pub struct Refresher {
     tx: Sender<JobResult>,
     rx: Receiver<JobResult>,
     launcher: Launcher,
-    /// Whether to check for ref changes every `AUTO_CHECK_INTERVAL`
+    /// Whether to check for ref changes every `interval`
     pub auto: bool,
+    /// Time between automatic checks
+    pub interval: Duration,
     /// PR provider for full syncs (None: `R` only fetches and reloads)
     pub provider: Option<Arc<dyn PullRequestProvider>>,
     /// Fingerprint of the refs the branch list on screen was read from
@@ -241,6 +244,7 @@ impl Refresher {
             rx,
             launcher,
             auto: false,
+            interval: DEFAULT_AUTO_REFRESH_INTERVAL,
             provider: None,
             fingerprint: None,
             last_started: None,
@@ -380,14 +384,14 @@ impl Refresher {
     }
 
     /// Whether an automatic check should start now: on, nothing waiting to
-    /// be applied, and `AUTO_CHECK_INTERVAL` since the last reload started
+    /// be applied, and `interval` since the last reload started
     fn auto_check_due(&self, hold: bool, now: Instant) -> bool {
         self.auto
             && !hold
             && self.pending.is_none()
             && self
                 .last_started
-                .is_none_or(|at| now.duration_since(at) >= AUTO_CHECK_INTERVAL)
+                .is_none_or(|at| now.duration_since(at) >= self.interval)
     }
 }
 
@@ -588,7 +592,22 @@ mod tests {
         assert!(poll_at(&mut refresher, false, now).is_none());
         assert_eq!(jobs.borrow().len(), 1, "not due yet");
 
-        poll_at(&mut refresher, false, now + AUTO_CHECK_INTERVAL);
+        poll_at(&mut refresher, false, now + DEFAULT_AUTO_REFRESH_INTERVAL);
+        assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn automatic_checks_follow_the_configured_interval() {
+        let (mut refresher, jobs) = recording();
+        refresher.auto = true;
+        refresher.interval = Duration::from_secs(3);
+        let now = Instant::now();
+        poll_at(&mut refresher, false, now);
+        finish_unchanged(&jobs, 0);
+
+        poll_at(&mut refresher, false, now + Duration::from_secs(2));
+        assert_eq!(jobs.borrow().len(), 1);
+        poll_at(&mut refresher, false, now + Duration::from_secs(3));
         assert_eq!(jobs.borrow().len(), 2);
     }
 
@@ -622,7 +641,7 @@ mod tests {
         let now = Instant::now();
         request(&mut refresher, RefreshKind::Local, "main");
         finish(&jobs, 0);
-        assert!(poll_at(&mut refresher, true, now + AUTO_CHECK_INTERVAL).is_none());
+        assert!(poll_at(&mut refresher, true, now + DEFAULT_AUTO_REFRESH_INTERVAL).is_none());
         assert_eq!(jobs.borrow().len(), 1);
     }
 
@@ -636,7 +655,11 @@ mod tests {
         poll(&mut refresher, false);
 
         refresher.auto = true;
-        poll_at(&mut refresher, false, Instant::now() + AUTO_CHECK_INTERVAL);
+        poll_at(
+            &mut refresher,
+            false,
+            Instant::now() + DEFAULT_AUTO_REFRESH_INTERVAL,
+        );
         assert_eq!(
             jobs.borrow()[1].0.known_fingerprint.as_deref(),
             Some("refs-1")

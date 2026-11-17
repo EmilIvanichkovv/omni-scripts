@@ -878,3 +878,38 @@ fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
     );
     assert!(wt("dirty-wt").join("new.txt").exists());
 }
+
+#[test]
+fn test_auto_refresh_interval_must_be_at_least_one_second() {
+    let repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["--cli", "--auto-refresh-interval", "0"]);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("--auto-refresh-interval"));
+}
+
+#[test]
+fn test_auto_refresh_interval_conflicts_with_no_auto_refresh() {
+    let repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path()).args([
+        "--cli",
+        "--no-auto-refresh",
+        "--auto-refresh-interval",
+        "5",
+    ]);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be used with"));
+}
+
+#[test]
+fn test_auto_refresh_interval_is_accepted() {
+    let repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["--cli", "--auto-refresh-interval", "30"]);
+    cmd.assert().success();
+}

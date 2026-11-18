@@ -268,7 +268,8 @@ Each phase is one PR and leaves the tool releasable.
 
 ## 11. Follow-ups (not in this spec)
 
-- `--auto-fetch <minutes>`: periodic `git fetch` for users who want it.
+- ~~`--auto-fetch <minutes>`: periodic `git fetch` for users who want it.~~ Shipped as `--auto-sync`
+  (section 12).
 - Re-fetch PR data only for branches whose tip changed.
 - The CLI-only parts of GITHUB_PR_CACHE phase 3 (`--refresh-cache`, `--cache-stats`, `--cache-ttl`,
   cache status in the header).
@@ -302,3 +303,9 @@ Built on `feat/live-refresh` (issue #71). Where the implementation differs from 
   A check costs about 6 ms on a Linux file system, so cost does not force a long interval, but focus
   events already cover coming back from another terminal, and a longer default keeps checks rare
   where git is slow (WSL `/mnt/c`, repos with hundreds of branches).
+- **`--auto-sync [MINUTES]`** (follow-up from section 11, added on request): runs the `R` full sync
+  every MINUTES, 5 when the flag has no value, at least 1. Opt-in because of decision 2 (no network
+  on a timer by default). The first sync waits one interval after startup, a manual `R` restarts the
+  clock, a due sync runs instead of a due check (it includes the reload), and nothing starts while
+  the confirmation is open. Verified in tmux: with `--auto-sync 1`, a branch deleted on the remote
+  turned `gone` after 61 s without a key press.

@@ -409,8 +409,12 @@ The branch list follows the repository while the TUI is open.
   once in terminals that report focus. `--no-auto-refresh` turns this off.
 - **`r`:** reload the branch list now.
 - **`R`:** full sync: `git fetch --prune` on the primary remote, reload, and with `--github` /
-  `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it). This is
-  the only way the TUI touches the network after startup; it is never automatic.
+  `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it).
+- **`--auto-sync [MINUTES]`:** run that full sync every MINUTES (5 when no value is given, at least
+  1), so merged PRs and branches deleted on the remote show up without pressing `R`. The first sync
+  runs one interval after startup, and pressing `R` restarts the clock. Off by default: without it
+  the TUI only touches the network after startup when you press `R`. Each sync costs one PR lookup
+  per branch, so with many branches keep the interval in minutes, not one.
 
 What stays put across a reload: the selection (by branch name; a branch that is gone or no longer
 selectable leaves it), the cursor (same branch, or the same row if that branch is gone), search,

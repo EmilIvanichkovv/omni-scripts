@@ -100,6 +100,18 @@ struct Args {
     )]
     auto_refresh_interval: u64,
 
+    /// Run a full sync (as R: git fetch, reload, PR re-fetch) every MINUTES;
+    /// --auto-sync alone means every 5 minutes. Each sync costs one PR
+    /// lookup per branch with --github / --bitbucket.
+    #[arg(
+        long,
+        value_name = "MINUTES",
+        num_args = 0..=1,
+        default_missing_value = "5",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    auto_sync: Option<u64>,
+
     /// Start in the worktree view (press `w` to switch views); with --cli,
     /// print the worktree table and exit
     #[arg(long, short = 'w')]
@@ -269,6 +281,9 @@ async fn main() -> Result<()> {
         LiveRefresh {
             auto: !args.no_auto_refresh,
             interval: std::time::Duration::from_secs(args.auto_refresh_interval),
+            sync_interval: args
+                .auto_sync
+                .map(|minutes| std::time::Duration::from_secs(minutes * 60)),
             fingerprint: refs_fingerprint,
         },
         update_notice,
@@ -281,6 +296,8 @@ struct LiveRefresh {
     auto: bool,
     /// Time between automatic checks (--auto-refresh-interval)
     interval: std::time::Duration,
+    /// Time between automatic full syncs (--auto-sync)
+    sync_interval: Option<std::time::Duration>,
     /// Refs fingerprint read just before the branches at startup
     fingerprint: Option<String>,
 }
@@ -383,6 +400,8 @@ fn run_tui_mode(
     app.dry_run = dry_run;
     app.refresher.auto = live_refresh.auto;
     app.refresher.interval = live_refresh.interval;
+    app.refresher
+        .set_sync_interval(live_refresh.sync_interval, std::time::Instant::now());
     app.refresher.set_fingerprint(live_refresh.fingerprint);
     if let Some(session) = pr_session {
         app.pr_provider = Some(session.kind);

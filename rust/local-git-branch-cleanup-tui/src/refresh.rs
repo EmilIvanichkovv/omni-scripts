@@ -217,6 +217,10 @@ pub struct Refresher {
     pub auto: bool,
     /// Time between automatic checks
     pub interval: Duration,
+    /// Time between automatic full syncs (`--auto-sync`); None: only on `R`
+    sync_interval: Option<Duration>,
+    /// When the last full sync started (or the clock was set at startup)
+    last_sync: Option<Instant>,
     /// PR provider for full syncs (None: `R` only fetches and reloads)
     pub provider: Option<Arc<dyn PullRequestProvider>>,
     /// Fingerprint of the refs the branch list on screen was read from
@@ -245,6 +249,8 @@ impl Refresher {
             launcher,
             auto: false,
             interval: DEFAULT_AUTO_REFRESH_INTERVAL,
+            sync_interval: None,
+            last_sync: None,
             provider: None,
             fingerprint: None,
             last_started: None,
@@ -253,6 +259,13 @@ impl Refresher {
 
     /// Make an automatic check due now (e.g. the terminal regained focus).
     /// Does nothing while automatic refresh is off.
+    /// Run a full sync every `interval` from `now` on (`--auto-sync`). The
+    /// first one waits a whole interval: startup has just read everything.
+    pub fn set_sync_interval(&mut self, interval: Option<Duration>, now: Instant) {
+        self.sync_interval = interval;
+        self.last_sync = Some(now);
+    }
+
     pub fn check_soon(&mut self) {
         self.last_started = None;
     }
@@ -300,6 +313,10 @@ impl Refresher {
         self.in_flight = Some((self.generation, kind));
         self.stage = None;
         self.last_started = Some(now);
+        if kind == RefreshKind::Full {
+            // A manual R counts too: the next automatic sync is an interval away
+            self.last_sync = Some(now);
+        }
         let pr = match (kind, &self.provider, tokio::runtime::Handle::try_current()) {
             (RefreshKind::Full, Some(provider), Ok(runtime)) => Some(PrJob {
                 provider: Arc::clone(provider),
@@ -361,6 +378,9 @@ impl Refresher {
         if self.in_flight.is_none() {
             if let Some(kind) = self.queued.take() {
                 self.start(kind, trunk, now, pr_cache);
+            } else if self.auto_sync_due(hold, now) {
+                // A full sync includes the reload a check would do
+                self.start(RefreshKind::Full, trunk, now, pr_cache);
             } else if self.auto_check_due(hold, now) {
                 self.start(RefreshKind::Check, trunk, now, pr_cache);
             }
@@ -385,6 +405,18 @@ impl Refresher {
 
     /// Whether an automatic check should start now: on, nothing waiting to
     /// be applied, and `interval` since the last reload started
+    fn auto_sync_due(&self, hold: bool, now: Instant) -> bool {
+        self.sync_interval.is_some_and(|interval| {
+            !hold
+                && self.pending.is_none()
+                && self
+                    .last_sync
+                    .is_none_or(|at| now.duration_since(at) >= interval)
+        })
+    }
+
+    /// Whether an automatic check should start now (see `auto_sync_due`
+    /// for the full sync)
     fn auto_check_due(&self, hold: bool, now: Instant) -> bool {
         self.auto
             && !hold
@@ -609,6 +641,64 @@ mod tests {
         assert_eq!(jobs.borrow().len(), 1);
         poll_at(&mut refresher, false, now + Duration::from_secs(3));
         assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn automatic_syncs_start_one_interval_after_startup() {
+        let (mut refresher, jobs) = recording();
+        let now = Instant::now();
+        let minute = Duration::from_secs(60);
+        refresher.set_sync_interval(Some(minute), now);
+
+        poll_at(&mut refresher, false, now);
+        assert!(jobs.borrow().is_empty(), "startup data is fresh");
+
+        poll_at(&mut refresher, false, now + minute);
+        assert_eq!(jobs.borrow().len(), 1);
+        assert_eq!(jobs.borrow()[0].0.kind, RefreshKind::Full);
+    }
+
+    #[test]
+    fn a_due_sync_wins_over_a_due_check() {
+        let (mut refresher, jobs) = recording();
+        refresher.auto = true;
+        let now = Instant::now();
+        let minute = Duration::from_secs(60);
+        refresher.set_sync_interval(Some(minute), now);
+        poll_at(&mut refresher, false, now + minute);
+        assert_eq!(jobs.borrow().len(), 1);
+        assert_eq!(jobs.borrow()[0].0.kind, RefreshKind::Full);
+    }
+
+    #[test]
+    fn a_manual_full_sync_restarts_the_sync_clock() {
+        let (mut refresher, jobs) = recording();
+        let start = Instant::now();
+        let minute = Duration::from_secs(60);
+        refresher.set_sync_interval(Some(minute), start);
+
+        // R at 50 s; it finishes, so the next automatic sync is at 110 s
+        refresher.start(
+            RefreshKind::Full,
+            "main",
+            start + Duration::from_secs(50),
+            &mut None,
+        );
+        finish(&jobs, 0);
+        poll_at(&mut refresher, false, start + Duration::from_secs(60));
+        assert_eq!(jobs.borrow().len(), 1);
+        poll_at(&mut refresher, false, start + Duration::from_secs(110));
+        assert_eq!(jobs.borrow().len(), 2);
+    }
+
+    #[test]
+    fn no_automatic_sync_while_a_result_is_held() {
+        let (mut refresher, jobs) = recording();
+        let now = Instant::now();
+        let minute = Duration::from_secs(60);
+        refresher.set_sync_interval(Some(minute), now);
+        assert!(poll_at(&mut refresher, true, now + minute).is_none());
+        assert!(jobs.borrow().is_empty());
     }
 
     #[test]

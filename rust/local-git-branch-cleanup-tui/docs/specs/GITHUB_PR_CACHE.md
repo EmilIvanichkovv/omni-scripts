@@ -1,8 +1,8 @@
 # GitHub PR Cache — Feature Specification
 
-**Status:** ✅ Phase 2.0 Complete · ✅ Phase 2.1 Complete **Created:** 2026-04-26 **Updated:**
-2026-06-04 **Affects:** `git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New Files:** `src/cache.rs`,
-`scripts/bench-pr-fetch.sh` **New Docs:** `docs/BENCHMARK_PR_FETCH.md`,
+**Status:** ✅ Phase 1 Complete · ✅ Phase 2.0 Complete · ✅ Phase 2.1 Complete **Created:**
+2026-04-26 **Updated:** 2026-11-19 **Affects:** `git.rs`, `app.rs`, `main.rs`, `Cargo.toml` **New
+Files:** `src/cache.rs`, `scripts/bench-pr-fetch.sh` **New Docs:** `docs/BENCHMARK_PR_FETCH.md`,
 `docs/specs/PR_FETCH_BEHAVIOUR.md`
 
 ---
@@ -351,7 +351,7 @@ Use the `bundled` feature so `libsqlite3` does not need to be present on the hos
 - [x] `pr-cache.db` is created at the XDG cache path on first run
 - [x] Expired entries (older than TTL) are re-fetched and overwritten
 - [x] "No PR" results are cached and don't trigger a re-fetch within TTL
-- [ ] Deleting a branch via the TUI calls `cache.invalidate()` for that branch _(Phase 3)_
+- [x] Deleting a branch via the TUI or CLI mode calls `cache.invalidate()` for that branch
 - [x] A corrupted or missing cache file falls back gracefully (no panic)
 - [x] `cargo test` passes — unit tests cover `get()`, `set()`, `evict_stale()`, `invalidate()`
 

@@ -376,7 +376,7 @@ activity. Columns: Name, Branch, State, Changes (`M` modified, `S` staged, `?` u
 | …    | _(branch)_ | Otherwise the branch's status from the branch view   | `git worktree remove`                      |
 
 The main, current and locked worktrees are never selectable. `git worktree prune` cleans up every
-prunable worktree at once. A branch the branch view shows as `⊞ protected-wt` appears here with the
+prunable worktree at once. A branch the branch view shows as `⑂ protected-wt` appears here with the
 status it would have otherwise (e.g. `merged`). The `b` toggle deletes each removed worktree's
 branch with the branch view's rules (`-d`, or `-D` for gone branches and in force mode; unmerged and
 local branches are kept unless force mode is on). `y` uses `wl-copy`, `xclip`, `xsel`, `pbcopy`,

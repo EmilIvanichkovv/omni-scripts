@@ -460,7 +460,7 @@ its own cursor, search query and selection. The header shows `🌳 Worktrees` wh
   (directory missing), `locked` (`git worktree lock`), `dirty` (uncommitted or untracked changes),
   `detached`, otherwise the branch's own status from the branch view (`merged`, `pr-merged`, `gone`,
   `unmerged`, `local`, `protected`, ...). The branch view shows branches held by other worktrees as
-  `⊞ protected-wt`; this view shows the status they would have otherwise
+  `⑂ protected-wt`; this view shows the status they would have otherwise
 - **Changes** — counts from `git status --porcelain`: `M` modified, `S` staged, `?` untracked.
   `git status` runs in the background for every worktree, so the column shows `…` until it arrives
 - **PR** — with `--github` / `--bitbucket`, the PR of the worktree's branch

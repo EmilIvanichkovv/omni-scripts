@@ -34,6 +34,8 @@ _Coming soon: Video demonstration of the TUI in action_
   - ! **Unmerged** - Has commits not in trunk (requires `--force`)
   - ○ **Local** - Never pushed to the remote; exists only locally (requires `--force`)
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
+  - ⊞ **Protected-WT** - Checked out in another worktree; git refuses to delete it (the details pane
+    names the worktree)
   - ◉ **Current** - Currently checked out branch
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
 - **Powerful Search** - Filter by name or author (`@author:name` / `@author:me` /
@@ -335,20 +337,22 @@ interactive interface.
 
 ## Branch Status Legend
 
-| Icon | Status      | Description                                    | Deletable             |
-| ---- | ----------- | ---------------------------------------------- | --------------------- |
-| ✓    | merged      | Fully merged into trunk                        | ✅ Safe (`-d`)        |
-| ↑    | pr-merged   | PR merged (squash/rebase), remote still exists | ✅ Safe (`-d`)        |
-| ↕   | pr-diverged | PR merged, local has commits remote doesn't    | ⚠️ Requires `--force` |
-| ↗   | gone        | Remote was deleted                             | ✅ Safe (`-d`)        |
-| !    | unmerged    | Has unmerged commits                           | ⚠️ Requires `--force` |
-| ○    | local       | Never pushed to the remote                     | ⚠️ Requires `--force` |
-| ⊘    | protected   | main/master/develop                            | ❌ Never              |
-| ◉    | current     | Currently checked out                          | ❌ Never              |
+| Icon | Status       | Description                                    | Deletable             |
+| ---- | ------------ | ---------------------------------------------- | --------------------- |
+| ✓    | merged       | Fully merged into trunk                        | ✅ Safe (`-d`)        |
+| ↑    | pr-merged    | PR merged (squash/rebase), remote still exists | ✅ Safe (`-d`)        |
+| ↕   | pr-diverged  | PR merged, local has commits remote doesn't    | ⚠️ Requires `--force` |
+| ↗   | gone         | Remote was deleted                             | ✅ Safe (`-d`)        |
+| !    | unmerged     | Has unmerged commits                           | ⚠️ Requires `--force` |
+| ○    | local        | Never pushed to the remote                     | ⚠️ Requires `--force` |
+| ⊘    | protected    | main/master/develop                            | ❌ Never              |
+| ⊞    | protected-wt | Checked out in another worktree                | ❌ Never              |
+| ◉    | current      | Currently checked out                          | ❌ Never              |
 
 ## Safety Features
 
-1. **Protected Branches** - `main`, `master`, `develop`, and the current branch are never deleted
+1. **Protected Branches** - `main`, `master`, `develop`, the current branch, and branches checked
+   out in other worktrees are never deleted
 2. **Safe Delete by Default** - Uses `git branch -d` which fails if branch has unmerged commits
 3. **Force Delete Opt-in** - Unmerged branches require explicit `--force` flag
 4. **Confirmation Required** - CLI mode asks for confirmation before deletion

@@ -38,6 +38,11 @@ tool. Use this to verify functionality before release.
 - [ ] Master branch marked as "protected" ⊘
 - [ ] Develop branch marked as "protected" ⊘
 - [ ] Current branch marked as "current" ◉
+- [ ] Branch checked out in another worktree (`git worktree add ../wt-x x`) marked as "protected-wt"
+      ⊞, has no checkbox, and the details pane shows `Worktree: wt-x (<path>)`; after
+      `rm -rf ../wt-x` (without `git worktree prune`) it stays protected and the details pane notes
+      the worktree is prunable; run from inside `../wt-x`, `x` is "current" and the main checkout's
+      branch is "protected-wt"
 - [ ] Merged branches marked as "merged" ✓
 - [ ] Unmerged branches marked as "unmerged" !
 
@@ -85,6 +90,7 @@ Compare behavior with the original bash script:
 - [ ] Checkbox appears when branch selected `[x]`
 - [ ] Cannot select protected branches (main/master/develop)
 - [ ] Cannot select current branch
+- [ ] Cannot select branches checked out in another worktree (protected-wt)
 - [ ] Cannot select unmerged branches without force mode
 - [ ] `a` - select all safe branches
 - [ ] `a` again - deselect all

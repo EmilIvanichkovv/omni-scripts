@@ -7,6 +7,8 @@ mod tls;
 mod ui;
 mod update;
 mod update_notice;
+#[allow(dead_code)] // `WorktreeEntry::name()` is used by the worktree view (TUI-20)
+mod worktree;
 
 use app::App;
 use clap::{Parser, Subcommand};
@@ -664,9 +666,9 @@ fn run_cli_mode(
 
     // Print legend
     let legend = if pr_provider.is_some() {
-        "   Legend: ✓ merged  ↑ pr-merged  ↕ pr-diverged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
+        "   Legend: ✓ merged  ↑ pr-merged  ↕ pr-diverged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⊞ protected-wt  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
     } else {
-        "   Legend: ✓ merged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ◉ current"
+        "   Legend: ✓ merged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⊞ protected-wt  ◉ current"
     };
     print_boxed_line(legend);
     print_separator();
@@ -681,8 +683,17 @@ fn run_cli_mode(
         } else {
             "".to_string()
         };
+        let worktree_indicator = match &branch.worktree {
+            Some(path) => format!(
+                " (worktree: {})",
+                path.file_name()
+                    .map(|n| n.to_string_lossy())
+                    .unwrap_or_else(|| path.to_string_lossy())
+            ),
+            None => String::new(),
+        };
         let line = format!(
-            "   {} {:30} [{:>12}] {}{}",
+            "   {} {:30} [{:>12}] {}{}{}",
             if branch.status.is_deletable() {
                 "[ ]"
             } else {
@@ -691,7 +702,8 @@ fn run_cli_mode(
             branch.name,
             branch.last_commit_relative,
             status_indicator,
-            pr_indicator
+            pr_indicator,
+            worktree_indicator
         );
         print_boxed_line(&line);
     }

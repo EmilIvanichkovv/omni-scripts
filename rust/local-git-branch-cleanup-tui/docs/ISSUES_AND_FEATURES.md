@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 13:55
+**Last Updated:** 19-11-2026 14:02
 
 ---
 
@@ -111,50 +111,6 @@ _No open critical issues._
 
 ---
 
-### Issue #19: Protect branches checked out in other worktrees
-
-- **Status:** 🔴 Open
-- **Reported:** 19-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#60](https://github.com/EmilIvanichkovv/omni-scripts/issues/60)
-- **Description:**
-  - Branches checked out in another worktree (linked or main) are listed like any other branch:
-    `classify_branch()` only treats the branch of the current working tree (`current_branch`) as
-    undeletable, so a worktree branch gets `merged`/`unmerged`/`gone`/`local` and a checkbox
-  - Git refuses to delete such a branch even with `-D`
-    (`error: cannot delete branch 'x' used by worktree at '<path>'`), so the user can select it,
-    confirm, and only learn from the action log that the delete failed
-  - Nothing in the list or details pane says which worktree holds the branch
-- **Steps to Reproduce:**
-  1. In a repo, run `git worktree add ../wt-feature feature` (any branch other than the current one)
-  2. Start the TUI from the main checkout
-  3. Find `feature` in the list: it shows a merge status and a selectable checkbox
-  4. Select it with Space, press Enter, confirm: the action log shows the `used by worktree` error
-- **Expected Behavior:**
-  - A branch checked out in another worktree gets a new status `protected-wt`: not selectable and
-    not deletable, like `protected`/`current`
-  - The details pane (right column) names the worktree that holds it (worktree name plus path), e.g.
-    `Worktree: wt-feature (/home/me/code/wt-feature)`
-  - The status shows in the legend, the help/info modals, and `--cli` output
-- **Actual Behavior:**
-  - The branch is classified by merge state, can be selected, and deletion fails with a git error
-- **Proposed Fix:**
-  - `git.rs`: parse `git worktree list --porcelain` once per load into a map
-    `branch -> worktree path` (`branch refs/heads/<name>` lines), skipping the current worktree (it
-    is already `Current`) and detached/bare entries
-  - Add `BranchStatus::ProtectedWorktree` (label `protected-wt`, icon e.g. `⊞`) and a
-    `worktree: Option<PathBuf>` field on `BranchInfo`; `classify_branch()` returns it right after
-    the `Current` check; `is_deletable()` returns false for it; sort it next to `Protected`
-  - `ui.rs`: details pane shows `Worktree: <name> (<path>)` where the name is the path's last
-    component; status explanation "Checked out in another worktree"; widen the status column from 12
-    to 15 so `⊞ protected-wt` fits
-  - `main.rs`: add the status to the CLI legend and protected count
-  - Edge cases: a worktree whose directory was removed without `git worktree prune` still blocks
-    deletion in git (`prunable` in porcelain output) and should still be protected, with the details
-    pane noting it is prunable
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -168,6 +124,62 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #19: Protect branches checked out in other worktrees
+
+- **Status:** 🟢 Resolved
+- **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#60](https://github.com/EmilIvanichkovv/omni-scripts/issues/60)
+- **Description:**
+  - Branches checked out in another worktree (linked or main) were listed like any other branch:
+    `classify_branch()` only treated the branch of the current working tree (`current_branch`) as
+    undeletable, so a worktree branch got `merged`/`unmerged`/`gone`/`local` and a checkbox
+  - Git refuses to delete such a branch even with `-D`
+    (`error: cannot delete branch 'x' used by worktree at '<path>'`), so the user could select it,
+    confirm, and only learn from the action log that the delete failed
+  - Nothing in the list or details pane said which worktree held the branch
+- **Steps to Reproduce:**
+  1. In a repo, run `git worktree add ../wt-feature feature` (any branch other than the current one)
+  2. Start the TUI from the main checkout
+  3. Find `feature` in the list: it shows a merge status and a selectable checkbox
+  4. Select it with Space, press Enter, confirm: the action log shows the `used by worktree` error
+- **Expected Behavior:**
+  - A branch checked out in another worktree gets a new status `protected-wt`: not selectable and
+    not deletable, like `protected`/`current`
+  - The details pane (right column) names the worktree that holds it (worktree name plus path), e.g.
+    `Worktree: wt-feature (/home/me/code/wt-feature)`
+  - The status shows in the legend, the help/info modals, and `--cli` output
+- **Actual Behavior:**
+  - The branch was classified by merge state, could be selected, and deletion failed with a git
+    error
+- **Fix:**
+  - New `worktree.rs` parses `git worktree list --porcelain -z` into `WorktreeEntry` records (path,
+    branch, bare/detached/locked/prunable); the worktree view (Issue #20) reuses it
+  - Added `BranchStatus::ProtectedWorktree` (label `protected-wt`, icon `⊞`, red like `protected`):
+    `is_deletable()` and `requires_force()` return false, and a shared `sort_rank()` puts it right
+    after `protected` in both the loader and the Status sort
+  - `BranchInfo` gained `worktree` (path of the other worktree holding the branch) and
+    `worktree_shadowed_status` (the status it would have without the protection)
+  - `git.rs`: `apply_worktree_protection()` runs as a post-pass after `classify_branch()` in
+    `get_branches_with_classification()`, so `refresh_branches()` keeps it; it skips the worktree
+    the tool runs in (via `WorktreeEntry::is_at()` against the repo toplevel, whose branch stays
+    `current`) and bare/detached entries. Prunable worktrees still protect their branch, since git
+    still blocks the delete. A failing `git worktree list` only drops the protection
+  - `ui.rs`: the details pane shows `Worktree: <name> (<path>)`, a prunable note when the directory
+    is missing, and the status the branch would otherwise have; the status explanation reads
+    "Checked out in another worktree"; the status column widened from 12 to 15; the legend, info
+    modal (`i`) and help modal (`?`, "Not selectable" line) list the status
+  - `main.rs`: `--cli` legend lists `⊞ protected-wt`, rows show `(worktree: <name>)`, and the
+    branches count as protected
+  - Tests for the post-pass (other/main/prunable worktrees, current worktree and bare entries
+    skipped), label/icon/deletability, sort rank, and the details pane rendering
+  - `README.md`, `TUI_USAGE_GUIDE.md`, `MIGRATION.md`, `TESTING.md`, and `ROADMAP.md` list the new
+    status
+- **Commit:** `feat(tui): Protect branches checked out in other worktrees`
+
+---
 
 ### Issue #18: Require a double Esc press to quit
 
@@ -760,3 +772,4 @@ _No open minor/cosmetic issues._
 | 09-10-2026 | 13:36 | #18   | Resolved: Esc must be pressed twice within 1s to quit                  |
 | 19-11-2026 | 13:40 | #19   | Reported: Protect branches checked out in other worktrees              |
 | 19-11-2026 | 13:55 | #20   | Reported: Add a worktree view (`--worktrees`)                          |
+| 19-11-2026 | 14:02 | #19   | Resolved: New `protected-wt` status for branches in other worktrees    |

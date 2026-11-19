@@ -2,7 +2,9 @@
 // Hosting-provider (PR) logic lives in `crate::pr`.
 
 use crate::pr::PrInfo;
+use crate::worktree::{self, WorktreeEntry};
 use color_eyre::Result;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Protected branch names that should never be deleted
@@ -33,6 +35,9 @@ pub enum BranchStatus {
     Local,
     /// Protected branch (main/master/develop) - cannot be deleted
     Protected,
+    /// Checked out in another worktree (main or linked) - git refuses to
+    /// delete it (`used by worktree at ...`), even with `-D`
+    ProtectedWorktree,
     /// Currently checked out branch - cannot be deleted
     Current,
 }
@@ -48,6 +53,7 @@ impl BranchStatus {
             BranchStatus::Unmerged => "unmerged",
             BranchStatus::Local => "local",
             BranchStatus::Protected => "protected",
+            BranchStatus::ProtectedWorktree => "protected-wt",
             BranchStatus::Current => "current",
         }
     }
@@ -62,6 +68,7 @@ impl BranchStatus {
             BranchStatus::Unmerged => "!",
             BranchStatus::Local => "○",
             BranchStatus::Protected => "⊘",
+            BranchStatus::ProtectedWorktree => "⊞",
             BranchStatus::Current => "◉",
         }
     }
@@ -77,7 +84,26 @@ impl BranchStatus {
 
     /// Check if this branch can be deleted at all
     pub fn is_deletable(&self) -> bool {
-        !matches!(self, BranchStatus::Protected | BranchStatus::Current)
+        !matches!(
+            self,
+            BranchStatus::Protected | BranchStatus::ProtectedWorktree | BranchStatus::Current
+        )
+    }
+
+    /// Rank used by the status sort: undeletable branches first (so the user
+    /// sees them), then deletable ones from safest to riskiest
+    pub fn sort_rank(&self) -> u8 {
+        match self {
+            BranchStatus::Current => 0,
+            BranchStatus::Protected => 1,
+            BranchStatus::ProtectedWorktree => 2,
+            BranchStatus::SafeMerged => 3,
+            BranchStatus::PrMerged => 4,
+            BranchStatus::PrDiverged => 5,
+            BranchStatus::GoneUpstream => 6,
+            BranchStatus::Unmerged => 7,
+            BranchStatus::Local => 8,
+        }
     }
 
     /// Check if deleting this branch requires force mode (`git branch -D`)
@@ -114,6 +140,12 @@ pub struct BranchInfo {
     pub branch_author: String,
     /// GitHub PR information (if --github flag enabled and PR exists)
     pub pr_info: Option<PrInfo>,
+    /// Path of the other worktree that has this branch checked out
+    /// (Some only when status is `ProtectedWorktree`)
+    pub worktree: Option<PathBuf>,
+    /// The status the branch would have without worktree protection
+    /// (Some only when status is `ProtectedWorktree`)
+    pub worktree_shadowed_status: Option<BranchStatus>,
 }
 
 /// Verify we're inside a Git repository
@@ -459,23 +491,20 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
             branch_created_timestamp,
             branch_author,
             pr_info: None, // Will be populated later if --github flag is used
+            worktree: None,
+            worktree_shadowed_status: None,
         });
     }
 
+    // Branches checked out in another worktree cannot be deleted by git.
+    // A failing `git worktree list` only loses the protection, not the list.
+    let worktrees = worktree::list_worktrees().unwrap_or_default();
+    if let Ok(toplevel) = verify_repo() {
+        apply_worktree_protection(&mut branches, &worktrees, Path::new(&toplevel));
+    }
+
     // Sort branches: protected/current first (so user sees them), then by status
-    branches.sort_by(|a, b| {
-        let order = |s: &BranchStatus| match s {
-            BranchStatus::Current => 0,
-            BranchStatus::Protected => 1,
-            BranchStatus::SafeMerged => 2,
-            BranchStatus::PrMerged => 3,
-            BranchStatus::PrDiverged => 4,
-            BranchStatus::GoneUpstream => 5,
-            BranchStatus::Unmerged => 6,
-            BranchStatus::Local => 7,
-        };
-        order(&a.status).cmp(&order(&b.status))
-    });
+    branches.sort_by_key(|b| b.status.sort_rank());
 
     Ok(branches)
 }
@@ -506,6 +535,39 @@ pub fn apply_pr_merge_status(branches: &mut [BranchInfo]) {
                 Some(_) => branch.status = BranchStatus::PrDiverged,
                 None => {}
             }
+        }
+    }
+}
+
+/// Mark branches checked out in another worktree as `ProtectedWorktree`.
+///
+/// Runs after `classify_branch()`: the classified status is kept in
+/// `worktree_shadowed_status` and the holding worktree's path in `worktree`.
+/// The worktree at `toplevel` (the one the tool runs in) is skipped — its
+/// branch is already `Current` — as are bare and detached entries. Prunable
+/// worktrees (directory removed without `git worktree prune`) still block
+/// `git branch -d/-D`, so they protect their branch too.
+pub fn apply_worktree_protection(
+    branches: &mut [BranchInfo],
+    worktrees: &[WorktreeEntry],
+    toplevel: &Path,
+) {
+    for wt in worktrees {
+        if wt.is_bare || wt.is_at(toplevel) {
+            continue;
+        }
+        let Some(name) = wt.branch.as_deref() else {
+            continue;
+        };
+        if let Some(branch) = branches.iter_mut().find(|b| b.name == name) {
+            if branch.status == BranchStatus::Current {
+                continue;
+            }
+            if branch.status != BranchStatus::ProtectedWorktree {
+                branch.worktree_shadowed_status = Some(branch.status.clone());
+                branch.status = BranchStatus::ProtectedWorktree;
+            }
+            branch.worktree = Some(wt.path.clone());
         }
     }
 }
@@ -609,6 +671,7 @@ mod tests {
         assert_eq!(BranchStatus::Unmerged.label(), "unmerged");
         assert_eq!(BranchStatus::Local.label(), "local");
         assert_eq!(BranchStatus::Protected.label(), "protected");
+        assert_eq!(BranchStatus::ProtectedWorktree.label(), "protected-wt");
         assert_eq!(BranchStatus::Current.label(), "current");
     }
 
@@ -621,6 +684,7 @@ mod tests {
         assert_eq!(BranchStatus::Unmerged.icon(), "!");
         assert_eq!(BranchStatus::Local.icon(), "○");
         assert_eq!(BranchStatus::Protected.icon(), "⊘");
+        assert_eq!(BranchStatus::ProtectedWorktree.icon(), "⊞");
         assert_eq!(BranchStatus::Current.icon(), "◉");
     }
 
@@ -633,6 +697,7 @@ mod tests {
         assert!(!BranchStatus::Unmerged.is_safe_to_delete());
         assert!(!BranchStatus::Local.is_safe_to_delete());
         assert!(!BranchStatus::Protected.is_safe_to_delete());
+        assert!(!BranchStatus::ProtectedWorktree.is_safe_to_delete());
         assert!(!BranchStatus::Current.is_safe_to_delete());
     }
 
@@ -645,6 +710,7 @@ mod tests {
         assert!(BranchStatus::Unmerged.is_deletable());
         assert!(BranchStatus::Local.is_deletable());
         assert!(!BranchStatus::Protected.is_deletable());
+        assert!(!BranchStatus::ProtectedWorktree.is_deletable());
         assert!(!BranchStatus::Current.is_deletable());
     }
 
@@ -657,7 +723,26 @@ mod tests {
         assert!(BranchStatus::Unmerged.requires_force());
         assert!(BranchStatus::Local.requires_force());
         assert!(!BranchStatus::Protected.requires_force());
+        assert!(!BranchStatus::ProtectedWorktree.requires_force());
         assert!(!BranchStatus::Current.requires_force());
+    }
+
+    #[test]
+    fn test_branch_status_sort_rank() {
+        let order = [
+            BranchStatus::Current,
+            BranchStatus::Protected,
+            BranchStatus::ProtectedWorktree,
+            BranchStatus::SafeMerged,
+            BranchStatus::PrMerged,
+            BranchStatus::PrDiverged,
+            BranchStatus::GoneUpstream,
+            BranchStatus::Unmerged,
+            BranchStatus::Local,
+        ];
+        for pair in order.windows(2) {
+            assert!(pair[0].sort_rank() < pair[1].sort_rank(), "{:?}", pair);
+        }
     }
 
     #[test]
@@ -784,6 +869,8 @@ mod tests {
                 title: "PR".to_string(),
                 url: "https://example.com/pr/1".to_string(),
             }),
+            worktree: None,
+            worktree_shadowed_status: None,
         }
     }
 
@@ -875,5 +962,118 @@ mod tests {
         )];
         apply_pr_merge_status(&mut branches);
         assert_eq!(branches[0].status, BranchStatus::GoneUpstream);
+    }
+
+    // --- apply_worktree_protection ---
+
+    fn named(name: &str, status: BranchStatus) -> BranchInfo {
+        let mut b = branch_with(status, None, None, None);
+        b.name = name.to_string();
+        b
+    }
+
+    fn wt(path: &str, branch: Option<&str>) -> WorktreeEntry {
+        WorktreeEntry {
+            path: PathBuf::from(path),
+            head: "abc".to_string(),
+            branch: branch.map(|b| b.to_string()),
+            is_main: false,
+            is_bare: false,
+            is_detached: branch.is_none(),
+            locked: None,
+            prunable: None,
+        }
+    }
+
+    #[test]
+    fn worktree_protection_marks_branches_in_other_worktrees() {
+        let mut branches = vec![
+            named("feature", BranchStatus::Current),
+            named("main", BranchStatus::Protected),
+            named("wt-merged", BranchStatus::SafeMerged),
+            named("wt-wip", BranchStatus::Unmerged),
+            named("free", BranchStatus::Unmerged),
+        ];
+        let mut main_wt = wt("/repo", Some("main"));
+        main_wt.is_main = true;
+        let mut gone = wt("/wt/gone", Some("wt-wip"));
+        gone.prunable = Some("gitdir file points to non-existent location".to_string());
+        let worktrees = vec![
+            main_wt,
+            wt("/wt/here", Some("feature")),
+            wt("/wt/merged", Some("wt-merged")),
+            gone,
+            wt("/wt/detached", None),
+        ];
+
+        apply_worktree_protection(&mut branches, &worktrees, Path::new("/wt/here"));
+
+        // The branch of the worktree the tool runs in stays current
+        assert_eq!(branches[0].status, BranchStatus::Current);
+        assert_eq!(branches[0].worktree, None);
+        assert_eq!(branches[0].worktree_shadowed_status, None);
+
+        // main checked out in the main worktree, seen from a linked one
+        assert_eq!(branches[1].status, BranchStatus::ProtectedWorktree);
+        assert_eq!(branches[1].worktree, Some(PathBuf::from("/repo")));
+        assert_eq!(
+            branches[1].worktree_shadowed_status,
+            Some(BranchStatus::Protected)
+        );
+
+        assert_eq!(branches[2].status, BranchStatus::ProtectedWorktree);
+        assert_eq!(branches[2].worktree, Some(PathBuf::from("/wt/merged")));
+        assert_eq!(
+            branches[2].worktree_shadowed_status,
+            Some(BranchStatus::SafeMerged)
+        );
+
+        // A prunable worktree still blocks deletion in git
+        assert_eq!(branches[3].status, BranchStatus::ProtectedWorktree);
+        assert_eq!(branches[3].worktree, Some(PathBuf::from("/wt/gone")));
+        assert_eq!(
+            branches[3].worktree_shadowed_status,
+            Some(BranchStatus::Unmerged)
+        );
+
+        assert_eq!(branches[4].status, BranchStatus::Unmerged);
+        assert_eq!(branches[4].worktree, None);
+    }
+
+    #[test]
+    fn worktree_protection_skips_current_worktree_and_bare_entries() {
+        let mut branches = vec![
+            named("main", BranchStatus::Protected),
+            named("feature", BranchStatus::SafeMerged),
+        ];
+        let mut bare = wt("/repo.git", Some("feature"));
+        bare.is_bare = true;
+        let worktrees = vec![bare, wt("/repo", Some("main"))];
+
+        apply_worktree_protection(&mut branches, &worktrees, Path::new("/repo"));
+
+        assert_eq!(branches[0].status, BranchStatus::Protected);
+        assert_eq!(branches[1].status, BranchStatus::SafeMerged);
+        assert!(branches.iter().all(|b| b.worktree.is_none()));
+    }
+
+    #[test]
+    fn worktree_protection_without_worktrees_changes_nothing() {
+        let mut branches = vec![named("feature", BranchStatus::Unmerged)];
+        apply_worktree_protection(&mut branches, &[], Path::new("/repo"));
+        assert_eq!(branches[0].status, BranchStatus::Unmerged);
+        assert_eq!(branches[0].worktree_shadowed_status, None);
+    }
+
+    #[test]
+    fn pr_merge_status_leaves_worktree_protected_branches_alone() {
+        let mut branches = vec![branch_with(
+            BranchStatus::ProtectedWorktree,
+            Some("origin/feature/x"),
+            Some(0),
+            Some(PrState::Merged),
+        )];
+        apply_pr_merge_status(&mut branches);
+        assert_eq!(branches[0].status, BranchStatus::ProtectedWorktree);
     }
 }

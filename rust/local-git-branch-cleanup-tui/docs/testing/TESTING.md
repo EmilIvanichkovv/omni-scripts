@@ -39,7 +39,7 @@ tool. Use this to verify functionality before release.
 - [ ] Develop branch marked as "protected" ⊘
 - [ ] Current branch marked as "current" ◉
 - [ ] Branch checked out in another worktree (`git worktree add ../wt-x x`) marked as "protected-wt"
-      ⊞, has no checkbox, and the details pane shows `Worktree: wt-x (<path>)`; after
+      ⑂, has no checkbox, and the details pane shows `Worktree: wt-x (<path>)`; after
       `rm -rf ../wt-x` (without `git worktree prune`) it stays protected and the details pane notes
       the worktree is prunable; run from inside `../wt-x`, `x` is "current" and the main checkout's
       branch is "protected-wt"

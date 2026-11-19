@@ -284,7 +284,7 @@ Each branch displays a status icon indicating its state:
 | !    | Unmerged     | Has commits not in trunk                              | ⚠️ Requires force mode |
 | ○    | Local        | Never pushed to the remote; exists only locally       | ⚠️ Requires force mode |
 | ⊘    | Protected    | main/master/develop branches                          | ❌ Never               |
-| ⊞    | Protected-WT | Checked out in another worktree (main or linked)      | ❌ Never               |
+| ⑂    | Protected-WT | Checked out in another worktree (main or linked)      | ❌ Never               |
 | ◉    | Current      | Currently checked out branch                          | ❌ Never               |
 
 ---
@@ -488,7 +488,7 @@ Press any key to close the info modal.
 
 - Check if it's the current branch (◉ icon) — switch to another branch first
 - Check if it's protected (⊘ icon) — main/master/develop cannot be deleted
-- Check if it's checked out in another worktree (⊞ icon) — the details pane shows
+- Check if it's checked out in another worktree (⑂ icon) — the details pane shows
   `Worktree: <name> (<path>)`; switch that worktree to another branch or remove it
   (`git worktree remove <path>`, or `git worktree prune` when it is marked prunable) first
 - Check if it's unmerged (! icon) — enable force mode with `f`

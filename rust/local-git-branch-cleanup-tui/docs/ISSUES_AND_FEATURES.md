@@ -157,7 +157,7 @@ _No open minor/cosmetic issues._
 - **Fix:**
   - New `worktree.rs` parses `git worktree list --porcelain -z` into `WorktreeEntry` records (path,
     branch, bare/detached/locked/prunable); the worktree view (Issue #20) reuses it
-  - Added `BranchStatus::ProtectedWorktree` (label `protected-wt`, icon `⊞`, red like `protected`):
+  - Added `BranchStatus::ProtectedWorktree` (label `protected-wt`, icon `⑂`, red like `protected`):
     `is_deletable()` and `requires_force()` return false, and a shared `sort_rank()` puts it right
     after `protected` in both the loader and the Status sort
   - `BranchInfo` gained `worktree` (path of the other worktree holding the branch) and
@@ -171,7 +171,7 @@ _No open minor/cosmetic issues._
     is missing, and the status the branch would otherwise have; the status explanation reads
     "Checked out in another worktree"; the status column widened from 12 to 15; the legend, info
     modal (`i`) and help modal (`?`, "Not selectable" line) list the status
-  - `main.rs`: `--cli` legend lists `⊞ protected-wt`, rows show `(worktree: <name>)`, and the
+  - `main.rs`: `--cli` legend lists `⑂ protected-wt`, rows show `(worktree: <name>)`, and the
     branches count as protected
   - Tests for the post-pass (other/main/prunable worktrees, current worktree and bare entries
     skipped), label/icon/deletability, sort rank, and the details pane rendering

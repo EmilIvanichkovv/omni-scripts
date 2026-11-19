@@ -68,7 +68,7 @@ impl BranchStatus {
             BranchStatus::Unmerged => "!",
             BranchStatus::Local => "○",
             BranchStatus::Protected => "⊘",
-            BranchStatus::ProtectedWorktree => "⊞",
+            BranchStatus::ProtectedWorktree => "⑂",
             BranchStatus::Current => "◉",
         }
     }
@@ -684,7 +684,7 @@ mod tests {
         assert_eq!(BranchStatus::Unmerged.icon(), "!");
         assert_eq!(BranchStatus::Local.icon(), "○");
         assert_eq!(BranchStatus::Protected.icon(), "⊘");
-        assert_eq!(BranchStatus::ProtectedWorktree.icon(), "⊞");
+        assert_eq!(BranchStatus::ProtectedWorktree.icon(), "⑂");
         assert_eq!(BranchStatus::Current.icon(), "◉");
     }
 

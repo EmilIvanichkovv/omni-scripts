@@ -3,6 +3,16 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.6.0 - 19-11-2026
+
+### Features
+
+- **tui:** Protect branches checked out in other worktrees
+
+### Bug fixes
+
+- **tui:** Use ⑂ as the protected-wt icon
+
 ## 0.5.0 - 19-11-2026
 
 ### Features

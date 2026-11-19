@@ -784,10 +784,7 @@ fn run_worktree_cli_mode(
         "   Legend: ◆ main  ◉ current  ✗ prunable  🔒 locked  ✎ dirty  ○ detached  (else the branch status)",
         WT_CLI_WIDTH,
     );
-    print_boxed_line_w(
-        "   Changes: M modified  S staged  ? untracked",
-        WT_CLI_WIDTH,
-    );
+    print_boxed_line_w("   Changes: M modified  S staged  N new", WT_CLI_WIDTH);
     print_separator_w(WT_CLI_WIDTH);
     print_boxed_line_w(
         &format!(

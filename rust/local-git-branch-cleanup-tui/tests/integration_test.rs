@@ -844,7 +844,7 @@ fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
         .success()
         .stdout(predicate::str::is_match(r"◆ .*◉ current").unwrap())
         .stdout(predicate::str::is_match(r"merged-wt .*feature/merged .*✓ merged +clean").unwrap())
-        .stdout(predicate::str::is_match(r"dirty-wt .*✎ dirty +1M 1\?").unwrap())
+        .stdout(predicate::str::is_match(r"dirty-wt .*✎ dirty +1M 1N").unwrap())
         .stdout(predicate::str::is_match(r"locked-wt .*🔒 locked").unwrap())
         .stdout(predicate::str::is_match(r"pruned-wt .*✗ prunable +-").unwrap())
         // Git prints worktree paths in its own canonical form (macOS

@@ -209,10 +209,11 @@ directory was deleted (prunable).
 - [ ] Main worktree is first and marked `◆`; the rest are ordered by last activity
 - [ ] States: `◉ current`, `✗ prunable`, `🔒 locked`, `✎ dirty`, `○ detached`, else the branch
       status (same label as in the branch view)
-- [ ] Changes column shows `…` briefly, then `clean` or counts like `1M 1S 1?`; the UI stays
+- [ ] Changes column shows `…` briefly, then `clean` or counts like `1M 1S 1N`; the UI stays
       responsive while statuses load
-- [ ] Details pane: path, branch, branch status, upstream and ahead/behind, HEAD, last commit, first
-      changed paths, lock reason, prunable reason
+- [ ] Details pane: path, branch, branch status, upstream and ahead/behind, HEAD, last commit,
+      changed paths grouped under Modified / Staged / New (empty groups hidden, `… and N more` past
+      5), lock reason, prunable reason
 - [ ] Main, current and locked worktrees cannot be selected; dirty ones show `-` until `f`
 - [ ] `a` selects only clean stale worktrees (merged, gone, prunable); pressing it again deselects
 - [ ] Filters `1`-`4` / `Tab`: Clean, Dirty, Stale, All, with counts

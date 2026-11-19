@@ -49,6 +49,8 @@ pub struct Job {
     pub trunk: String,
     /// Skip the reload when the refs still match this fingerprint
     pub known_fingerprint: Option<String>,
+    /// Started by a timer, not a key
+    pub automatic: bool,
     pr: Option<PrJob>,
 }
 
@@ -68,6 +70,8 @@ pub enum JobResult {
         /// PR lookups that failed during the re-fetch
         pr_failures: usize,
         pr_cache: Option<PrCache>,
+        /// Started by a timer, not a key
+        automatic: bool,
     },
     /// The refs still match the known fingerprint; nothing was re-read
     Unchanged { generation: u64 },
@@ -119,6 +123,7 @@ fn run_local(job: &Job) -> JobResult {
             prs_refetched: false,
             pr_failures: 0,
             pr_cache: None,
+            automatic: job.automatic,
         },
         Err(e) => JobResult::Failed {
             generation: job.generation,
@@ -184,6 +189,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
         prs_refetched,
         pr_failures,
         pr_cache,
+        automatic: job.automatic,
     }
 }
 
@@ -292,7 +298,7 @@ impl Refresher {
         if self.in_flight.is_some() {
             self.queued = self.queued.max(Some(kind));
         } else {
-            self.start(kind, trunk, Instant::now(), pr_cache);
+            self.start(kind, trunk, Instant::now(), pr_cache, false);
         }
     }
 
@@ -308,6 +314,7 @@ impl Refresher {
         trunk: &str,
         now: Instant,
         pr_cache: &mut Option<PrCache>,
+        automatic: bool,
     ) {
         self.generation += 1;
         self.in_flight = Some((self.generation, kind));
@@ -333,6 +340,7 @@ impl Refresher {
                 RefreshKind::Check => self.fingerprint.clone(),
                 RefreshKind::Local | RefreshKind::Full => None,
             },
+            automatic,
             pr,
         };
         (self.launcher)(job, self.tx.clone());
@@ -377,12 +385,13 @@ impl Refresher {
         }
         if self.in_flight.is_none() {
             if let Some(kind) = self.queued.take() {
-                self.start(kind, trunk, now, pr_cache);
+                // Only key presses queue
+                self.start(kind, trunk, now, pr_cache, false);
             } else if self.auto_sync_due(hold, now) {
                 // A full sync includes the reload a check would do
-                self.start(RefreshKind::Full, trunk, now, pr_cache);
+                self.start(RefreshKind::Full, trunk, now, pr_cache, true);
             } else if self.auto_check_due(hold, now) {
-                self.start(RefreshKind::Check, trunk, now, pr_cache);
+                self.start(RefreshKind::Check, trunk, now, pr_cache, true);
             }
         }
         // A result is only current while no newer reload was started
@@ -473,6 +482,7 @@ mod tests {
             prs_refetched: false,
             pr_failures: 0,
             pr_cache: None,
+            automatic: false,
         });
     }
 
@@ -656,6 +666,18 @@ mod tests {
         poll_at(&mut refresher, false, now + minute);
         assert_eq!(jobs.borrow().len(), 1);
         assert_eq!(jobs.borrow()[0].0.kind, RefreshKind::Full);
+        assert!(jobs.borrow()[0].0.automatic);
+    }
+
+    #[test]
+    fn key_presses_start_manual_reloads() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Full, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 0);
+        poll(&mut refresher, false);
+        assert!(!jobs.borrow()[0].0.automatic);
+        assert!(!jobs.borrow()[1].0.automatic, "queued by a key");
     }
 
     #[test]
@@ -683,6 +705,7 @@ mod tests {
             "main",
             start + Duration::from_secs(50),
             &mut None,
+            false,
         );
         finish(&jobs, 0);
         poll_at(&mut refresher, false, start + Duration::from_secs(60));

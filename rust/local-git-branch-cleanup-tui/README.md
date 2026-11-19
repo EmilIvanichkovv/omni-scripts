@@ -48,6 +48,10 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Safe by Default** - Uses `git branch -d` for safe deletion, protecting unmerged work
 - **Trunk Detection** - Automatically detects your default branch (main/master)
 - **CLI Mode** - Traditional command-line mode available with `--cli`
+- **Worktree View** - `--worktrees` / `-w` (or `w` in the TUI) lists every `git worktree` with its
+  branch, state (current, prunable, locked, dirty, detached, or the branch's status), uncommitted
+  changes, last commit and PR; removes stale ones with `git worktree remove` / `git worktree prune`
+  and can delete their branches too
 
 ## Installation
 
@@ -234,6 +238,8 @@ Options:
       --bitbucket-project <PROJECT>  Override the derived Bitbucket project key
       --bitbucket-repo <REPO>        Override the derived Bitbucket repository slug
       --no-update-check              Do not check for new versions
+  -w, --worktrees                    Start in the worktree view; with --cli, print the
+                                     worktree table and exit
   -h, --help                         Print help
 ```
 
@@ -266,6 +272,12 @@ from the `origin` remote. The token is environment-only and is never accepted as
 
 # Override trunk branch detection
 ./target/release/local-git-branch-cleanup-tui --trunk develop
+
+# Start in the worktree view
+./target/release/local-git-branch-cleanup-tui --worktrees
+
+# Print the worktree table and the removal commands for stale worktrees
+./target/release/local-git-branch-cleanup-tui --worktrees --cli --dry-run
 
 # Force delete unmerged branches (dangerous!)
 ./target/release/local-git-branch-cleanup-tui --force
@@ -324,6 +336,7 @@ interactive interface.
 | `d`                | Toggle dry run mode                              |
 | `Enter`            | Delete selected (with confirmation)              |
 | `o`                | Open PR in browser (with --github / --bitbucket) |
+| `w`                | Switch between branch and worktree view          |
 | `?`                | Show help                                        |
 | `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 
@@ -334,6 +347,40 @@ interactive interface.
 | `feature`      | Filter by branch name   |
 | `@author:john` | Filter by branch author |
 | `@author:me`   | Filter by your branches |
+
+### Worktree View
+
+`--worktrees` (or `w`) shows one row per worktree: the main worktree (`◆`) first, then by last
+activity. Columns: Name, Branch, State, Changes (`M` modified, `S` staged, `?` untracked; `…` while
+`git status` runs in the background) and Last commit, plus PR with `--github` / `--bitbucket`.
+
+| Key              | Action                                                               |
+| ---------------- | -------------------------------------------------------------------- |
+| `Space`          | Toggle selection                                                     |
+| `a`              | Select all clean stale worktrees (merged, gone, prunable)            |
+| `1`-`4` or `Tab` | Filter: Clean / Dirty / Stale / All                                  |
+| `/`              | Search by worktree name, branch or path                              |
+| `Enter`          | Remove selected (with confirmation; `b` there also deletes branches) |
+| `f`              | Force mode: dirty worktrees become selectable (`--force`)            |
+| `y`              | Copy the worktree path to the clipboard                              |
+| `o`              | Open the branch's PR in the browser                                  |
+| `w`              | Back to the branch view                                              |
+
+| Icon | State      | Meaning                                              | Removal                                    |
+| ---- | ---------- | ---------------------------------------------------- | ------------------------------------------ |
+| ◉    | current    | The worktree the tool runs in                        | ❌ Never                                   |
+| ✗    | prunable   | Directory is gone (git reports it prunable)          | `git worktree prune`                       |
+| 🔒   | locked     | Locked with `git worktree lock`                      | ❌ Never                                   |
+| ✎    | dirty      | Uncommitted or untracked changes                     | `git worktree remove --force` (force mode) |
+| ○    | detached   | HEAD is detached (Branch shows `(detached @ <sha>)`) | `git worktree remove`                      |
+| …    | _(branch)_ | Otherwise the branch's status from the branch view   | `git worktree remove`                      |
+
+The main, current and locked worktrees are never selectable. `git worktree prune` cleans up every
+prunable worktree at once. A branch the branch view shows as `⊞ protected-wt` appears here with the
+status it would have otherwise (e.g. `merged`). The `b` toggle deletes each removed worktree's
+branch with the branch view's rules (`-d`, or `-D` for gone branches and in force mode; unmerged and
+local branches are kept unless force mode is on). `y` uses `wl-copy`, `xclip`, `xsel`, `pbcopy`,
+`clip` or `clip.exe`, whichever is installed.
 
 ## Branch Status Legend
 
@@ -356,6 +403,8 @@ interactive interface.
 2. **Safe Delete by Default** - Uses `git branch -d` which fails if branch has unmerged commits
 3. **Force Delete Opt-in** - Unmerged branches require explicit `--force` flag
 4. **Confirmation Required** - CLI mode asks for confirmation before deletion
+5. **Worktrees** - The main, current and locked worktrees are never removed; dirty worktrees need
+   force mode; `--worktrees --cli` only prints, it never removes
 
 ## Development
 
@@ -406,6 +455,8 @@ local-git-branch-cleanup-tui/
 │   ├── main.rs         # Entry point, CLI parsing, async tokio runtime
 │   ├── app.rs          # Application state management
 │   ├── git.rs          # Local Git integration and branch classification
+│   ├── worktree.rs     # Parse `git worktree list --porcelain -z`
+│   ├── worktree_view.rs # Worktree view model, status loading, filters, removal
 │   ├── remote.rs       # Parse the origin remote into a normalized identity
 │   ├── cache.rs        # SQLite PR cache (XDG_CACHE_HOME/omni-scripts/pr-cache.db)
 │   ├── ui.rs           # TUI rendering with Ratatui

@@ -811,3 +811,70 @@ fn test_remote_not_named_origin() {
         .stdout(predicate::str::is_match(r"feature/pushed-to-fork.*! unmerged").unwrap())
         .stdout(predicate::str::is_match(r"feature/never-pushed.*○ local").unwrap());
 }
+
+#[test]
+fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
+    let repo = TestRepo::new();
+    let wt_root = TempDir::new().expect("Failed to create worktree dir");
+    let wt = |name: &str| wt_root.path().join(name);
+    let wt_str = |name: &str| wt(name).to_str().unwrap().to_string();
+    let add = |branch: &str, dir: &str| {
+        let out = TestRepo::run_git(
+            repo.path(),
+            &["worktree", "add", "-b", branch, &wt_str(dir)],
+        );
+        assert!(out.status.success(), "git worktree add {dir} failed");
+    };
+
+    // Branches start at trunk's HEAD, so they classify as merged (stale)
+    add("feature/merged", "merged-wt");
+    add("feature/dirty", "dirty-wt");
+    fs::write(wt("dirty-wt").join("README.md"), "changed").unwrap();
+    fs::write(wt("dirty-wt").join("new.txt"), "untracked").unwrap();
+    add("feature/locked", "locked-wt");
+    TestRepo::run_git(repo.path(), &["worktree", "lock", &wt_str("locked-wt")]);
+    // Prunable: directory deleted behind git's back
+    add("feature/pruned", "pruned-wt");
+    fs::remove_dir_all(wt("pruned-wt")).unwrap();
+
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["--worktrees", "--cli", "--dry-run", "--no-update-check"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::is_match(r"◆ .*◉ current").unwrap())
+        .stdout(predicate::str::is_match(r"merged-wt .*feature/merged .*✓ merged +clean").unwrap())
+        .stdout(predicate::str::is_match(r"dirty-wt .*✎ dirty +1M 1\?").unwrap())
+        .stdout(predicate::str::is_match(r"locked-wt .*🔒 locked").unwrap())
+        .stdout(predicate::str::is_match(r"pruned-wt .*✗ prunable +-").unwrap())
+        // Git prints worktree paths in its own canonical form (macOS
+        // /private/var, Windows long names with forward slashes), so match
+        // the directory name rather than the exact temp path
+        .stdout(
+            predicate::str::is_match(r"\[DRY RUN\] git worktree remove [^\n]*[/\\]merged-wt")
+                .unwrap(),
+        )
+        .stdout(predicate::str::contains("[DRY RUN] git worktree prune"))
+        // Dirty needs --force; locked never
+        .stdout(predicate::str::contains("remove --force").not())
+        .stdout(
+            predicate::str::is_match(r"git worktree remove [^\n]*locked-wt")
+                .unwrap()
+                .not(),
+        );
+
+    // Dry run removes nothing
+    assert!(wt("merged-wt").exists());
+    let list = TestRepo::run_git(repo.path(), &["worktree", "list"]);
+    assert!(String::from_utf8_lossy(&list.stdout).contains("pruned-wt"));
+
+    // Force mode makes the dirty worktree removable with --force
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["-w", "--cli", "--dry-run", "--force", "--no-update-check"]);
+    cmd.assert().success().stdout(
+        predicate::str::is_match(r"\[DRY RUN\] git worktree remove --force [^\n]*[/\\]dirty-wt")
+            .unwrap(),
+    );
+    assert!(wt("dirty-wt").join("new.txt").exists());
+}

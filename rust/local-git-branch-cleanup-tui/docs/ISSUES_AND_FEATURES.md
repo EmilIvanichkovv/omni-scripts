@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 14:02
+**Last Updated:** 19-11-2026 14:20
 
 ---
 
@@ -30,18 +30,37 @@ _No open critical issues._
 
 ## UI/UX Issues
 
+_No open UI/UX issues._
+
+---
+
+## Performance Issues
+
+_No open performance issues._
+
+---
+
+## Minor/Cosmetic Issues
+
+_No open minor/cosmetic issues._
+
+---
+
+## Resolved Issues
+
 ### Issue #20: Add a worktree view (`--worktrees`)
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
 - **Category:** UI/UX / Enhancement
 - **GitHub:** [#61](https://github.com/EmilIvanichkovv/omni-scripts/issues/61)
 - **Description:**
-  - The tool only knows about branches. Users who work with many `git worktree`s have no way to see
-    which worktrees exist, what branch each one holds, whether it has uncommitted work, or whether
-    it is stale (branch merged/gone, directory deleted)
-  - There is no worktree code at all: `git.rs` never calls `git worktree list`, and `App`/`ui.rs`
-    are built around a single branch table (`render_branch_list()` + `render_details_pane()`)
+  - The tool only knew about branches. Users who work with many `git worktree`s had no way to see
+    which worktrees existed, what branch each one held, whether it had uncommitted work, or whether
+    it was stale (branch merged/gone, directory deleted)
+  - There was no worktree code at all: `git.rs` never called `git worktree list`, and `App`/`ui.rs`
+    were built around a single branch table (`render_branch_list()` + `render_details_pane()`)
 - **Expected Behavior:**
   - **Entry points:** a new `--worktrees` / `-w` flag starts the TUI in the worktree view; `w`
     toggles between the branch view and the worktree view in both modes; `--worktrees --cli` prints
@@ -88,42 +107,56 @@ _No open critical issues._
   - Help (`?`) and info (`i`) modals get a worktree section; README and usage guide document the
     flag
 
-- **Actual Behavior:** No worktree support; users have to run `git worktree list` and
+- **Actual Behavior:** There was no worktree support; users had to run `git worktree list` and
   `git -C <path> status` by hand for each worktree
-- **Proposed Fix:**
-  - `git.rs` (or a new `worktree.rs`): `list_worktrees()` parses `git worktree list --porcelain -z`
-    into
-    `WorktreeInfo { name, path, head, branch, is_main, is_current, locked: Option<String>, prunable: Option<String>, changes, branch_status, pr_info }`.
-    Shares the parser with Issue #19, so #19 should land first
-  - Per-worktree `git -C <path> status --porcelain=v1` is the slow part on large repos: run it
-    concurrently (one thread per worktree, like PR fetching) and show `…` in the Changes column
-    until it arrives
-  - Branch status: reuse `get_branches_with_classification()` output and look up each worktree's
-    branch, so states match the branch view exactly
-  - `app.rs`: add `ViewMode { Branches, Worktrees }` and worktree list state (cursor, selection,
-    scroll, filter) next to the branch state; key handling in `main.rs` dispatches on the view
-  - `ui.rs`: `render_worktree_list()` and `render_worktree_details()` alongside the branch versions,
-    reusing the header, search box, action log, footer and confirmation modal
-  - `--cli` mode: `run_worktree_cli_mode()` prints the table with the same legend style as the
-    branch CLI output
-  - Scope tradeoff: the list + details pane alone is a useful first step; removal actions can follow
-    in a second commit if the issue is split
+- **Fix:**
+  - `worktree.rs` (shared with Issue #19) parses `git worktree list --porcelain -z`. The new
+    `worktree_view.rs` holds the view: `WorktreeInfo` joins each entry with the branch classifier's
+    `BranchInfo` (status, upstream, ahead/behind, last commit, PR) through one helper,
+    `worktree_branch_status()`, so states match the branch view. `state()` applies the priority
+    current → prunable → locked → dirty → detached → branch status
+  - `git -C <path> status --porcelain=v1` runs on a pool of up to 8 threads (with
+    `GIT_OPTIONAL_LOCKS=0`); results arrive over a channel that the event loop polls each tick, so
+    the Changes column shows `…` until each one lands and the UI never blocks
+  - `App` gained `ViewMode { Branches, Worktrees }` and an `Option<WorktreeView>` loaded on first
+    use. Toggling swaps the cursor, scroll offset and search query with the other view's, so
+    navigation, paging and search code is shared; selections are kept per view. `main.rs` dispatches
+    normal-mode keys to `handle_worktree_view_key()` in the worktree view
+  - `ui.rs` adds `render_worktree_list()` / `render_worktree_details()` and reuses the header (with
+    the `🌳 Worktrees` indicator), search box, filter tabs, action log, footer (worktree key hints)
+    and the confirmation modal frame (extracted as `render_confirmation_box()`). Help and info
+    modals show worktree keys and states while the view is open
+  - Removal: `removal_action()` picks `git worktree remove`, `remove --force` (dirty, force mode
+    only) or `git worktree prune` (prunable, run once per batch). Main, current, locked and bare
+    worktrees are never selectable, nor are ones whose status has not loaded yet. The `b` toggle in
+    the confirmation modal deletes each removed worktree's branch with the branch view's rule, now
+    shared as `app::branch_delete_needs_force()`; protected branches are kept, and force-only
+    branches (unmerged, local, pr-diverged) are kept unless force mode is on. Dry run logs the
+    commands instead
+  - Integration with Issue #19: `worktree_branch_status()` reads `worktree_shadowed_status`, so no
+    worktree row shows `protected-wt`; the `b` toggle's protection and `-d`/`-D` choice use that
+    status too, and each branch is deleted only after its worktree is removed.
+    `git::apply_pr_merge_status()` now also upgrades an `unmerged` shadowed status to `pr-merged` /
+    `pr-diverged`, so a squash-merged branch held by a worktree is not shown as `unmerged`
+  - A branch deleted with its worktree drops its cached PR entry, like a branch deleted from the
+    branch view (`execute_removals()` takes the app's `PrCache`)
+  - `y` pipes the path to the first clipboard tool that works (`wl-copy`, `xclip`, `xsel`, `pbcopy`,
+    `clip`, `clip.exe`) and reports the result in the footer; no new dependency
+  - `--worktrees --cli` prints the table; with `--dry-run` it also prints the commands for the clean
+    stale worktrees (dirty stale ones too with `--force`)
+  - Deviations from the proposal: filter keys follow the branch view's layout (`1` Clean, `2` Dirty,
+    `3` Stale, `4` All, tabs in that order); `--worktrees --cli` never removes anything and without
+    `--dry-run` only reports how many stale worktrees could be removed; `s` (sort) does nothing in
+    the worktree view since the order is fixed (main first, then last activity); the `@author:`
+    search syntax applies to branches only
+  - Tests: state priority, porcelain parsing, filters/search, selectability, removal command choice,
+    branch-deletion planning, dry-run output, row building/sorting, view toggling, a `TestBackend`
+    render of the view and its modals, and an integration test for `--worktrees --cli --dry-run`
+    with merged, dirty, locked and prunable worktrees
+  - README, `TUI_USAGE_GUIDE.md`, `TESTING.md` and `ARCHITECTURE.md` document the view
+- **Commit:** `feat(tui): Add a worktree view behind --worktrees`
 
 ---
-
-## Performance Issues
-
-_No open performance issues._
-
----
-
-## Minor/Cosmetic Issues
-
-_No open minor/cosmetic issues._
-
----
-
-## Resolved Issues
 
 ### Issue #19: Protect branches checked out in other worktrees
 
@@ -773,3 +806,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 13:40 | #19   | Reported: Protect branches checked out in other worktrees              |
 | 19-11-2026 | 13:55 | #20   | Reported: Add a worktree view (`--worktrees`)                          |
 | 19-11-2026 | 14:02 | #19   | Resolved: New `protected-wt` status for branches in other worktrees    |
+| 19-11-2026 | 14:20 | #20   | Resolved: Added the worktree view (`--worktrees` / `w`)                |

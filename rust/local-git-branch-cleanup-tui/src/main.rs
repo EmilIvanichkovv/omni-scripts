@@ -7,8 +7,8 @@ mod tls;
 mod ui;
 mod update;
 mod update_notice;
-#[allow(dead_code)] // `WorktreeEntry::name()` is used by the worktree view (TUI-20)
 mod worktree;
+mod worktree_view;
 
 use app::App;
 use clap::{Parser, Subcommand};
@@ -80,6 +80,11 @@ struct Args {
     /// Do not check for new versions
     #[arg(long)]
     no_update_check: bool,
+
+    /// Start in the worktree view (press `w` to switch views); with --cli,
+    /// print the worktree table and exit
+    #[arg(long, short = 'w')]
+    worktrees: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -202,13 +207,24 @@ async fn main() -> Result<()> {
 
     // Use CLI mode if --cli flag is set
     if args.cli {
-        let result = run_cli_mode(
-            &branches,
-            &trunk,
-            args.force,
-            args.dry_run,
-            pr_session.as_ref(),
-        );
+        let result = if args.worktrees {
+            run_worktree_cli_mode(
+                &branches,
+                &repo_path,
+                &trunk,
+                args.force,
+                args.dry_run,
+                pr_session.as_ref().map(|session| session.kind),
+            )
+        } else {
+            run_cli_mode(
+                &branches,
+                &trunk,
+                args.force,
+                args.dry_run,
+                pr_session.as_ref(),
+            )
+        };
         // On stderr, so it never mixes with the output scripts read.
         if let Some(message) = update_notice.message() {
             eprintln!("{message}");
@@ -224,6 +240,7 @@ async fn main() -> Result<()> {
         args.force,
         args.dry_run,
         pr_session,
+        args.worktrees,
         update_notice,
     )
 }
@@ -304,6 +321,7 @@ struct PrSession {
 }
 
 /// Run the interactive TUI mode
+#[allow(clippy::too_many_arguments)]
 fn run_tui_mode(
     branches: Vec<git::BranchInfo>,
     repo_path: String,
@@ -311,15 +329,9 @@ fn run_tui_mode(
     force_mode: bool,
     dry_run: bool,
     pr_session: Option<PrSession>,
+    start_in_worktrees: bool,
     mut update_notice: update_notice::UpdateNotice,
 ) -> Result<()> {
-    // Set up terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
     // Get current git user for @author:me support
     let current_git_user = git::get_current_git_user().unwrap_or_default();
 
@@ -332,10 +344,24 @@ fn run_tui_mode(
         app.pr_cache = session.cache;
     }
 
+    // Fail before the terminal is taken over when the worktree list is unreadable
+    if start_in_worktrees {
+        app.load_worktrees()?;
+        app.toggle_view();
+    }
+
+    // Set up terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
     // Main loop
     loop {
         app.expire_esc_quit(std::time::Instant::now());
         app.update_notice = update_notice.message();
+        app.poll_worktree_status();
 
         // Draw UI
         terminal.draw(|frame| ui::render(frame, &mut app))?;
@@ -348,6 +374,8 @@ fn run_tui_mode(
                     if key.code != KeyCode::Esc {
                         app.esc_quit_armed_at = None;
                     }
+                    // Any key dismisses a footer message
+                    app.flash = None;
 
                     // Handle help modal
                     if app.show_help {
@@ -359,6 +387,20 @@ fn run_tui_mode(
                     } else if app.show_confirmation {
                         // Handle confirmation modal
                         match key.code {
+                            KeyCode::Char('b') | KeyCode::Char('B')
+                                if app.view == app::ViewMode::Worktrees =>
+                            {
+                                // Opt in to deleting the removed worktrees' branches
+                                if let Some(wt) = app.worktrees.as_mut() {
+                                    wt.delete_branches = !wt.delete_branches;
+                                }
+                            }
+                            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter
+                                if app.view == app::ViewMode::Worktrees =>
+                            {
+                                // Remove worktrees (dry run is handled inside)
+                                app.remove_selected_worktrees();
+                            }
                             KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
                                 // Confirm deletion
                                 if !app.dry_run {
@@ -469,6 +511,8 @@ fn run_tui_mode(
                             }
                             _ => {}
                         }
+                    } else if app.view == app::ViewMode::Worktrees {
+                        handle_worktree_view_key(&mut app, key);
                     } else {
                         // Normal mode
                         // Check for Ctrl key combinations first
@@ -589,6 +633,10 @@ fn run_tui_mode(
                                         app.open_selected_pr();
                                     }
                                 }
+                                KeyCode::Char('w') => {
+                                    // Switch to the worktree view
+                                    app.toggle_view();
+                                }
                                 KeyCode::Enter => {
                                     // Show confirmation if branches are selected
                                     if app.selected_count() > 0 {
@@ -615,6 +663,222 @@ fn run_tui_mode(
 
     Ok(())
 }
+
+/// Normal-mode keys of the worktree view. Navigation, search, help/info,
+/// force, dry run and quit behave as in the branch view.
+fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
+    use worktree_view::WorktreeFilter;
+
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        match key.code {
+            KeyCode::Char('u') => app.go_to_top(),
+            KeyCode::Char('d') => app.go_to_bottom(),
+            _ => {}
+        }
+        return;
+    }
+
+    match key.code {
+        KeyCode::Char('q') => app.quit(),
+        KeyCode::Esc => {
+            if !app.search_query.is_empty() {
+                app.search_query.clear();
+                app.search_cursor_pos = 0;
+                app.selected_index = 0;
+                app.scroll_offset = 0;
+            } else {
+                app.press_esc_to_quit(std::time::Instant::now());
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => app.select_next(),
+        KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
+        KeyCode::Home | KeyCode::Char('g') => app.go_to_top(),
+        KeyCode::End | KeyCode::Char('G') => app.go_to_bottom(),
+        KeyCode::PageUp => app.page_up(),
+        KeyCode::PageDown => app.page_down(),
+        KeyCode::Char(' ') => app.toggle_worktree_at_cursor(),
+        KeyCode::Char('a') => app.select_all_stale_worktrees(),
+        KeyCode::Char('c') => app.clear_selection(),
+        KeyCode::Char('f') => {
+            app.force_mode = !app.force_mode;
+            app.clear_all_selections();
+        }
+        KeyCode::Char('d') => app.dry_run = !app.dry_run,
+        KeyCode::Char('?') => app.show_help = !app.show_help,
+        KeyCode::Char('i') => app.show_info = !app.show_info,
+        KeyCode::Char('/') => app.search_active = true,
+        KeyCode::Char('F') => app.show_filter = !app.show_filter,
+        KeyCode::Tab => app.next_worktree_filter(),
+        KeyCode::Char('1') | KeyCode::F(1) => app.set_worktree_filter(WorktreeFilter::Clean),
+        KeyCode::Char('2') | KeyCode::F(2) => app.set_worktree_filter(WorktreeFilter::Dirty),
+        KeyCode::Char('3') | KeyCode::F(3) => app.set_worktree_filter(WorktreeFilter::Stale),
+        KeyCode::Char('4') | KeyCode::F(4) => app.set_worktree_filter(WorktreeFilter::All),
+        KeyCode::Char('o') => {
+            if app.pr_provider.is_some() && !app.open_selected_pr() {
+                app.flash = Some("No pull request for this worktree's branch".to_string());
+            }
+        }
+        KeyCode::Char('y') => app.copy_selected_worktree_path(),
+        KeyCode::Char('w') => app.toggle_view(),
+        KeyCode::Enter => {
+            if app.selected_count() > 0 {
+                if let Some(wt) = app.worktrees.as_mut() {
+                    wt.delete_branches = false;
+                }
+                app.show_confirmation = true;
+            }
+        }
+        _ => {}
+    }
+}
+
+/// `--worktrees --cli`: print the worktree table and exit. Nothing is removed;
+/// `--dry-run` also prints the commands the TUI would run for the clean stale
+/// worktrees (and, with `--force`, the dirty stale ones).
+fn run_worktree_cli_mode(
+    branches: &[git::BranchInfo],
+    repo_path: &str,
+    trunk: &str,
+    force: bool,
+    dry_run: bool,
+    pr_provider: Option<pr::PrProviderKind>,
+) -> Result<()> {
+    use worktree_view::{Changes, WorktreeView};
+
+    let mut view = WorktreeView::load(branches, std::path::Path::new(repo_path))?;
+    view.wait_for_status();
+
+    println!("🌳 Trunk branch: {}", trunk);
+    if force {
+        println!(
+            "⚠️  FORCE MODE: Dirty worktrees count as removable (git worktree remove --force)"
+        );
+    }
+    if dry_run {
+        println!("🔍 DRY RUN: Preview mode - no worktrees will be removed");
+    }
+    if let Some(kind) = pr_provider {
+        println!("🔗 {} PR integration enabled", kind.label());
+    }
+    println!();
+
+    print_header_w(WT_CLI_WIDTH);
+    let dirty = view.worktrees.iter().filter(|w| w.is_dirty()).count();
+    let stale = view.worktrees.iter().filter(|w| w.is_stale()).count();
+    print_boxed_line_w(
+        &format!(
+            "🌳 Worktrees: {} ({} dirty, {} stale)",
+            view.worktrees.len(),
+            dirty,
+            stale
+        ),
+        WT_CLI_WIDTH,
+    );
+    println!();
+    print_boxed_line_w(
+        "   Legend: ◆ main  ◉ current  ✗ prunable  🔒 locked  ✎ dirty  ○ detached  (else the branch status)",
+        WT_CLI_WIDTH,
+    );
+    print_boxed_line_w(
+        "   Changes: M modified  S staged  ? untracked",
+        WT_CLI_WIDTH,
+    );
+    print_separator_w(WT_CLI_WIDTH);
+    print_boxed_line_w(
+        &format!(
+            "       {:<20} {:<26} {:<12} {:<9} {}",
+            "Name", "Branch", "State", "Changes", "Last commit"
+        ),
+        WT_CLI_WIDTH,
+    );
+
+    for wt in &view.worktrees {
+        let marker = if wt.entry.is_main {
+            " ◆ "
+        } else if wt.is_locked() {
+            " 🔒"
+        } else if wt.is_selectable(force) {
+            "[ ]"
+        } else {
+            "   "
+        };
+        let state = wt.state();
+        let changes = match &wt.changes {
+            Changes::Loaded(c) => c.compact(),
+            Changes::Loading => "…".to_string(),
+            Changes::Failed(_) => "error".to_string(),
+            Changes::NotApplicable => "-".to_string(),
+        };
+        let last_commit = if wt.is_prunable() || wt.commit.relative.is_empty() {
+            "-".to_string()
+        } else {
+            wt.commit.relative.clone()
+        };
+        let pr = match (&pr_provider, &wt.pr_info) {
+            (Some(_), Some(pr)) => format!("  {} PR #{}", pr.state.icon(), pr.number),
+            _ => String::new(),
+        };
+        print_boxed_line_w(
+            &format!(
+                "   {} {:<20} {:<26} {:<12} {:<9} {}{}",
+                marker,
+                truncate(&wt.name(), 20),
+                truncate(&wt.branch_label(), 26),
+                format!("{} {}", state.icon(), state.label()),
+                changes,
+                last_commit,
+                pr
+            ),
+            WT_CLI_WIDTH,
+        );
+    }
+
+    let candidates: Vec<_> = view
+        .worktrees
+        .iter()
+        .filter(|w| w.is_stale())
+        .filter_map(|w| w.removal_action(force).map(|a| (w, a)))
+        .collect();
+    print_separator_w(WT_CLI_WIDTH);
+    if candidates.is_empty() {
+        print_boxed_line_w("ℹ️  No stale worktrees to remove.", WT_CLI_WIDTH);
+    } else if dry_run {
+        print_boxed_line_w(
+            &format!("🔍 Would remove {} stale worktree(s):", candidates.len()),
+            WT_CLI_WIDTH,
+        );
+        for (wt, action) in &candidates {
+            print_boxed_line_w(
+                &format!("   [DRY RUN] {}", action.command_line(&wt.entry.path)),
+                WT_CLI_WIDTH,
+            );
+        }
+    } else {
+        print_boxed_line_w(
+            &format!(
+                "🧹 {} stale worktree(s) can be removed - run without --cli (--worktrees) to remove them",
+                candidates.len()
+            ),
+            WT_CLI_WIDTH,
+        );
+    }
+    print_footer_w(WT_CLI_WIDTH);
+    Ok(())
+}
+
+/// Shorten `text` to `max` characters, ending with `…` when cut
+fn truncate(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        text.to_string()
+    } else {
+        let mut cut: String = text.chars().take(max.saturating_sub(1)).collect();
+        cut.push('…');
+        cut
+    }
+}
+
+/// Box width of the worktree CLI table (wider than the branch output)
+const WT_CLI_WIDTH: usize = 110;
 
 /// Run the CLI mode (non-interactive)
 fn run_cli_mode(
@@ -826,19 +1090,28 @@ fn run_cli_mode(
 }
 
 fn print_header() {
-    let width = 80;
+    print_header_w(80);
+}
+
+fn print_header_w(width: usize) {
     println!("┌{}┐", "─".repeat(width - 2));
     print_centered("🧹 Local Git Branch Cleanup", width);
     println!("├{}┤", "─".repeat(width - 2));
 }
 
 fn print_footer() {
-    let width = 80;
+    print_footer_w(80);
+}
+
+fn print_footer_w(width: usize) {
     println!("└{}┘", "─".repeat(width - 2));
 }
 
 fn print_separator() {
-    let width = 80;
+    print_separator_w(80);
+}
+
+fn print_separator_w(width: usize) {
     println!("├{}┤", "─".repeat(width - 2));
 }
 
@@ -855,6 +1128,9 @@ fn print_centered(text: &str, width: usize) {
 }
 
 fn print_boxed_line(text: &str) {
-    let width = 80;
+    print_boxed_line_w(text, 80);
+}
+
+fn print_boxed_line_w(text: &str, width: usize) {
     println!("│ {:<width$} │", text, width = width - 4);
 }

@@ -3,7 +3,9 @@
 use crate::cache::PrCache;
 use crate::git::{self, BranchInfo, BranchStatus};
 use crate::pr::PrProviderKind;
+use crate::worktree_view::{WorktreeFilter, WorktreeInfo, WorktreeView};
 use std::collections::HashSet;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// How long after a first Esc press a second one quits the app
@@ -96,6 +98,30 @@ impl FilterMode {
     }
 }
 
+/// Which list the TUI shows
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ViewMode {
+    #[default]
+    Branches,
+    Worktrees,
+}
+
+/// Cursor, scroll and search state of the view that is not on screen
+#[derive(Debug, Clone, Default)]
+struct NavState {
+    selected_index: usize,
+    scroll_offset: usize,
+    search_query: String,
+    search_cursor_pos: usize,
+}
+
+/// Whether deleting a branch uses `git branch -D`: force mode, force-only
+/// statuses (unmerged, local, pr-diverged) and gone branches (squash/rebase
+/// merges that `-d` would refuse). Shared by the branch and worktree views.
+pub fn branch_delete_needs_force(status: &BranchStatus, force_mode: bool) -> bool {
+    force_mode || status.requires_force() || *status == BranchStatus::GoneUpstream
+}
+
 /// Log entry for deletion actions
 #[derive(Debug, Clone)]
 pub struct ActionLogEntry {
@@ -164,6 +190,14 @@ pub struct App {
     pub pr_cache: Option<PrCache>,
     /// "Update available" line for the footer, when a newer release is known
     pub update_notice: Option<String>,
+    /// Which list is on screen
+    pub view: ViewMode,
+    /// Worktree view state, loaded the first time the view opens
+    pub worktrees: Option<WorktreeView>,
+    /// Navigation state of the view that is not on screen
+    other_nav: NavState,
+    /// One-off message shown in the footer until the next key press
+    pub flash: Option<String>,
 }
 
 impl App {
@@ -213,6 +247,10 @@ impl App {
             pr_provider: None,
             pr_cache: None,
             update_notice: None,
+            view: ViewMode::Branches,
+            worktrees: None,
+            other_nav: NavState::default(),
+            flash: None,
         }
     }
 
@@ -240,8 +278,8 @@ impl App {
     }
 
     pub fn select_next(&mut self) {
-        let filtered = self.filtered_branches();
-        if !filtered.is_empty() && self.selected_index < filtered.len() - 1 {
+        let len = self.visible_len();
+        if len > 0 && self.selected_index < len - 1 {
             self.selected_index += 1;
             // Adjust scroll offset if cursor goes below visible area
             self.adjust_scroll_for_selection();
@@ -264,9 +302,9 @@ impl App {
 
     /// Go to the last item in the list
     pub fn go_to_bottom(&mut self) {
-        let filtered = self.filtered_branches();
-        if !filtered.is_empty() {
-            self.selected_index = filtered.len() - 1;
+        let len = self.visible_len();
+        if len > 0 {
+            self.selected_index = len - 1;
             self.adjust_scroll_for_selection();
         }
     }
@@ -283,12 +321,12 @@ impl App {
 
     /// Move down by one page (viewport height)
     pub fn page_down(&mut self) {
-        let filtered = self.filtered_branches();
-        if filtered.is_empty() || self.visible_height == 0 {
+        let len = self.visible_len();
+        if len == 0 || self.visible_height == 0 {
             return;
         }
         let page_size = self.visible_height.saturating_sub(1).max(1);
-        self.selected_index = (self.selected_index + page_size).min(filtered.len() - 1);
+        self.selected_index = (self.selected_index + page_size).min(len - 1);
         self.adjust_scroll_for_selection();
     }
 
@@ -512,6 +550,11 @@ impl App {
 
     /// Update autocomplete suggestions based on current search query
     pub fn update_suggestions(&mut self) {
+        // @author: commands only apply to branches
+        if self.view == ViewMode::Worktrees {
+            self.hide_suggestions();
+            return;
+        }
         let query = &self.search_query;
 
         // Available search commands
@@ -789,9 +832,24 @@ impl App {
         }
     }
 
-    /// Clear all selections
+    /// Clear the selection of the view on screen
     pub fn clear_selection(&mut self) {
+        match self.view {
+            ViewMode::Branches => self.selected_branches.clear(),
+            ViewMode::Worktrees => {
+                if let Some(wt) = self.worktrees.as_mut() {
+                    wt.selected.clear();
+                }
+            }
+        }
+    }
+
+    /// Clear the selections of both views (force mode changes what is selectable)
+    pub fn clear_all_selections(&mut self) {
         self.selected_branches.clear();
+        if let Some(wt) = self.worktrees.as_mut() {
+            wt.selected.clear();
+        }
     }
 
     /// Get the branches that are selected for deletion
@@ -802,9 +860,12 @@ impl App {
             .collect()
     }
 
-    /// Count of selected branches
+    /// Count of selected items in the view on screen
     pub fn selected_count(&self) -> usize {
-        self.selected_branches.len()
+        match self.view {
+            ViewMode::Branches => self.selected_branches.len(),
+            ViewMode::Worktrees => self.worktrees.as_ref().map_or(0, |wt| wt.selected.len()),
+        }
     }
 
     /// Check if a branch index is selected
@@ -842,8 +903,7 @@ impl App {
             // Auto-force for "gone" branches (squash/rebase merges) and
             // force-only branches (unmerged, pr-diverged)
             // Also respect user's force_mode setting
-            let use_force =
-                self.force_mode || status.requires_force() || *status == BranchStatus::GoneUpstream;
+            let use_force = branch_delete_needs_force(status, self.force_mode);
 
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {
@@ -902,17 +962,160 @@ impl App {
         self.action_log.iter().filter(|e| !e.success).count()
     }
 
-    /// Open the PR URL for the currently selected branch in the default browser
+    /// Open the PR URL for the item under the cursor in the default browser
     /// Returns true if a PR URL was opened, false if no PR is associated
     pub fn open_selected_pr(&self) -> bool {
-        if let Some(branch) = self.selected_branch() {
-            if let Some(pr_info) = &branch.pr_info {
-                if git::open_url_in_browser(&pr_info.url).is_ok() {
-                    return true;
-                }
+        let pr_info = match self.view {
+            ViewMode::Branches => self.selected_branch().and_then(|b| b.pr_info.as_ref()),
+            ViewMode::Worktrees => self.selected_worktree().and_then(|w| w.pr_info.as_ref()),
+        };
+        pr_info.is_some_and(|pr| git::open_url_in_browser(&pr.url).is_ok())
+    }
+
+    /// Number of rows in the list on screen (after filter and search)
+    pub fn visible_len(&self) -> usize {
+        match self.view {
+            ViewMode::Branches => self.filtered_branches().len(),
+            ViewMode::Worktrees => self.filtered_worktrees().len(),
+        }
+    }
+
+    /// Switch between the branch and worktree views. Each view keeps its own
+    /// cursor, scroll position and search query. The worktree list is loaded
+    /// the first time the view opens.
+    pub fn toggle_view(&mut self) {
+        let target = match self.view {
+            ViewMode::Branches => ViewMode::Worktrees,
+            ViewMode::Worktrees => ViewMode::Branches,
+        };
+        if target == ViewMode::Worktrees && self.worktrees.is_none() {
+            if let Err(e) = self.load_worktrees() {
+                self.flash = Some(format!("Cannot list worktrees: {}", e));
+                return;
             }
         }
-        false
+        let current = NavState {
+            selected_index: self.selected_index,
+            scroll_offset: self.scroll_offset,
+            search_query: std::mem::take(&mut self.search_query),
+            search_cursor_pos: self.search_cursor_pos,
+        };
+        let other = std::mem::replace(&mut self.other_nav, current);
+        self.selected_index = other.selected_index;
+        self.scroll_offset = other.scroll_offset;
+        self.search_query = other.search_query;
+        self.search_cursor_pos = other.search_cursor_pos;
+        self.search_active = false;
+        self.hide_suggestions();
+        self.view = target;
+    }
+
+    /// (Re)load the worktree list and start reading each worktree's status
+    pub fn load_worktrees(&mut self) -> color_eyre::Result<()> {
+        let mut view = WorktreeView::load(&self.branches, Path::new(&self.repo_path))?;
+        if let Some(old) = &self.worktrees {
+            view.filter = old.filter;
+        }
+        self.worktrees = Some(view);
+        if self.view == ViewMode::Worktrees && self.selected_index >= self.visible_len() {
+            self.selected_index = self.visible_len().saturating_sub(1);
+        }
+        Ok(())
+    }
+
+    /// Apply background `git status` results (called every tick)
+    pub fn poll_worktree_status(&mut self) {
+        if let Some(wt) = self.worktrees.as_mut() {
+            wt.poll_status();
+        }
+    }
+
+    /// Worktrees matching the worktree filter tab and the search query
+    pub fn filtered_worktrees(&self) -> Vec<&WorktreeInfo> {
+        // Each view keeps its own search query
+        let query = match self.view {
+            ViewMode::Worktrees => self.search_query.as_str(),
+            ViewMode::Branches => self.other_nav.search_query.as_str(),
+        };
+        self.worktrees
+            .as_ref()
+            .map(|wt| wt.filtered(query))
+            .unwrap_or_default()
+    }
+
+    /// The worktree under the cursor
+    pub fn selected_worktree(&self) -> Option<&WorktreeInfo> {
+        self.filtered_worktrees().get(self.selected_index).copied()
+    }
+
+    /// Set the worktree filter tab
+    pub fn set_worktree_filter(&mut self, filter: WorktreeFilter) {
+        if let Some(wt) = self.worktrees.as_mut() {
+            wt.filter = filter;
+        }
+        self.selected_index = 0;
+        self.scroll_offset = 0;
+    }
+
+    /// Cycle the worktree filter tab
+    pub fn next_worktree_filter(&mut self) {
+        if let Some(filter) = self.worktrees.as_ref().map(|wt| wt.filter.next()) {
+            self.set_worktree_filter(filter);
+        }
+    }
+
+    /// Toggle selection of the worktree under the cursor
+    pub fn toggle_worktree_at_cursor(&mut self) {
+        let path = self.selected_worktree().map(|w| w.entry.path.clone());
+        let force = self.force_mode;
+        if let (Some(path), Some(wt)) = (path, self.worktrees.as_mut()) {
+            wt.toggle(&path, force);
+        }
+    }
+
+    /// Select (or deselect) all clean stale worktrees
+    pub fn select_all_stale_worktrees(&mut self) {
+        let force = self.force_mode;
+        if let Some(wt) = self.worktrees.as_mut() {
+            wt.select_all_clean_stale(force);
+        }
+    }
+
+    /// Remove the selected worktrees (or describe it in dry-run mode),
+    /// optionally deleting their branches, then reload both lists
+    pub fn remove_selected_worktrees(&mut self) {
+        let Some(wt) = self.worktrees.as_mut() else {
+            return;
+        };
+        let plans = crate::worktree_view::plan_removals(
+            &wt.selected_infos(),
+            self.force_mode,
+            wt.delete_branches,
+        );
+        let log =
+            crate::worktree_view::execute_removals(&plans, self.dry_run, self.pr_cache.as_ref());
+        wt.selected.clear();
+        wt.delete_branches = false;
+        self.action_log.extend(log);
+        self.show_confirmation = false;
+        if !self.dry_run {
+            self.refresh_branches();
+            if let Err(e) = self.load_worktrees() {
+                self.flash = Some(format!("Cannot list worktrees: {}", e));
+            }
+        }
+    }
+
+    /// Copy the path of the worktree under the cursor to the clipboard
+    pub fn copy_selected_worktree_path(&mut self) {
+        let Some(path) = self.selected_worktree().map(|w| w.entry.path.clone()) else {
+            return;
+        };
+        let path = path.to_string_lossy().into_owned();
+        self.flash = Some(match crate::worktree_view::copy_to_clipboard(&path) {
+            Ok(tool) => format!("Copied {} to the clipboard ({})", path, tool),
+            Err(e) => format!("Cannot copy {}: {}", path, e),
+        });
     }
 
     /// Check if the currently selected branch has a PR
@@ -1650,6 +1853,122 @@ mod tests {
             assert!(!app.show_suggestions);
             assert_eq!(app.suggestion_index, None);
         }
+    }
+
+    fn test_worktree(path: &str, branch: &str, status: BranchStatus) -> WorktreeInfo {
+        use crate::worktree::WorktreeEntry;
+        use crate::worktree_view::{ChangeCounts, Changes, CommitSummary};
+        WorktreeInfo {
+            entry: WorktreeEntry {
+                path: std::path::PathBuf::from(path),
+                head: "abc1234".to_string(),
+                branch: Some(branch.to_string()),
+                is_main: false,
+                is_bare: false,
+                is_detached: false,
+                locked: None,
+                prunable: None,
+            },
+            is_current: false,
+            changes: Changes::Loaded(ChangeCounts::default()),
+            branch_status: Some(status),
+            upstream: None,
+            ahead: None,
+            behind: None,
+            commit: CommitSummary::default(),
+            pr_info: None,
+        }
+    }
+
+    fn create_test_app_with_worktrees() -> App {
+        let mut app = create_test_app();
+        app.worktrees = Some(WorktreeView::from_infos(vec![
+            test_worktree("/wt/a", "feature/merged", BranchStatus::SafeMerged),
+            test_worktree("/wt/b", "feature/unmerged", BranchStatus::Unmerged),
+        ]));
+        app
+    }
+
+    #[test]
+    fn test_toggle_view_keeps_cursor_and_search_per_view() {
+        let mut app = create_test_app_with_worktrees();
+        app.selected_index = 3;
+        app.search_query = "feature".to_string();
+        app.search_cursor_pos = 7;
+
+        app.toggle_view();
+        assert_eq!(app.view, ViewMode::Worktrees);
+        assert_eq!(app.selected_index, 0);
+        assert!(app.search_query.is_empty());
+        assert_eq!(app.visible_len(), 2);
+
+        // Navigation is bounded by the worktree list
+        app.select_next();
+        app.select_next();
+        assert_eq!(app.selected_index, 1);
+        app.search_query = "unmerged".to_string();
+        assert_eq!(app.visible_len(), 1);
+
+        app.toggle_view();
+        assert_eq!(app.view, ViewMode::Branches);
+        assert_eq!(app.selected_index, 3);
+        assert_eq!(app.search_query, "feature");
+        assert_eq!(app.search_cursor_pos, 7);
+        // The worktree query is kept for when the view comes back
+        assert_eq!(app.filtered_worktrees().len(), 1);
+    }
+
+    #[test]
+    fn test_selection_is_per_view() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_selection(1);
+        app.toggle_view();
+        assert_eq!(app.selected_count(), 0);
+        app.toggle_worktree_at_cursor();
+        assert_eq!(app.selected_count(), 1);
+
+        // c clears only the view on screen; force toggling clears both
+        app.toggle_view();
+        assert_eq!(app.selected_count(), 1);
+        app.clear_selection();
+        assert_eq!(app.selected_count(), 0);
+        app.toggle_view();
+        assert_eq!(app.selected_count(), 1);
+        app.toggle_selection(1);
+        app.clear_all_selections();
+        assert_eq!(app.selected_count(), 0);
+        assert_eq!(app.selected_branches.len(), 0);
+    }
+
+    #[test]
+    fn test_worktree_filter_tabs() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        app.set_worktree_filter(WorktreeFilter::Stale);
+        assert_eq!(app.visible_len(), 1);
+        app.next_worktree_filter();
+        assert_eq!(app.worktrees.as_ref().unwrap().filter, WorktreeFilter::All);
+        assert_eq!(app.visible_len(), 2);
+    }
+
+    #[test]
+    fn test_no_author_suggestions_in_worktree_view() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        app.search_insert_char('@');
+        assert!(!app.show_suggestions);
+    }
+
+    #[test]
+    fn test_branch_delete_needs_force() {
+        assert!(!branch_delete_needs_force(&BranchStatus::SafeMerged, false));
+        assert!(branch_delete_needs_force(&BranchStatus::SafeMerged, true));
+        assert!(branch_delete_needs_force(
+            &BranchStatus::GoneUpstream,
+            false
+        ));
+        assert!(branch_delete_needs_force(&BranchStatus::Unmerged, false));
+        assert!(branch_delete_needs_force(&BranchStatus::Local, false));
     }
 
     #[test]

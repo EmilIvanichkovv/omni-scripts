@@ -480,6 +480,38 @@ cached_prs         -- one row per (repository, branch); NULL pr_number = "no PR"
 - Schema migrations run automatically on `open()`; the delta pattern means only new versions are
   applied, never re-run.
 
+### 8. `worktree.rs` / `worktree_view.rs` — Worktree View
+
+**Responsibilities:**
+
+- `worktree.rs`: run `git worktree list --porcelain -z` and parse it into `WorktreeEntry` (path,
+  HEAD, branch, main/bare/detached, lock and prunable reasons). Shared with the branch view.
+- `worktree_view.rs`: the `--worktrees` view model and its rules
+  - `WorktreeInfo` joins an entry with the branch classifier's `BranchInfo` (status, upstream,
+    ahead/behind, last commit, PR). `worktree_branch_status()` is the only place a worktree reads
+    its branch's status.
+  - `WorktreeInfo::state()` applies the state priority: current, prunable, locked, dirty, bare,
+    detached, then the branch status
+  - `parse_porcelain_status()` turns `git status --porcelain=v1` into `M`/`S`/`?` counts
+  - `spawn_status_loaders()` runs `git -C <path> status` on a pool of up to 8 threads and sends
+    results over an `mpsc` channel; `WorktreeView::poll_status()` applies them on each event-loop
+    tick, so the table shows `…` until each status arrives
+  - `removal_action()` picks `git worktree remove`, `remove --force` (dirty, force mode only) or
+    `git worktree prune` (prunable); `None` means not selectable (main, current, locked, bare, or
+    status not loaded)
+  - `plan_removals()` / `execute_removals()` run the removal (or describe it in dry-run mode) and
+    optionally delete the branches using `app::branch_delete_needs_force()`, the same `-d`/`-D` rule
+    as the branch view
+  - `copy_to_clipboard()` pipes the path to `wl-copy`, `xclip`, `xsel`, `pbcopy`, `clip` or
+    `clip.exe`
+
+`App` holds the view (`ViewMode::{Branches, Worktrees}`) and an `Option<WorktreeView>` loaded on
+first use. Switching views swaps the cursor, scroll offset and search query with the other view's,
+so navigation, search and paging code is shared. `ui.rs` adds `render_worktree_list()` and
+`render_worktree_details()` and reuses the header, search box, filter tabs, action log, footer and
+confirmation modal frame. `main.rs` dispatches normal-mode keys to `handle_worktree_view_key()` in
+the worktree view and adds `run_worktree_cli_mode()` for `--worktrees --cli`.
+
 ---
 
 ## Data Flow
@@ -542,7 +574,25 @@ app.branches = new_branches
 UI re-renders with updated list
 ```
 
-### 4. Filtering
+### 4. Worktree View
+
+```
+--worktrees or 'w' → App::load_worktrees()
+          ↓
+worktree::list_worktrees() → build_worktree_infos(entries, &app.branches)
+          ↓                              ↓
+spawn_status_loaders(paths)       rows sorted: main first, then last activity
+          ↓
+event loop tick → app.poll_worktree_status() → Changes::Loading → Loaded(counts)
+          ↓
+Enter → confirmation ('b' toggles branch deletion) → 'y'
+          ↓
+plan_removals() → execute_removals(): git worktree remove [--force] <path> | git worktree prune
+          ↓                              (+ git branch -d/-D when 'b' is on)
+refresh_branches() + load_worktrees()
+```
+
+### 5. Filtering
 
 ```
 User presses '1' (Safe Merged filter)

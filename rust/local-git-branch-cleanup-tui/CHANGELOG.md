@@ -3,6 +3,12 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.5.0 - 19-11-2026
+
+### Features
+
+- **tui:** Drop a branch's cached PR entry when it is deleted
+
 ## 0.4.2 - 19-11-2026
 
 ### Bug fixes

@@ -521,20 +521,30 @@ pub fn get_branches_with_classification(trunk_override: Option<&str>) -> Result<
 ///   upstream doesn't (unpushed work, or stale copies after a remote
 ///   rebase/amend), so deletion still requires force.
 ///
+/// A branch held by another worktree keeps `ProtectedWorktree` as its status;
+/// the same upgrade applies to its `worktree_shadowed_status`, which the
+/// worktree view shows.
+///
 /// Call after PR info has been fetched.
 pub fn apply_pr_merge_status(branches: &mut [BranchInfo]) {
     use crate::pr::PrState;
 
     for branch in branches.iter_mut() {
-        if branch.status == BranchStatus::Unmerged
-            && branch.upstream.is_some()
-            && matches!(&branch.pr_info, Some(pr) if pr.state == PrState::Merged)
-        {
-            match branch.ahead {
-                Some(0) => branch.status = BranchStatus::PrMerged,
-                Some(_) => branch.status = BranchStatus::PrDiverged,
-                None => {}
-            }
+        let merged_pr = branch.upstream.is_some()
+            && matches!(&branch.pr_info, Some(pr) if pr.state == PrState::Merged);
+        let upgraded = match branch.ahead {
+            Some(0) => BranchStatus::PrMerged,
+            Some(_) => BranchStatus::PrDiverged,
+            None => continue,
+        };
+        if !merged_pr {
+            continue;
+        }
+        if branch.status == BranchStatus::Unmerged {
+            branch.status = upgraded.clone();
+        }
+        if branch.worktree_shadowed_status == Some(BranchStatus::Unmerged) {
+            branch.worktree_shadowed_status = Some(upgraded);
         }
     }
 }
@@ -1075,5 +1085,46 @@ mod tests {
         )];
         apply_pr_merge_status(&mut branches);
         assert_eq!(branches[0].status, BranchStatus::ProtectedWorktree);
+    }
+
+    #[test]
+    fn pr_merge_status_upgrades_shadowed_status_of_worktree_branches() {
+        let mut merged = branch_with(
+            BranchStatus::ProtectedWorktree,
+            Some("origin/feature/x"),
+            Some(0),
+            Some(PrState::Merged),
+        );
+        merged.worktree_shadowed_status = Some(BranchStatus::Unmerged);
+        let mut diverged = merged.clone();
+        diverged.ahead = Some(3);
+        let mut open = merged.clone();
+        open.pr_info.as_mut().unwrap().state = PrState::Open;
+        let mut gone = merged.clone();
+        gone.worktree_shadowed_status = Some(BranchStatus::GoneUpstream);
+
+        let mut branches = vec![merged, diverged, open, gone];
+        apply_pr_merge_status(&mut branches);
+
+        // Protection stays; only the shadowed (worktree-view) status upgrades
+        assert!(branches
+            .iter()
+            .all(|b| b.status == BranchStatus::ProtectedWorktree));
+        assert_eq!(
+            branches[0].worktree_shadowed_status,
+            Some(BranchStatus::PrMerged)
+        );
+        assert_eq!(
+            branches[1].worktree_shadowed_status,
+            Some(BranchStatus::PrDiverged)
+        );
+        assert_eq!(
+            branches[2].worktree_shadowed_status,
+            Some(BranchStatus::Unmerged)
+        );
+        assert_eq!(
+            branches[3].worktree_shadowed_status,
+            Some(BranchStatus::GoneUpstream)
+        );
     }
 }

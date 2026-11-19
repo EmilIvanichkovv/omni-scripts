@@ -132,6 +132,7 @@ When a non-default sort mode is active, the header displays a sort indicator: `�
 | `d`     | Toggle dry run mode                              |
 | `s`     | Cycle sort mode                                  |
 | `o`     | Open PR in browser (when PR integration enabled) |
+| `w`     | Switch to the worktree view                      |
 | `i`     | Show info modal (about the tool)                 |
 | `?`     | Show help modal                                  |
 
@@ -414,7 +415,10 @@ category:
 - **Selection** — Space, a (all), c (clear), and which statuses are not selectable (protected,
   protected-wt, current)
 - **Actions** — Enter (delete), f (force), d (dry run)
-- **Other** — i (info), ? (help), q (quit)
+- **Other** — w (worktree view), i (info), ? (help), q (quit)
+
+In the worktree view the help modal lists that view's keys instead (filters, `y` copy path, `b` in
+the confirmation, `w` back to branches).
 
 Press any key to close the help modal.
 
@@ -429,7 +433,89 @@ Press `i` at any time to display information about the tool:
   protected, protected-wt, current)
 - Hint to press `?` for keyboard shortcuts
 
+In the worktree view it explains the worktree states and the Changes column instead.
+
 Press any key to close the info modal.
+
+---
+
+## Worktree View
+
+Start with `--worktrees` (`-w`), or press `w` in the branch view; `w` switches back. Each view keeps
+its own cursor, search query and selection. The header shows `🌳 Worktrees` while the view is open.
+
+```
+  Name              Branch                     State        Changes  Last Commit
+▶ ◆ omni-scripts    main                       ◉ current    clean    2 hours ago
+ [ ] qa-session     qa/tui-session-2026-11-19  ✎ dirty      3M 1?    5 minutes ago
+ [ ] fix-login      fix/login                  ✓ merged     clean    3 weeks ago
+ [ ] review-pr-41   (detached @ 1a2b3c4)       ○ detached   clean    1 month ago
+ [ ] old-experiment feat/old                   ✗ prunable   -        -
+  🔒 release-hotfix  release/1.2                🔒 locked    clean    4 days ago
+```
+
+- **Name** — the worktree directory name; `◆` marks the main worktree
+- **Branch** — the checked-out branch, or `(detached @ <sha>)`
+- **State** — the first that applies: `current` (the worktree the tool runs in), `prunable`
+  (directory missing), `locked` (`git worktree lock`), `dirty` (uncommitted or untracked changes),
+  `detached`, otherwise the branch's own status from the branch view (`merged`, `pr-merged`, `gone`,
+  `unmerged`, `local`, `protected`, ...). The branch view shows branches held by other worktrees as
+  `⊞ protected-wt`; this view shows the status they would have otherwise
+- **Changes** — counts from `git status --porcelain`: `M` modified, `S` staged, `?` untracked.
+  `git status` runs in the background for every worktree, so the column shows `…` until it arrives
+- **PR** — with `--github` / `--bitbucket`, the PR of the worktree's branch
+
+The details pane shows the full path, branch, branch status, upstream and ahead/behind, HEAD, the
+last commit, the change counts with the first few changed paths, the lock or prunable reason, and
+the PR.
+
+### Worktree Keys
+
+| Key        | Action                                                           |
+| ---------- | ---------------------------------------------------------------- |
+| `Space`    | Toggle selection for the worktree under the cursor               |
+| `a`        | Select/deselect all clean stale worktrees                        |
+| `c`        | Clear the selection                                              |
+| `1` / `F1` | Show clean worktrees                                             |
+| `2` / `F2` | Show dirty worktrees                                             |
+| `3` / `F3` | Show stale worktrees (merged, pr-merged, gone, prunable)         |
+| `4` / `F4` | Show all worktrees                                               |
+| `Tab`      | Cycle through filters                                            |
+| `/`        | Search by worktree name, branch or path                          |
+| `Enter`    | Remove the selected worktrees (opens confirmation)               |
+| `b`        | In the confirmation: also delete the removed worktrees' branches |
+| `f`        | Toggle force mode (dirty worktrees become selectable)            |
+| `d`        | Toggle dry run mode                                              |
+| `y`        | Copy the worktree path to the clipboard                          |
+| `o`        | Open the branch's PR in the browser (PR integration enabled)     |
+| `w`        | Switch back to the branch view                                   |
+
+The footer reads
+`↑↓ nav  Space sel  a stale  c clr  f force  d dry  Enter remove  y copy path  / search  w branches  ? help  q quit`
+(plus `o pr` with PR integration).
+
+### Removing Worktrees
+
+- Clean worktrees are removed with `git worktree remove <path>`
+- Dirty worktrees are selectable only in force mode and are removed with
+  `git worktree remove --force <path>` — their uncommitted changes are lost
+- Prunable worktrees (directory already gone) are cleaned up with `git worktree prune`, which prunes
+  every prunable worktree at once
+- The main, current and locked worktrees are never selectable; a worktree whose `git status` is
+  still loading becomes selectable once it arrives
+- In the confirmation modal, `b` toggles **also delete branches** (off by default). Each removed
+  worktree's branch is then deleted with the branch view's rules: `-d`, or `-D` for gone branches
+  and in force mode; protected branches are kept, and unmerged / local / pr-diverged branches are
+  kept unless force mode is on
+- Dry run mode logs the commands instead of running them
+- `y` copies the path with the first clipboard tool that works (`wl-copy`, `xclip`, `xsel`,
+  `pbcopy`, `clip`, or `clip.exe` under WSL); the footer shows the result
+
+### CLI
+
+`--worktrees --cli` prints the worktree table and exits without removing anything. With `--dry-run`
+it also prints the command the TUI would run for each clean stale worktree (with `--force`, dirty
+stale ones too).
 
 ---
 
@@ -455,6 +541,16 @@ Press any key to close the info modal.
 5. Review action log
 6. Press `d` to disable dry run
 7. Press `Enter` then `y` to actually delete
+```
+
+### Removing Merged Worktrees and Their Branches
+
+```
+1. Press `w` (or start with --worktrees)
+2. Press `a` to select all clean stale worktrees
+3. Press `Enter`
+4. Press `b` to also delete their branches
+5. Press `y` to confirm
 ```
 
 ### Deleting an Unmerged Branch
@@ -497,6 +593,12 @@ Press any key to close the info modal.
 
 - Unmerged branches show `-` checkbox — enable force mode with `f`
 - Protected and current branches have no checkbox — they cannot be deleted
+
+### Can't select a worktree
+
+- `◆` (main), `◉ current` and `🔒 locked` worktrees can never be removed
+- Dirty worktrees show `-` — enable force mode with `f`
+- `…` means `git status` is still running for that worktree
 
 ### Deletion failed
 

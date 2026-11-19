@@ -195,6 +195,39 @@ Quick smoke checks:
 - [ ] Second run within 1h reports cache hits and is materially faster
 - [ ] No token ever appears in output, errors, or the cache
 
+#### 3.12 Worktree View (--worktrees / w)
+
+Setup: a repo with linked worktrees — one on a merged branch, one with uncommitted and untracked
+changes, one locked (`git worktree lock`), one detached (`git worktree add --detach`), and one whose
+directory was deleted (prunable).
+
+- [ ] `--worktrees` / `-w` starts in the worktree view; header shows `🌳 Worktrees`
+- [ ] `w` switches views both ways; each view keeps its cursor, search query and selection
+- [ ] Main worktree is first and marked `◆`; the rest are ordered by last activity
+- [ ] States: `◉ current`, `✗ prunable`, `🔒 locked`, `✎ dirty`, `○ detached`, else the branch
+      status (same label as in the branch view)
+- [ ] Changes column shows `…` briefly, then `clean` or counts like `1M 1S 1?`; the UI stays
+      responsive while statuses load
+- [ ] Details pane: path, branch, branch status, upstream and ahead/behind, HEAD, last commit, first
+      changed paths, lock reason, prunable reason
+- [ ] Main, current and locked worktrees cannot be selected; dirty ones show `-` until `f`
+- [ ] `a` selects only clean stale worktrees (merged, gone, prunable); pressing it again deselects
+- [ ] Filters `1`-`4` / `Tab`: Clean, Dirty, Stale, All, with counts
+- [ ] `/` search matches worktree name, branch and path
+- [ ] `Enter` opens the confirmation modal listing each worktree with `remove`, `remove --force` or
+      `prune`; `b` toggles "also delete branches"
+- [ ] Confirm: clean worktree removed, prunable one pruned, dirty one (force mode) removed with
+      `--force`; action log shows each result; the list refreshes
+- [ ] With `b` on: merged branches deleted with `-d`, gone with `-D`, unmerged/local kept unless
+      force mode
+- [ ] Dry run (`d`): action log shows `[DRY RUN] Would run: git worktree ...`, nothing changes on
+      disk
+- [ ] `y` copies the path (footer names the clipboard tool); without any clipboard tool the footer
+      says so and nothing crashes
+- [ ] With `--github` / `--bitbucket`: PR column and details; `o` opens the PR, or the footer says
+      there is none
+- [ ] `?` and `i` show the worktree help and worktree states while in the worktree view
+
 ### 4. CLI Mode Tests
 
 #### 4.1 Basic CLI
@@ -222,6 +255,14 @@ Quick smoke checks:
 - [ ] Accepts 'n' or 'no' to cancel
 - [ ] Shows summary of deleted branches
 - [ ] Handles errors gracefully
+
+#### 4.4 Worktree CLI
+
+- [ ] `--worktrees --cli` prints the worktree table (name, branch, state, changes, last commit) and
+      exits without prompting or removing anything
+- [ ] `--worktrees --cli --dry-run` also lists `[DRY RUN] git worktree remove <path>` /
+      `git worktree prune` for the clean stale worktrees
+- [ ] Adding `--force` lists `git worktree remove --force <path>` for dirty stale worktrees
 
 ### 5. Edge Cases
 

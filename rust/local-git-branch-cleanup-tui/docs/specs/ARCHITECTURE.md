@@ -502,8 +502,9 @@ cached_prs         -- one row per (repository, branch); NULL pr_number = "no PR"
   - `plan_removals()` / `execute_removals()` run the removal (or describe it in dry-run mode) and
     optionally delete the branches using `app::branch_delete_needs_force()`, the same `-d`/`-D` rule
     as the branch view
-  - `copy_to_clipboard()` pipes the path to `wl-copy`, `xclip`, `xsel`, `pbcopy`, `clip` or
-    `clip.exe`
+  - the `y` key copies the worktree path with `clipboard::copy_to_clipboard()`
+- `clipboard.rs`: `copy_to_clipboard()` pipes text to `wl-copy`, `xclip`, `xsel`, `pbcopy`, `clip`
+  or `clip.exe`; used by both views (`y` copies the branch name or the worktree path)
 
 `App` holds the view (`ViewMode::{Branches, Worktrees}`) and an `Option<WorktreeView>` loaded on
 first use. Switching views swaps the cursor, scroll offset and search query with the other view's,

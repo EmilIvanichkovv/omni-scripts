@@ -972,6 +972,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
         }
 
         // PR info (if available and PR integration enabled)
+        let mut shows_open_pr_hint = false;
         if app.pr_provider.is_some() {
             lines.push(Line::from(""));
             if let Some(pr) = &branch.pr_info {
@@ -1035,6 +1036,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                     ),
                     Span::styled(" to open in browser", Style::default().fg(COLOR_MUTED)),
                 ]));
+                shows_open_pr_hint = true;
             } else {
                 lines.push(Line::from(vec![
                     Span::styled("  Pull Request: ", Style::default().fg(COLOR_MUTED)),
@@ -1047,6 +1049,22 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
                 ]));
             }
         }
+
+        // Hint to copy the branch name: right under the `o` hint when there
+        // is one, otherwise after a blank line
+        if !shows_open_pr_hint {
+            lines.push(Line::from(""));
+        }
+        lines.push(Line::from(vec![
+            Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(
+                "y",
+                Style::default()
+                    .fg(COLOR_ACCENT)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" to copy the branch name", Style::default().fg(COLOR_MUTED)),
+        ]));
     } else {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![Span::styled(
@@ -1222,6 +1240,13 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(
+                "y",
+                Style::default()
+                    .fg(COLOR_ACCENT)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" copy  ", Style::default().fg(COLOR_MUTED)),
             Span::styled(
                 "w",
                 Style::default()
@@ -1510,9 +1535,9 @@ fn get_pr_state_color(state: &PrState) -> Color {
 fn render_help_modal(frame: &mut Frame, view: ViewMode) {
     let area = frame.area();
 
-    // Calculate modal size (larger for help content)
+    // Calculate modal size (larger for help content): 50 lines + border
     let modal_width = 70.min(area.width - 4);
-    let modal_height = 50.min(area.height - 4);
+    let modal_height = 52.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1899,6 +1924,18 @@ fn render_help_modal(frame: &mut Frame, view: ViewMode) {
             ),
             Span::styled(
                 "             Switch to the worktree view",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    y",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "             Copy the branch name to the clipboard",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
@@ -3030,6 +3067,40 @@ mod tests {
         let text = details_text(&app);
         assert!(text.contains("Worktree: wt-gone (/nonexistent/wt-gone)"));
         assert!(text.contains("Prunable: directory missing"));
+    }
+
+    #[test]
+    fn details_pane_shows_the_copy_hint_under_the_open_pr_hint() {
+        let mut branch = worktree_branch("/nonexistent/wt");
+        branch.pr_info = Some(crate::pr::PrInfo {
+            number: 42,
+            state: PrState::Open,
+            title: "A pull request".to_string(),
+            url: "https://example.com/pr/42".to_string(),
+        });
+        let mut app = App::new(vec![branch], "/repo".into(), "main".into(), String::new());
+        app.pr_provider = Some(crate::pr::PrProviderKind::GitHub);
+
+        let text = details_text(&app);
+        let lines: Vec<&str> = text.lines().collect();
+        let open = lines
+            .iter()
+            .position(|l| l.contains("Press o to open in browser"))
+            .expect("open PR hint");
+        assert!(lines[open + 1].contains("Press y to copy the branch name"));
+    }
+
+    #[test]
+    fn details_pane_shows_the_copy_hint_without_pr_integration() {
+        let app = App::new(
+            vec![worktree_branch("/nonexistent/wt")],
+            "/repo".into(),
+            "main".into(),
+            String::new(),
+        );
+        let text = details_text(&app);
+        assert!(text.contains("Press y to copy the branch name"));
+        assert!(!text.contains("to open in browser"));
     }
 
     fn worktree_app() -> App {

@@ -114,6 +114,9 @@ Compare behavior with the original bash script:
 - [ ] Shows: commit SHA, author, message, ahead/behind counts
 - [ ] Updates when selection changes
 - [ ] Text wraps properly in pane
+- [ ] `y` copies the name of the branch under the cursor (also on `protected`, `protected-wt` and
+      `current` rows); the footer shows `Copied <branch> to the clipboard (<tool>)`, or the error
+      when no clipboard tool is installed; the next key clears the message
 
 #### 3.5 Deletion Flow
 

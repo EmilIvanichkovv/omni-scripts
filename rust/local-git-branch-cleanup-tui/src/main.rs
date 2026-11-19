@@ -1,5 +1,6 @@
 mod app;
 mod cache;
+mod clipboard;
 mod git;
 mod pr;
 mod remote;
@@ -632,6 +633,10 @@ fn run_tui_mode(
                                     if app.pr_provider.is_some() {
                                         app.open_selected_pr();
                                     }
+                                }
+                                KeyCode::Char('y') => {
+                                    // Copy the branch name under the cursor
+                                    app.copy_selected_branch_name();
                                 }
                                 KeyCode::Char('w') => {
                                     // Switch to the worktree view

@@ -915,26 +915,32 @@ fn test_auto_refresh_interval_is_accepted() {
 }
 
 #[test]
-fn test_auto_sync_takes_an_optional_number_of_minutes() {
-    for args in [
-        &["--auto-sync", "--cli"][..],
-        &["--cli", "--auto-sync"][..],
-        &["--cli", "--auto-sync", "15"][..],
-    ] {
-        let repo = TestRepo::new();
-        let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
-        cmd.current_dir(repo.path()).args(args);
-        cmd.assert().success();
-    }
-}
-
-#[test]
-fn test_auto_sync_must_be_at_least_one_minute() {
+fn test_auto_sync_interval_is_accepted() {
     let repo = TestRepo::new();
     let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
     cmd.current_dir(repo.path())
-        .args(["--cli", "--auto-sync", "0"]);
+        .args(["--cli", "--auto-sync-interval", "15"]);
+    cmd.assert().success();
+}
+
+#[test]
+fn test_auto_sync_interval_must_be_at_least_one_minute() {
+    let repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["--cli", "--auto-sync-interval", "0"]);
     cmd.assert()
         .failure()
-        .stderr(predicate::str::contains("--auto-sync"));
+        .stderr(predicate::str::contains("--auto-sync-interval"));
+}
+
+#[test]
+fn test_auto_sync_interval_conflicts_with_no_auto_sync() {
+    let repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    cmd.current_dir(repo.path())
+        .args(["--cli", "--no-auto-sync", "--auto-sync-interval", "15"]);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("cannot be used with"));
 }

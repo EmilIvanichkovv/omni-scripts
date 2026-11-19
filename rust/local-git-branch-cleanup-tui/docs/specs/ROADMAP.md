@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh` **Target Name**:
 `local-git-branch-cleanup-tui` **Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace
 member) **Status**: 🚀 Active Development — Post-MVP enhancements in progress **Last Updated**:
-2026-05-23
+2026-11-19
 
 ---
 
@@ -25,12 +25,22 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - ✅ Dry run mode for previewing deletions
 - ✅ Help modal with keyboard shortcuts
 - ✅ CLI mode for bash-like behavior
-- ✅ Comprehensive test suite (85 tests, 80%+ coverage)
+- ✅ Comprehensive test suite (292 tests: 248 unit, 32 integration, 12 update-command; 85 at MVP)
 - ✅ Complete documentation (README, ARCHITECTURE, MIGRATION, TESTING)
 - ✅ Flexible sorting (status, name, activity, creation date)
 - ✅ Powerful search with `@author:` filter and autocomplete
 - ✅ GitHub PR integration (`--github` flag)
-- ✅ SQLite PR cache — zero redundant `gh` calls on warm runs (Phase 1, 2026-05-23)
+- ✅ SQLite PR cache — zero redundant `gh` calls on warm runs (Phase 1, 2026-05-23); async fetching
+  17.6× faster (Phase 2.1, 2026-06-04); entries dropped when a branch is deleted (0.5.0)
+- ✅ Bitbucket Data Center PR integration (`--bitbucket` flag, 2026-08-09)
+- ✅ Squash/rebase-merge detection from PR data (`pr-merged`, `pr-diverged`) and never-pushed
+  branches (`local`); primary remote resolved instead of assuming `origin`
+- ✅ Prebuilt binaries for Linux, macOS (Intel and Apple Silicon) and Windows, released
+  automatically after each merge to `main` (0.2.0+, 2026-10-12)
+- ✅ `update` command and a notice when a newer release exists (0.3.0–0.4.1, 2026-10-13)
+- ✅ Worktree support: branches checked out in other worktrees are `protected-wt` (0.6.0), and a
+  read-only worktree explorer with optional removal (`--worktrees` / `w`, 0.7.0 – 0.8.0)
+- ✅ Copy the branch name or worktree path to the clipboard (`y`)
 
 **Key Improvements Over Bash Script:**
 
@@ -39,7 +49,11 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - 📊 **Information**: Branch classification, commit details, ahead/behind tracking, PR status
 - 🎨 **User Experience**: Interactive TUI, filters, color-coded status, help modal
 - 🔍 **Search**: Filter by name or author with smart autocomplete
-- 🐙 **GitHub Integration**: See PR status and open PRs in browser
+- 🐙 **PR Integration**: See PR status from GitHub or Bitbucket Data Center and open PRs in the
+  browser
+- 🌳 **Worktrees**: Branches held by other worktrees are protected; a worktree view shows each
+  worktree's branch, state and uncommitted changes
+- 📦 **Distribution**: One-line installers, prebuilt binaries and a self-`update` command
 
 **Project Timeline:**
 
@@ -861,12 +875,27 @@ hours) **Depends On**: M5
 - **CLI Parsing**: clap
 - **Git Integration**: `std::process::Command` (not git2 library)
 - **Development Environment**: Nix
+- **PR fetching**: `tokio` `JoinSet` + `Semaphore(20)` for concurrent `gh` / Bitbucket requests
+  (replaced `rayon`, 2026-06-04)
+- **PR cache**: SQLite via `rusqlite` (bundled), one-hour TTL, entries older than 30 days evicted
+- **HTTP**: `reqwest` with `rustls` and the `ring` crypto provider (Bitbucket API, `update`)
+- **Nix packaging**: `crane` (replaced `buildRustPackage`, 2026-06-04)
+- **Releases**: `dist` builds GitHub Releases with installers; `git-cliff` writes the changelog from
+  Conventional Commits; a release runs automatically after each merge to `main`
+- **Commit style**: Conventional Commits, checked in CI and by a pre-commit hook
+- **Worktree discovery**: `git worktree list --porcelain -z`, shared by the branch and worktree
+  views
 
 ### ⚠️ Pending Decisions
 
 - ~~**Nix Integration Approach**: Ephemeral shell vs flake devShell?~~ ✅ Decided: flake devShell
-- **Testing Framework**: Built-in + which test harness?
-- **Release Strategy**: Replace bash script or run side-by-side?
+- ~~**Testing Framework**: Built-in + which test harness?~~ ✅ Decided: built-in tests plus
+  `assert_cmd`, `predicates` and `tempfile` for integration tests against real Git repos
+- **Release Strategy**: Replace bash script or run side-by-side? The TUI now ships on its own as
+  prebuilt binaries (0.2.0+); `bash/local-git-branch-cleanup.sh` is still kept alongside
+- **Tool rename**: planned in [RELEASE_DISTRIBUTION.md](RELEASE_DISTRIBUTION.md) section 16; the
+  compatibility approach for existing installs is open in [SELF_UPDATE.md](SELF_UPDATE.md) section
+  5.3
 - **Performance Target**: Max acceptable branches count?
 
 ---
@@ -1041,6 +1070,19 @@ touch src/app.rs src/git.rs src/ui.rs
     - Total code: ~2000 lines of Rust + 1400 lines of documentation
     - Test coverage: 85 tests, 80%+ coverage
     - Ready for production use
+- **2026-03-23**: TUI-12 — edit the search query with the cursor keys
+- **2026-05-23**: ✅ M10 Phase 1 — SQLite PR cache
+- **2026-06-04**: ✅ M10 Phases 2.0 / 2.1 — parallel, then async (`tokio`) PR fetching, 17.6×
+  faster; Nix package moved to `crane`
+- **2026-08-09**: ✅ M11 — Bitbucket Data Center PR integration
+- **2026-08-14 – 2026-08-23**: ✅ M12 — `pr-merged`, `pr-diverged` and `local` statuses, upstream
+  and primary-remote fixes (TUI-13 – TUI-16)
+- **2026-09-26 – 2026-10-12**: ✅ M13 — CI, Cachix, pre-commit hooks, cargo-audit, Dependabot,
+  cross-platform tests; TUI-17 and TUI-18 fixed
+- **2026-10-12**: ✅ M14 — prebuilt binaries and automatic releases (0.2.0, 0.2.1)
+- **2026-10-13**: ✅ M15 — `update` command and update notice (0.3.0 – 0.4.1)
+- **2026-11-19**: ✅ M16 — worktree support (0.6.0 – 0.8.0: TUI-19 – TUI-24); PR cache entries
+  dropped on delete (0.5.0); dependency security fixes (0.4.2); roadmap brought up to date
 
 ---
 
@@ -1073,3 +1115,109 @@ local SQLite database. A cached entry is valid for 1 hour (configurable).
       3.5s for 81 branches (2026-06-04) ✅
 - [ ] Phase 3: `--refresh-cache`, `--cache-stats`, `--cache-ttl` flags (the TUI refresh key shipped
       as `R` with [Live Refresh](LIVE_REFRESH.md))
+- [x] Deleting a branch drops its cached PR entry, in both the branch and worktree views (0.5.0,
+      2026-11-19) ✅
+
+---
+
+### ✅ Milestone 11: Bitbucket Data Center PR Integration
+
+**Status**: ✅ Complete (2026-08-09) **Spec**: [BITBUCKET_SUPPORT.md](BITBUCKET_SUPPORT.md)
+
+- [x] `--bitbucket` / `-b` flag (conflicts with `--github`); token from `BITBUCKET_TOKEN`
+- [x] Base URL, project key and repository slug derived from `origin`, with CLI and env overrides
+      (`--bitbucket-base-url`, `--bitbucket-project`, `--bitbucket-repo`)
+- [x] `src/pr/` provider layer: shared `PrInfo` / `PrState`, `github.rs` (wraps `gh`) and
+      `bitbucket.rs` (REST API over `reqwest`); both use the SQLite cache and concurrent fetching
+- [x] Same PR column, details pane and `o` (open in browser) as with `--github`
+
+---
+
+### ✅ Milestone 12: Classification Refinements
+
+**Status**: ✅ Complete (2026-08-14 – 2026-08-23) **Tracker**: TUI-13 – TUI-16 in
+[ISSUES_AND_FEATURES.md](../ISSUES_AND_FEATURES.md)
+
+- [x] `pr-merged` (`↑`): PR merged, upstream still exists, nothing unpushed — deletable with `-d`
+      (TUI-13); kept across the refresh after a deletion (TUI-14)
+- [x] `pr-diverged` (`↕`): PR merged but the local branch has commits its upstream lacks — needs
+      force
+- [x] `local` (`○`): never pushed (no upstream) — needs force; `gone` shown in green as safe
+- [x] `origin/<branch>` used as the upstream when tracking is not configured (TUI-15)
+- [x] Primary remote resolved instead of hard-coding `origin`
+- [x] Search input no longer panics on multi-byte characters (TUI-16)
+
+---
+
+### ✅ Milestone 13: CI & Code Quality
+
+**Status**: ✅ Complete (2026-09-26 – 2026-10-12)
+
+- [x] GitHub CI for Rust, Nix and Bash tests, run through the flake dev shell, on pull requests
+- [x] Nix builds cached in Cachix (`git-branch-manager` cache advertised in the flake)
+- [x] TUI tests run natively on macOS, Windows and Linux ARM as well as Linux x86
+- [x] Pre-commit hooks: `cargo fmt`, `cargo clippy`, prettier, markdownlint, shellcheck, nixfmt and
+      a Conventional Commits check; CI checks PR commit subjects too
+- [x] Weekly `cargo-audit`, Dependabot for Cargo and GitHub Actions
+- [x] Rust toolchain pinned to the flake's `rustc` version
+
+---
+
+### ✅ Milestone 14: Release & Distribution
+
+**Status**: ✅ Complete (0.2.0, 2026-10-12) **Spec**:
+[RELEASE_DISTRIBUTION.md](RELEASE_DISTRIBUTION.md)
+
+- [x] Versioned independently of the repo, starting at 0.2.0; `CHANGELOG.md` generated by
+      `git-cliff` from Conventional Commits
+- [x] `dist` builds GitHub Releases for Linux, macOS (Intel, and Apple Silicon on `macos-15`) and
+      Windows, with shell and PowerShell installers; the license ships in every archive
+- [x] A release runs automatically after each merge to `main`, skipped for dependency-only and
+      refactor-only merges; every published release is smoke-tested
+- [x] Prebuilt binaries are the primary installation path in the README
+- [ ] Tool rename and repo re-layout (section 16 of the spec)
+
+---
+
+### ✅ Milestone 15: Self-Update
+
+**Status**: ✅ Complete (0.3.0 – 0.4.1, 2026-10-13) **Spec**: [SELF_UPDATE.md](SELF_UPDATE.md)
+
+- [x] `update` command installs the newest release over an installer-installed copy (0.3.0);
+      `update --check` only reports
+- [x] Startup notice when a newer release exists, cached and disabled with `--no-update-check`
+      (0.4.0)
+- [x] Update checks read the releases feed instead of the GitHub API; `update` finds a token in
+      `GH_TOKEN`, `GITHUB_TOKEN` or `gh`, and says when the API rate limit resets (0.4.1)
+- [x] Release smoke tests run `update --check` and update from the previous release
+- [ ] Compatibility for existing installs across the planned rename (spec section 5.3)
+
+---
+
+### ✅ Milestone 16: Worktree Support
+
+**Status**: ✅ Complete (0.6.0 – 0.8.0, 2026-11-19) **Tracker**: TUI-19 – TUI-24 in
+[ISSUES_AND_FEATURES.md](../ISSUES_AND_FEATURES.md)
+
+- [x] Branches checked out in another worktree get `⑂ protected-wt`: not selectable, and the details
+      pane names the worktree (TUI-19, 0.6.0)
+- [x] Worktree view (`--worktrees` / `-w`, `w` to switch): state, branch status, uncommitted changes
+      loaded in the background, PR info, search and Clean / Dirty / Stale / All filters;
+      `--worktrees --cli` prints the table (TUI-20, 0.7.0)
+- [x] Removal with `git worktree remove` / `remove --force` / `prune`, optionally deleting the
+      branch, behind the confirmation modal and dry run (TUI-20)
+- [x] The view starts read-only; `x` turns remove mode on (TUI-23)
+- [x] Changes shown as `M` / `S` / `N`, grouped under Modified / Staged / New in the details pane
+      (TUI-22); the Branch column takes the spare width
+- [x] `y` copies the worktree path, or the branch name in the branch view (TUI-21)
+- [x] `f` keeps the selection, dropping only rows that need force (TUI-24)
+
+---
+
+### Other QA Fixes
+
+Tracked in [ISSUES_AND_FEATURES.md](../ISSUES_AND_FEATURES.md):
+
+- TUI-12 (2026-03-23): edit the search query with left/right arrows, Home/End and Delete
+- TUI-17 (2026-10-09): Down arrow browses branches after accepting an `@author:` suggestion
+- TUI-18 (2026-10-09): Esc must be pressed twice within 1s to quit

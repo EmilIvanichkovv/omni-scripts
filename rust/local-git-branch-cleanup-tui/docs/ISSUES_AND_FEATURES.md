@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 09-10-2026 13:36
+**Last Updated:** 19-11-2026 13:55
 
 ---
 
@@ -30,7 +30,128 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #20: Add a worktree view (`--worktrees`)
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#61](https://github.com/EmilIvanichkovv/omni-scripts/issues/61)
+- **Description:**
+  - The tool only knows about branches. Users who work with many `git worktree`s have no way to see
+    which worktrees exist, what branch each one holds, whether it has uncommitted work, or whether
+    it is stale (branch merged/gone, directory deleted)
+  - There is no worktree code at all: `git.rs` never calls `git worktree list`, and `App`/`ui.rs`
+    are built around a single branch table (`render_branch_list()` + `render_details_pane()`)
+- **Expected Behavior:**
+  - **Entry points:** a new `--worktrees` / `-w` flag starts the TUI in the worktree view; `w`
+    toggles between the branch view and the worktree view in both modes; `--worktrees --cli` prints
+    the worktree table and exits (respects `--dry-run`)
+  - **Header:** same header as the branch view, with a `🌳 Worktrees` mode indicator
+  - **Worktree table** (left, 70%), one row per worktree, main worktree first, then by last
+    activity:
+
+    ```text
+      Name                Branch                    State        Changes  Last commit
+    ▶ ◆ omni-scripts      main                      ◉ current    clean    2 hours ago
+    [ ] qa-tui-session    qa/tui-session-2026-11-19 ✎ dirty      3M 1?    5 minutes ago
+    [ ] fix-login         fix/login                 ✓ merged     clean    3 weeks ago
+    [ ] spike-cache       feat/cache                ↗ gone       clean    2 months ago
+    [ ] review-pr-41      (detached @ 1a2b3c4)      ○ detached   clean    1 month ago
+    [ ] old-experiment    feat/old                  ✗ prunable   -        -
+     🔒 release-hotfix    release/1.2               🔒 locked    clean    4 days ago
+    ```
+
+    - Name = worktree directory name; `◆` marks the main worktree (never removable)
+    - Branch = checked-out branch, or `(detached @ <sha>)`
+    - State, in priority order: `current` (the worktree the tool runs in), `prunable` (directory
+      missing), `locked` (`git worktree lock`), `dirty` (uncommitted or untracked changes), then the
+      branch's own status reused from the branch classifier (`merged`, `pr-merged`, `gone`,
+      `unmerged`, `local`), or `detached`
+    - Changes = compact `git status --porcelain` counts (`M` modified, `S` staged, `?` untracked)
+    - PR column when `--github`/`--bitbucket` is on, same as the branch view
+
+  - **Details pane** (right, 30%): name, full path, branch + upstream + ahead/behind, HEAD sha,
+    author and subject, change counts with the first few changed paths, lock reason, prunable
+    reason, PR info
+  - **Actions** (cleanup-focused, all behind the existing confirmation modal and `--dry-run`):
+    - `Space` selects, `a` selects all clean stale ones, `c` clears; Enter removes the selected ones
+      with `git worktree remove <path>`
+    - Dirty worktrees need force mode (`f`) and are removed with `--force`; locked worktrees, the
+      main worktree and the current worktree are never selectable
+    - Prunable worktrees are removed with `git worktree prune` instead
+    - In the confirmation modal, an opt-in toggle (`b`) also deletes each removed worktree's branch,
+      using the branch view's existing `-d`/`-D` rules
+    - `o` opens the PR in the browser, `y` copies the worktree path to the clipboard (so the user
+      can `cd` into it)
+  - Search (`/`) filters by name, branch or path; filter tabs: All / Clean / Dirty / Stale (merged,
+    gone, prunable)
+  - Help (`?`) and info (`i`) modals get a worktree section; README and usage guide document the
+    flag
+
+- **Actual Behavior:** No worktree support; users have to run `git worktree list` and
+  `git -C <path> status` by hand for each worktree
+- **Proposed Fix:**
+  - `git.rs` (or a new `worktree.rs`): `list_worktrees()` parses `git worktree list --porcelain -z`
+    into
+    `WorktreeInfo { name, path, head, branch, is_main, is_current, locked: Option<String>, prunable: Option<String>, changes, branch_status, pr_info }`.
+    Shares the parser with Issue #19, so #19 should land first
+  - Per-worktree `git -C <path> status --porcelain=v1` is the slow part on large repos: run it
+    concurrently (one thread per worktree, like PR fetching) and show `…` in the Changes column
+    until it arrives
+  - Branch status: reuse `get_branches_with_classification()` output and look up each worktree's
+    branch, so states match the branch view exactly
+  - `app.rs`: add `ViewMode { Branches, Worktrees }` and worktree list state (cursor, selection,
+    scroll, filter) next to the branch state; key handling in `main.rs` dispatches on the view
+  - `ui.rs`: `render_worktree_list()` and `render_worktree_details()` alongside the branch versions,
+    reusing the header, search box, action log, footer and confirmation modal
+  - `--cli` mode: `run_worktree_cli_mode()` prints the table with the same legend style as the
+    branch CLI output
+  - Scope tradeoff: the list + details pane alone is a useful first step; removal actions can follow
+    in a second commit if the issue is split
+
+---
+
+### Issue #19: Protect branches checked out in other worktrees
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#60](https://github.com/EmilIvanichkovv/omni-scripts/issues/60)
+- **Description:**
+  - Branches checked out in another worktree (linked or main) are listed like any other branch:
+    `classify_branch()` only treats the branch of the current working tree (`current_branch`) as
+    undeletable, so a worktree branch gets `merged`/`unmerged`/`gone`/`local` and a checkbox
+  - Git refuses to delete such a branch even with `-D`
+    (`error: cannot delete branch 'x' used by worktree at '<path>'`), so the user can select it,
+    confirm, and only learn from the action log that the delete failed
+  - Nothing in the list or details pane says which worktree holds the branch
+- **Steps to Reproduce:**
+  1. In a repo, run `git worktree add ../wt-feature feature` (any branch other than the current one)
+  2. Start the TUI from the main checkout
+  3. Find `feature` in the list: it shows a merge status and a selectable checkbox
+  4. Select it with Space, press Enter, confirm: the action log shows the `used by worktree` error
+- **Expected Behavior:**
+  - A branch checked out in another worktree gets a new status `protected-wt`: not selectable and
+    not deletable, like `protected`/`current`
+  - The details pane (right column) names the worktree that holds it (worktree name plus path), e.g.
+    `Worktree: wt-feature (/home/me/code/wt-feature)`
+  - The status shows in the legend, the help/info modals, and `--cli` output
+- **Actual Behavior:**
+  - The branch is classified by merge state, can be selected, and deletion fails with a git error
+- **Proposed Fix:**
+  - `git.rs`: parse `git worktree list --porcelain` once per load into a map
+    `branch -> worktree path` (`branch refs/heads/<name>` lines), skipping the current worktree (it
+    is already `Current`) and detached/bare entries
+  - Add `BranchStatus::ProtectedWorktree` (label `protected-wt`, icon e.g. `⊞`) and a
+    `worktree: Option<PathBuf>` field on `BranchInfo`; `classify_branch()` returns it right after
+    the `Current` check; `is_deletable()` returns false for it; sort it next to `Protected`
+  - `ui.rs`: details pane shows `Worktree: <name> (<path>)` where the name is the path's last
+    component; status explanation "Checked out in another worktree"; widen the status column from 12
+    to 15 so `⊞ protected-wt` fits
+  - `main.rs`: add the status to the CLI legend and protected count
+  - Edge cases: a worktree whose directory was removed without `git worktree prune` still blocks
+    deletion in git (`prunable` in porcelain output) and should still be protected, with the details
+    pane noting it is prunable
 
 ---
 
@@ -637,3 +758,5 @@ _No open minor/cosmetic issues._
 | 09-10-2026 | 13:06 | #18   | Reported: Require a double Esc press to quit                           |
 | 09-10-2026 | 13:35 | #17   | Resolved: Close autocomplete dropdown after accepting an author        |
 | 09-10-2026 | 13:36 | #18   | Resolved: Esc must be pressed twice within 1s to quit                  |
+| 19-11-2026 | 13:40 | #19   | Reported: Protect branches checked out in other worktrees              |
+| 19-11-2026 | 13:55 | #20   | Reported: Add a worktree view (`--worktrees`)                          |

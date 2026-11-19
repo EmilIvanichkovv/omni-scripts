@@ -154,7 +154,7 @@ async fn main() -> Result<()> {
     };
 
     // Fetch PR info if a provider is enabled
-    let pr_provider = match provider {
+    let pr_session = match provider {
         None => None,
         Some(provider) => {
             let cache_key = provider.cache_key();
@@ -163,15 +163,17 @@ async fn main() -> Result<()> {
 
             eprintln!("🔗 Fetching {} PR info...", kind.label());
             let t0 = std::time::Instant::now();
+            let mut pr_cache = None;
             let report = match cache::PrCache::open(&cache_key, ttl) {
-                Ok(mut pr_cache) => {
-                    pr_cache
+                Ok(opened) => {
+                    let opened = pr_cache.insert(opened);
+                    opened
                         .evict_stale(std::time::Duration::from_secs(30 * 24 * 60 * 60))
                         .ok();
                     pr::fetch_pr_info_for_branches(
                         provider,
                         &mut branches,
-                        Some(&mut pr_cache),
+                        Some(opened),
                         args.sequential,
                     )
                     .await
@@ -189,13 +191,22 @@ async fn main() -> Result<()> {
             if args.fetch_only {
                 std::process::exit(if report.failed > 0 { 1 } else { 0 });
             }
-            Some(kind)
+            Some(PrSession {
+                kind,
+                cache: pr_cache,
+            })
         }
     };
 
     // Use CLI mode if --cli flag is set
     if args.cli {
-        let result = run_cli_mode(&branches, &trunk, args.force, args.dry_run, pr_provider);
+        let result = run_cli_mode(
+            &branches,
+            &trunk,
+            args.force,
+            args.dry_run,
+            pr_session.as_ref(),
+        );
         // On stderr, so it never mixes with the output scripts read.
         if let Some(message) = update_notice.message() {
             eprintln!("{message}");
@@ -210,7 +221,7 @@ async fn main() -> Result<()> {
         trunk,
         args.force,
         args.dry_run,
-        pr_provider,
+        pr_session,
         update_notice,
     )
 }
@@ -283,6 +294,13 @@ fn print_fetch_summary(report: &pr::FetchReport, elapsed: std::time::Duration) {
     }
 }
 
+/// PR integration chosen for this run. The cache stays open after the startup
+/// fetch so deleting a branch can drop its cached PR entry.
+struct PrSession {
+    kind: pr::PrProviderKind,
+    cache: Option<cache::PrCache>,
+}
+
 /// Run the interactive TUI mode
 fn run_tui_mode(
     branches: Vec<git::BranchInfo>,
@@ -290,7 +308,7 @@ fn run_tui_mode(
     trunk: String,
     force_mode: bool,
     dry_run: bool,
-    pr_provider: Option<pr::PrProviderKind>,
+    pr_session: Option<PrSession>,
     mut update_notice: update_notice::UpdateNotice,
 ) -> Result<()> {
     // Set up terminal
@@ -307,7 +325,10 @@ fn run_tui_mode(
     let mut app = App::new(branches, repo_path, trunk, current_git_user);
     app.force_mode = force_mode;
     app.dry_run = dry_run;
-    app.pr_provider = pr_provider;
+    if let Some(session) = pr_session {
+        app.pr_provider = Some(session.kind);
+        app.pr_cache = session.cache;
+    }
 
     // Main loop
     loop {
@@ -599,8 +620,10 @@ fn run_cli_mode(
     trunk: &str,
     force: bool,
     dry_run: bool,
-    pr_provider: Option<pr::PrProviderKind>,
+    pr_session: Option<&PrSession>,
 ) -> Result<()> {
+    let pr_provider = pr_session.map(|session| session.kind);
+    let pr_cache = pr_session.and_then(|session| session.cache.as_ref());
     println!("🌳 Trunk branch: {}", trunk);
 
     // Show mode indicators
@@ -760,6 +783,10 @@ fn run_cli_mode(
                 let method = if use_force { "-D" } else { "-d" };
                 print_boxed_line(&format!("   ✓ Deleted: {} ({})", branch.name, method));
                 deleted_count += 1;
+                // Best effort: a stale entry only costs a re-fetch later.
+                if let Some(cache) = pr_cache {
+                    cache.invalidate(&branch.name).ok();
+                }
             }
             Err(e) => {
                 print_boxed_line(&format!("   ✗ Failed: {} ({})", branch.name, e));

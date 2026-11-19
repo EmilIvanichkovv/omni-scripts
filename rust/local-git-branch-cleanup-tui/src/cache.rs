@@ -266,7 +266,6 @@ impl PrCache {
     /// Remove the cached entry for a single branch.
     ///
     /// Call this after a branch is deleted so stale data does not accumulate.
-    #[allow(dead_code)]
     pub fn invalidate(&self, branch_name: &str) -> Result<()> {
         self.conn.execute(
             "DELETE FROM cached_prs

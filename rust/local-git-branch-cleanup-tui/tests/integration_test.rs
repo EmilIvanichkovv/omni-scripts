@@ -599,6 +599,55 @@ async fn test_pr_cache_is_created_under_xdg_cache_home() {
     assert!(db.exists(), "expected the PR cache at {}", db.display());
 }
 
+/// Branch names with an entry in the isolated PR cache of `repo`.
+fn cached_branches(repo: &TestRepo) -> Vec<String> {
+    let db = repo.path().join(".cache/omni-scripts/pr-cache.db");
+    let conn = rusqlite::Connection::open(db).expect("open the PR cache");
+    let mut stmt = conn
+        .prepare("SELECT branch_name FROM cached_prs ORDER BY branch_name")
+        .unwrap();
+    stmt.query_map([], |row| row.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
+#[tokio::test]
+async fn test_deleting_a_branch_drops_its_pr_cache_entry() {
+    let repo = TestRepo::new();
+    // The helpers check out `main`; git's default branch name may differ.
+    TestRepo::run_git(repo.path(), &["branch", "-M", "main"]);
+    repo.create_branch("feature/done", "Done work");
+    repo.merge_branch("feature/done");
+    repo.create_branch("feature/kept", "Unmerged work");
+
+    let server = wiremock::MockServer::start().await;
+    mount_valid_repo(&server).await;
+    mount_empty_pr_page(&server).await;
+
+    // First run fills the cache for both branches.
+    let mut cmd = bitbucket_cmd(&repo);
+    cmd.env("BITBUCKET_TOKEN", "fake-test-token");
+    cmd.arg("--fetch-only")
+        .args(bitbucket_mock_args(&server.uri()));
+    cmd.assert().success();
+    let cached = cached_branches(&repo);
+    assert!(cached.contains(&"feature/done".to_string()), "{cached:?}");
+    assert!(cached.contains(&"feature/kept".to_string()), "{cached:?}");
+
+    // Second run deletes the merged branch; the unmerged one is skipped.
+    let mut cmd = bitbucket_cmd(&repo);
+    cmd.env("BITBUCKET_TOKEN", "fake-test-token");
+    cmd.arg("--cli").args(bitbucket_mock_args(&server.uri()));
+    cmd.write_stdin("y\n");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted: feature/done"));
+    let cached = cached_branches(&repo);
+    assert!(!cached.contains(&"feature/done".to_string()), "{cached:?}");
+    assert!(cached.contains(&"feature/kept".to_string()), "{cached:?}");
+}
+
 #[tokio::test]
 async fn test_bitbucket_fetch_only_exits_nonzero_on_lookup_failure() {
     let repo = TestRepo::new();

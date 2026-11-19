@@ -3,6 +3,13 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.4.2 - 19-11-2026
+
+### Bug fixes
+
+- **deps:** Bump rustls, rustls-webpki and webpki-root-certs past security advisories
+- **deps:** Move rusqlite to 0.43 for the bundled SQLite fix
+
 ## 0.4.1 - 13-10-2026
 
 ### Bug fixes

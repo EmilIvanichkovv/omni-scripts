@@ -198,7 +198,13 @@ pub struct App {
     other_nav: NavState,
     /// One-off message shown in the footer until the next key press
     pub flash: Option<String>,
+    /// Whether the worktree view can select and remove worktrees (`x`).
+    /// Off on every launch: the view starts as a read-only explorer.
+    pub worktree_remove_mode: bool,
 }
+
+/// Footer hint shown when a removal key is pressed while removal is off
+pub const REMOVAL_OFF_HINT: &str = "Removal is off (press x to turn it on)";
 
 impl App {
     pub fn new(
@@ -251,6 +257,7 @@ impl App {
             worktrees: None,
             other_nav: NavState::default(),
             flash: None,
+            worktree_remove_mode: false,
         }
     }
 
@@ -1064,8 +1071,32 @@ impl App {
         }
     }
 
+    /// Turn worktree remove mode on or off (`x`). Turning it off clears the
+    /// worktree selection, so nothing stays armed for removal.
+    pub fn toggle_worktree_remove_mode(&mut self) {
+        self.worktree_remove_mode = !self.worktree_remove_mode;
+        if !self.worktree_remove_mode {
+            if let Some(wt) = self.worktrees.as_mut() {
+                wt.selected.clear();
+                wt.delete_branches = false;
+            }
+        }
+    }
+
+    /// Whether worktree removal is on; when it is off, show the footer hint
+    /// explaining how to turn it on
+    pub fn require_worktree_remove_mode(&mut self) -> bool {
+        if !self.worktree_remove_mode {
+            self.flash = Some(REMOVAL_OFF_HINT.to_string());
+        }
+        self.worktree_remove_mode
+    }
+
     /// Toggle selection of the worktree under the cursor
     pub fn toggle_worktree_at_cursor(&mut self) {
+        if !self.require_worktree_remove_mode() {
+            return;
+        }
         let path = self.selected_worktree().map(|w| w.entry.path.clone());
         let force = self.force_mode;
         if let (Some(path), Some(wt)) = (path, self.worktrees.as_mut()) {
@@ -1075,15 +1106,33 @@ impl App {
 
     /// Select (or deselect) all clean stale worktrees
     pub fn select_all_stale_worktrees(&mut self) {
+        if !self.require_worktree_remove_mode() {
+            return;
+        }
         let force = self.force_mode;
         if let Some(wt) = self.worktrees.as_mut() {
             wt.select_all_clean_stale(force);
         }
     }
 
+    /// Enter in the worktree view: open the removal confirmation for the
+    /// selected worktrees
+    pub fn request_worktree_removal(&mut self) {
+        if !self.require_worktree_remove_mode() || self.selected_count() == 0 {
+            return;
+        }
+        if let Some(wt) = self.worktrees.as_mut() {
+            wt.delete_branches = false;
+        }
+        self.show_confirmation = true;
+    }
+
     /// Remove the selected worktrees (or describe it in dry-run mode),
     /// optionally deleting their branches, then reload both lists
     pub fn remove_selected_worktrees(&mut self) {
+        if !self.worktree_remove_mode {
+            return;
+        }
         let Some(wt) = self.worktrees.as_mut() else {
             return;
         };
@@ -1988,11 +2037,69 @@ mod tests {
     }
 
     #[test]
+    fn worktree_view_is_read_only_until_remove_mode() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        assert!(!app.worktree_remove_mode);
+
+        app.toggle_worktree_at_cursor();
+        assert_eq!(app.selected_count(), 0);
+        assert_eq!(app.flash.as_deref(), Some(REMOVAL_OFF_HINT));
+
+        app.flash = None;
+        app.select_all_stale_worktrees();
+        assert_eq!(app.selected_count(), 0);
+        assert_eq!(app.flash.as_deref(), Some(REMOVAL_OFF_HINT));
+
+        app.flash = None;
+        app.request_worktree_removal();
+        assert!(!app.show_confirmation);
+        assert_eq!(app.flash.as_deref(), Some(REMOVAL_OFF_HINT));
+    }
+
+    #[test]
+    fn remove_mode_enables_selection_and_turning_it_off_clears_it() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        app.toggle_worktree_remove_mode();
+        assert!(app.require_worktree_remove_mode());
+        assert_eq!(app.flash, None);
+
+        app.select_all_stale_worktrees();
+        assert_eq!(app.selected_count(), 1); // /wt/a is clean and merged
+        app.request_worktree_removal();
+        assert!(app.show_confirmation);
+        app.show_confirmation = false;
+
+        app.worktrees.as_mut().unwrap().delete_branches = true;
+        app.toggle_worktree_remove_mode();
+        assert!(!app.worktree_remove_mode);
+        assert_eq!(app.selected_count(), 0);
+        assert!(!app.worktrees.as_ref().unwrap().delete_branches);
+    }
+
+    #[test]
+    fn remove_selected_worktrees_does_nothing_while_removal_is_off() {
+        let mut app = create_test_app_with_worktrees();
+        app.toggle_view();
+        app.toggle_worktree_remove_mode();
+        app.select_all_stale_worktrees();
+        // Selection survives only while on; force it back to simulate a
+        // stale confirmation after removal was turned off
+        app.worktree_remove_mode = false;
+        app.dry_run = true;
+        app.remove_selected_worktrees();
+        assert!(app.action_log.is_empty());
+        assert_eq!(app.selected_count(), 1);
+    }
+
+    #[test]
     fn test_selection_is_per_view() {
         let mut app = create_test_app_with_worktrees();
         app.toggle_selection(1);
         app.toggle_view();
         assert_eq!(app.selected_count(), 0);
+        app.toggle_worktree_remove_mode();
         app.toggle_worktree_at_cursor();
         assert_eq!(app.selected_count(), 1);
 

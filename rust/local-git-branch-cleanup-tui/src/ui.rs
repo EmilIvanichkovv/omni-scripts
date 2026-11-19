@@ -139,6 +139,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         ""
     };
 
+    let remove_indicator = if app.view == ViewMode::Worktrees && app.worktree_remove_mode {
+        " │ 🗑 REMOVE"
+    } else {
+        ""
+    };
+
     // Sort indicator - show when not using default sort
     let sort_indicator = if app.sort_mode != SortMode::Status && app.view == ViewMode::Branches {
         format!(" │ 🔀 {}", app.sort_mode.label())
@@ -164,6 +170,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
             view_indicator,
             Style::default()
                 .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            remove_indicator,
+            Style::default()
+                .fg(COLOR_DANGER)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(&selected_info, Style::default().fg(COLOR_SELECTED)),
@@ -1992,7 +2004,7 @@ fn render_info_modal(frame: &mut Frame, view: ViewMode) {
 
     // Calculate modal size
     let modal_width = 65.min(area.width - 4);
-    let modal_height = if view == ViewMode::Worktrees { 25 } else { 24 }.min(area.height - 4);
+    let modal_height = if view == ViewMode::Worktrees { 26 } else { 24 }.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -2229,6 +2241,9 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 (" ◆", Style::default().fg(COLOR_ACCENT))
             } else if wt.is_locked() {
                 (" 🔒", Style::default().fg(COLOR_MUTED))
+            } else if !app.worktree_remove_mode {
+                // Read-only explorer: no checkboxes until `x` turns removal on
+                ("   ", Style::default())
             } else if is_checked {
                 ("[✓]", Style::default().fg(COLOR_SELECTED))
             } else if wt.is_selectable(app.force_mode) {
@@ -2671,27 +2686,38 @@ fn worktree_footer_hints(app: &App) -> Line<'static> {
         }
     };
 
-    Line::from(vec![
+    let mut spans = vec![
         Span::styled(" ", Style::default()),
         key("↑↓"),
         text(" nav  "),
-        key("Space"),
-        text(" sel  "),
-        key("a"),
-        text(" stale  "),
-        key("c"),
-        text(" clr  "),
-        Span::styled("f force", toggle_style(app.force_mode, COLOR_DANGER)),
-        text("  "),
-        Span::styled("d dry", toggle_style(app.dry_run, COLOR_WARNING)),
-        text("  "),
+    ];
+    if app.worktree_remove_mode {
+        spans.extend([
+            key("Space"),
+            text(" sel  "),
+            key("a"),
+            text(" stale  "),
+            key("c"),
+            text(" clr  "),
+            Span::styled("f force", toggle_style(app.force_mode, COLOR_DANGER)),
+            text("  "),
+            Span::styled("d dry", toggle_style(app.dry_run, COLOR_WARNING)),
+            text("  "),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(COLOR_SELECTED)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            text(" remove  "),
+        ]);
+    }
+    spans.extend([
         Span::styled(
-            "Enter",
-            Style::default()
-                .fg(COLOR_SELECTED)
-                .add_modifier(Modifier::BOLD),
+            "x remove mode",
+            toggle_style(app.worktree_remove_mode, COLOR_DANGER),
         ),
-        text(" remove  "),
+        text("  "),
         key("y"),
         text(" copy path  "),
         key("/"),
@@ -2702,7 +2728,8 @@ fn worktree_footer_hints(app: &App) -> Line<'static> {
         text(" help  "),
         key("q"),
         text(" quit"),
-    ])
+    ]);
+    Line::from(spans)
 }
 
 /// Body of the confirmation modal in the worktree view
@@ -2869,7 +2896,8 @@ fn worktree_help_lines() -> Vec<Line<'static>> {
         help_row("4 / F4", "All worktrees", COLOR_SUCCESS),
         help_row("Tab", "Cycle through filters", COLOR_SUCCESS),
         Line::from(""),
-        help_heading("  Selection"),
+        help_heading("  Selection (removal is off until x)"),
+        help_row("x", "Turn remove mode on/off (off at start)", COLOR_DANGER),
         help_row(
             "Space",
             "Toggle selection for current worktree",
@@ -2934,7 +2962,8 @@ fn worktree_info_lines() -> Vec<Line<'static>> {
         help_heading("  Worktree View"),
         Line::from(""),
         muted("  One row per git worktree: main worktree (◆) first, then by"),
-        muted("  last activity. Locked, main and current worktrees are never"),
+        muted("  last activity. Read-only at start: press x to turn on remove"),
+        muted("  mode. Locked, main and current worktrees are never"),
         muted("  removed."),
         Line::from(""),
         Line::from(Span::styled(
@@ -3190,6 +3219,22 @@ mod tests {
         let staged = text.find("Staged (1)").expect("Staged group");
         let new = text.find("New (1)").expect("New group");
         assert!(modified < staged && staged < new);
+
+        // Read-only at start: no checkboxes, browse hints, no REMOVE badge
+        assert!(!text.contains("[ ]"));
+        assert!(!text.contains("REMOVE"));
+        assert!(text.contains("x remove mode"));
+        assert!(!text.contains("Space sel"));
+
+        // x turns removal on: badge, checkboxes and removal hints appear
+        app.toggle_worktree_remove_mode();
+        let text = screen_text(&mut app);
+        assert!(text.contains("🗑 REMOVE"));
+        assert!(text.contains("Space sel"));
+        // The fixture's only removable row is dirty: a checkbox in force mode
+        app.force_mode = true;
+        assert!(screen_text(&mut app).contains("[ ]"));
+        app.force_mode = false;
 
         // fix-login is dirty: selectable only in force mode
         app.toggle_worktree_at_cursor();

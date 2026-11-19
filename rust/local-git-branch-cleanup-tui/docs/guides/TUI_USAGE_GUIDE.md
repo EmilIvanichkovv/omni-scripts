@@ -410,11 +410,12 @@ The branch list follows the repository while the TUI is open.
 - **`r`:** reload the branch list now.
 - **`R`:** full sync: `git fetch --prune` on the primary remote, reload, and with `--github` /
   `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it).
-- **`--auto-sync [MINUTES]`:** run that full sync every MINUTES (5 when no value is given, at least
-  1), so merged PRs and branches deleted on the remote show up without pressing `R`. The first sync
-  runs one interval after startup, and pressing `R` restarts the clock. Off by default: without it
-  the TUI only touches the network after startup when you press `R`. Each sync costs one PR lookup
-  per branch, so with many branches keep the interval in minutes, not one.
+- **Every 5 minutes:** the same full sync runs on a timer, so merged PRs and branches deleted on the
+  remote show up without pressing `R`. The first one runs one interval after startup, and pressing
+  `R` restarts the clock. `--auto-sync-interval <MINUTES>` (at least 1) changes the interval and
+  `--no-auto-sync` turns it off. Each sync costs one PR lookup per branch, so with many branches or
+  a tight API quota, use a longer interval. A fetch error from an automatic sync is shown once, not
+  after every sync, until a fetch succeeds or the error changes.
 
 What stays put across a reload: the selection (by branch name; a branch that is gone or no longer
 selectable leaves it), the cursor (same branch, or the same row if that branch is gone), search,

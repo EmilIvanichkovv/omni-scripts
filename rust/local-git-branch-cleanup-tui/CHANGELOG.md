@@ -3,6 +3,19 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.8.0 - 19-11-2026
+
+### Features
+
+- **tui:** Copy the branch name under the cursor with y
+- **tui:** Show new files as N and group changes in the worktree details
+- **tui:** Make the worktree view read-only until x turns removal on
+
+### Bug fixes
+
+- **tui:** Keep the selection when toggling force mode
+- **tui:** Give the worktree table's branch column the spare width
+
 ## 0.7.0 - 19-11-2026
 
 ### Features

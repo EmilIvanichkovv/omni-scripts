@@ -476,19 +476,7 @@ impl App {
         match self.sort_mode {
             SortMode::Status => {
                 // Original sort: protected/current first, then by status
-                self.branches.sort_by(|a, b| {
-                    let order = |s: &BranchStatus| match s {
-                        BranchStatus::Current => 0,
-                        BranchStatus::Protected => 1,
-                        BranchStatus::SafeMerged => 2,
-                        BranchStatus::PrMerged => 3,
-                        BranchStatus::PrDiverged => 4,
-                        BranchStatus::GoneUpstream => 5,
-                        BranchStatus::Unmerged => 6,
-                        BranchStatus::Local => 7,
-                    };
-                    order(&a.status).cmp(&order(&b.status))
-                });
+                self.branches.sort_by_key(|b| b.status.sort_rank());
             }
             SortMode::Name => {
                 // Sort alphabetically by branch name (case-insensitive)
@@ -947,6 +935,8 @@ mod tests {
             branch_created_timestamp: 0,
             branch_author: "Test Author".to_string(),
             pr_info: None,
+            worktree: None,
+            worktree_shadowed_status: None,
         }
     }
 
@@ -1348,6 +1338,8 @@ mod tests {
             branch_created_timestamp: 0,
             branch_author: author.to_string(),
             pr_info: None,
+            worktree: None,
+            worktree_shadowed_status: None,
         }
     }
 

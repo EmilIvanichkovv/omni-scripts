@@ -356,6 +356,8 @@ mod tests {
             branch_created_timestamp: 0,
             branch_author: "Test".to_string(),
             pr_info: None,
+            worktree: None,
+            worktree_shadowed_status: None,
         }
     }
 

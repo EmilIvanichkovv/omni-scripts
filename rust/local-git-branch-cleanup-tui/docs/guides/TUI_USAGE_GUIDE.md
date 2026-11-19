@@ -104,14 +104,14 @@ When search is active, the search box appears below the filters. The search is c
 
 **Available Sort Modes:**
 
-| Mode       | Label     | Description                                                                                         |
-| ---------- | --------- | --------------------------------------------------------------------------------------------------- |
-| Status     | (default) | Groups by branch status (current, protected, merged, pr-merged, pr-diverged, gone, unmerged, local) |
-| Name       | Name      | Alphabetical by branch name (case-insensitive)                                                      |
-| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                                                |
-| Activity ↑ | Active ↑  | Least recently active branches first                                                                |
-| Created ↓  | Created ↓ | Most recently created branches first                                                                |
-| Created ↑  | Created ↑ | Oldest branches first (by creation date)                                                            |
+| Mode       | Label     | Description                                                                                                       |
+| ---------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| Status     | (default) | Groups by branch status (current, protected, protected-wt, merged, pr-merged, pr-diverged, gone, unmerged, local) |
+| Name       | Name      | Alphabetical by branch name (case-insensitive)                                                                    |
+| Activity ↓ | Active ↓  | Most recently active branches first (by last commit)                                                              |
+| Activity ↑ | Active ↑  | Least recently active branches first                                                                              |
+| Created ↓  | Created ↓ | Most recently created branches first                                                                              |
+| Created ↑  | Created ↑ | Oldest branches first (by creation date)                                                                          |
 
 When a non-default sort mode is active, the header displays a sort indicator: `🔀 Active ↓`
 
@@ -275,16 +275,17 @@ it found. Delete it to check again on the next run.
 
 Each branch displays a status icon indicating its state:
 
-| Icon | Status      | Description                                           | Deletable?             |
-| ---- | ----------- | ----------------------------------------------------- | ---------------------- |
-| ✓    | Merged      | Fully merged into trunk                               | ✅ Safe (`-d`)         |
-| ↑    | PR-Merged   | PR merged (squash/rebase), remote branch still exists | ✅ Safe (`-d`)         |
-| ↕   | PR-Diverged | PR merged, local has commits the remote doesn't       | ⚠️ Requires force mode |
-| ↗   | Gone        | Remote tracking branch was deleted                    | ✅ Safe (`-d`)         |
-| !    | Unmerged    | Has commits not in trunk                              | ⚠️ Requires force mode |
-| ○    | Local       | Never pushed to the remote; exists only locally       | ⚠️ Requires force mode |
-| ⊘    | Protected   | main/master/develop branches                          | ❌ Never               |
-| ◉    | Current     | Currently checked out branch                          | ❌ Never               |
+| Icon | Status       | Description                                           | Deletable?             |
+| ---- | ------------ | ----------------------------------------------------- | ---------------------- |
+| ✓    | Merged       | Fully merged into trunk                               | ✅ Safe (`-d`)         |
+| ↑    | PR-Merged    | PR merged (squash/rebase), remote branch still exists | ✅ Safe (`-d`)         |
+| ↕   | PR-Diverged  | PR merged, local has commits the remote doesn't       | ⚠️ Requires force mode |
+| ↗   | Gone         | Remote tracking branch was deleted                    | ✅ Safe (`-d`)         |
+| !    | Unmerged     | Has commits not in trunk                              | ⚠️ Requires force mode |
+| ○    | Local        | Never pushed to the remote; exists only locally       | ⚠️ Requires force mode |
+| ⊘    | Protected    | main/master/develop branches                          | ❌ Never               |
+| ⊞    | Protected-WT | Checked out in another worktree (main or linked)      | ❌ Never               |
+| ◉    | Current      | Currently checked out branch                          | ❌ Never               |
 
 ---
 
@@ -393,6 +394,8 @@ The right panel (30% of screen) shows detailed information about the highlighted
 
 - **Branch name** — Full branch name
 - **Status** — Explanation (e.g., "Merged into main")
+- **Worktree** — For `protected-wt` branches: the worktree holding the branch as `<name> (<path>)`,
+  a note when its directory is missing (prunable), and the status the branch would otherwise have
 - **Upstream** — Remote tracking branch, or "None"
 - **Ahead/Behind** — Commit differences with upstream
 - **Last Commit** — SHA, author, and message
@@ -408,7 +411,8 @@ category:
 
 - **Navigation** — Arrow keys, j/k
 - **Filters** — 1-4, F1-F4, Tab
-- **Selection** — Space, a (all), c (clear)
+- **Selection** — Space, a (all), c (clear), and which statuses are not selectable (protected,
+  protected-wt, current)
 - **Actions** — Enter (delete), f (force), d (dry run)
 - **Other** — i (info), ? (help), q (quit)
 
@@ -422,7 +426,7 @@ Press `i` at any time to display information about the tool:
 
 - Tool name and description
 - Explanation of all branch status types (merged, pr-merged, pr-diverged, gone, unmerged, local,
-  protected, current)
+  protected, protected-wt, current)
 - Hint to press `?` for keyboard shortcuts
 
 Press any key to close the info modal.
@@ -484,6 +488,9 @@ Press any key to close the info modal.
 
 - Check if it's the current branch (◉ icon) — switch to another branch first
 - Check if it's protected (⊘ icon) — main/master/develop cannot be deleted
+- Check if it's checked out in another worktree (⊞ icon) — the details pane shows
+  `Worktree: <name> (<path>)`; switch that worktree to another branch or remove it
+  (`git worktree remove <path>`, or `git worktree prune` when it is marked prunable) first
 - Check if it's unmerged (! icon) — enable force mode with `f`
 
 ### Can't select a branch

@@ -655,7 +655,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(4),  // Checkbox
             Constraint::Min(15),    // Branch name
             Constraint::Length(15), // Last commit
-            Constraint::Length(12), // Status (icon + label)
+            Constraint::Length(15), // Status (icon + label)
             Constraint::Length(10), // PR status
         ]
     } else {
@@ -664,7 +664,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(4),  // Checkbox
             Constraint::Min(15),    // Branch name
             Constraint::Length(15), // Last commit
-            Constraint::Length(12), // Status (icon + label)
+            Constraint::Length(15), // Status (icon + label)
         ]
     };
 
@@ -723,6 +723,8 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("local  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
+        Span::styled("⊞ ", Style::default().fg(COLOR_DANGER)),
+        Span::styled("protected-wt  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
     ]);
@@ -785,6 +787,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
             BranchStatus::Unmerged => "Has unmerged commits",
             BranchStatus::Local => "Never pushed; exists only locally",
             BranchStatus::Protected => "Protected branch",
+            BranchStatus::ProtectedWorktree => "Checked out in another worktree",
             BranchStatus::Current => "Currently checked out",
         };
         lines.push(Line::from(vec![
@@ -797,6 +800,39 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
             ),
         ]));
         lines.push(Line::from(""));
+
+        // Worktree holding the branch (git refuses to delete it)
+        if let Some(path) = &branch.worktree {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.to_string_lossy().into_owned());
+            lines.push(Line::from(vec![
+                Span::styled("  Worktree: ", Style::default().fg(COLOR_MUTED)),
+                Span::styled(
+                    format!("{} ({})", name, path.display()),
+                    Style::default().fg(COLOR_CURRENT),
+                ),
+            ]));
+            if !path.exists() {
+                lines.push(Line::from(vec![Span::styled(
+                    "  Prunable: directory missing, run `git worktree prune`",
+                    Style::default()
+                        .fg(COLOR_WARNING)
+                        .add_modifier(Modifier::ITALIC),
+                )]));
+            }
+            if let Some(shadowed) = &branch.worktree_shadowed_status {
+                lines.push(Line::from(vec![
+                    Span::styled("  Otherwise: ", Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        format!("{} {}", shadowed.icon(), shadowed.label()),
+                        Style::default().fg(get_status_color(shadowed)),
+                    ),
+                ]));
+            }
+            lines.push(Line::from(""));
+        }
 
         // Upstream info
         if let Some(upstream) = &branch.upstream {
@@ -1377,6 +1413,7 @@ fn get_status_color(status: &BranchStatus) -> Color {
         BranchStatus::Unmerged => COLOR_WARNING,
         BranchStatus::Local => COLOR_LOCAL,
         BranchStatus::Protected => COLOR_DANGER,
+        BranchStatus::ProtectedWorktree => COLOR_DANGER,
         BranchStatus::Current => COLOR_CURRENT,
     }
 }
@@ -1685,6 +1722,10 @@ fn render_help_modal(frame: &mut Frame) {
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
+        Line::from(vec![Span::styled(
+            "    Not selectable: ⊘ protected  ⊞ protected-wt  ◉ current",
+            Style::default().fg(COLOR_MUTED),
+        )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "  Actions",
@@ -1818,7 +1859,7 @@ fn render_info_modal(frame: &mut Frame) {
 
     // Calculate modal size
     let modal_width = 65.min(area.width - 4);
-    let modal_height = 22.min(area.height - 4);
+    let modal_height = 24.min(area.height - 4);
 
     let modal_area = Rect {
         x: (area.width - modal_width) / 2,
@@ -1905,6 +1946,13 @@ fn render_info_modal(frame: &mut Frame) {
             ),
         ]),
         Line::from(vec![
+            Span::styled("    ⊞ protected-wt ", Style::default().fg(COLOR_DANGER)),
+            Span::styled(
+                "Checked out in another worktree",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
             Span::styled("    ◉ current   ", Style::default().fg(COLOR_CURRENT)),
             Span::styled(
                 "Currently checked out branch",
@@ -1951,6 +1999,7 @@ fn render_info_modal(frame: &mut Frame) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::BranchInfo;
     use ratatui::{backend::TestBackend, Terminal};
 
     fn footer_text(app: &App) -> String {
@@ -1974,5 +2023,76 @@ mod tests {
 
         app.update_notice = Some("Update available: 9.9.9 (run: x update)".into());
         assert!(footer_text(&app).contains("Update available: 9.9.9 (run: x update)"));
+    }
+
+    fn details_text(app: &App) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(250, 30)).unwrap();
+        terminal
+            .draw(|frame| render_details_pane(frame, app, frame.area()))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn worktree_branch(path: &str) -> BranchInfo {
+        BranchInfo {
+            name: "feature".to_string(),
+            upstream: None,
+            last_commit_relative: "1 day ago".to_string(),
+            status: BranchStatus::ProtectedWorktree,
+            last_commit_sha: "abc1234".to_string(),
+            last_commit_author: "Test".to_string(),
+            last_commit_message: "test".to_string(),
+            ahead: None,
+            behind: None,
+            last_activity_timestamp: 0,
+            branch_created_timestamp: 0,
+            branch_author: "Test".to_string(),
+            pr_info: None,
+            worktree: Some(std::path::PathBuf::from(path)),
+            worktree_shadowed_status: Some(BranchStatus::SafeMerged),
+        }
+    }
+
+    #[test]
+    fn details_pane_names_the_worktree_holding_the_branch() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("wt-feature");
+        std::fs::create_dir(&path).unwrap();
+        let path = path.to_string_lossy().into_owned();
+        let app = App::new(
+            vec![worktree_branch(&path)],
+            "/repo".into(),
+            "main".into(),
+            String::new(),
+        );
+
+        let text = details_text(&app);
+        assert!(text.contains("protected-wt"));
+        assert!(text.contains("Checked out in another worktree"));
+        assert!(text.contains(&format!("Worktree: wt-feature ({})", path)));
+        assert!(text.contains("Otherwise: ✓ merged"));
+        assert!(!text.contains("Prunable"));
+    }
+
+    #[test]
+    fn details_pane_notes_a_prunable_worktree() {
+        let app = App::new(
+            vec![worktree_branch("/nonexistent/wt-gone")],
+            "/repo".into(),
+            "main".into(),
+            String::new(),
+        );
+
+        let text = details_text(&app);
+        assert!(text.contains("Worktree: wt-gone (/nonexistent/wt-gone)"));
+        assert!(text.contains("Prunable: directory missing"));
     }
 }

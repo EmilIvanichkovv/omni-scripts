@@ -223,6 +223,8 @@ pub struct App {
     pub refresher: Refresher,
     /// When the last reload changed the list, and that time as HH:MM:SS
     pub last_reload: Option<(Instant, String)>,
+    /// Error of the last failed `git fetch`, until one succeeds
+    last_fetch_error: Option<String>,
 }
 
 /// Footer hint shown when a removal key is pressed while removal is off
@@ -274,6 +276,7 @@ impl App {
             worktree_remove_mode: false,
             refresher: Refresher::default(),
             last_reload: None,
+            last_fetch_error: None,
         }
     }
 
@@ -992,6 +995,7 @@ impl App {
                 fetch_error,
                 prs_refetched,
                 pr_failures,
+                automatic,
                 ..
             }) => {
                 self.replace_branches_with(branches, !prs_refetched);
@@ -1000,9 +1004,9 @@ impl App {
                     Instant::now(),
                     chrono::Local::now().format("%H:%M:%S").to_string(),
                 ));
-                if let Some(error) = fetch_error {
-                    self.flash = Some(format!("Fetch failed: {}", error));
-                } else if pr_failures > 0 {
+                let fetch_failed = fetch_error.is_some();
+                self.report_fetch_error(fetch_error, automatic);
+                if !fetch_failed && pr_failures > 0 {
                     self.flash = Some(format!("PR lookup failed for {} branches", pr_failures));
                 }
             }
@@ -1011,6 +1015,21 @@ impl App {
             }
             // poll() keeps progress and unchanged checks to itself
             Some(JobResult::Progress { .. } | JobResult::Unchanged { .. }) | None => {}
+        }
+    }
+
+    /// Show a failed fetch in the footer. An automatic sync does not repeat
+    /// the error already shown (a remote that needs credentials would
+    /// otherwise flash it every few minutes); `R` always shows it.
+    fn report_fetch_error(&mut self, error: Option<String>, automatic: bool) {
+        match error {
+            Some(error) => {
+                if !automatic || self.last_fetch_error.as_ref() != Some(&error) {
+                    self.flash = Some(format!("Fetch failed: {}", error));
+                }
+                self.last_fetch_error = Some(error);
+            }
+            None => self.last_fetch_error = None,
         }
     }
 
@@ -2325,6 +2344,27 @@ mod tests {
         assert_eq!(names.len(), 2);
         assert!(names.contains(&"feature/merged"));
         assert!(names.contains(&"feature/gone"));
+    }
+
+    #[test]
+    fn automatic_syncs_do_not_repeat_a_fetch_error() {
+        let mut app = create_test_app();
+        let auth = || Some("authentication required".to_string());
+
+        app.report_fetch_error(auth(), true);
+        assert!(app.flash.is_some(), "the first failure is shown");
+        app.flash = None;
+
+        app.report_fetch_error(auth(), true);
+        assert!(app.flash.is_none(), "the same error is not repeated");
+
+        app.report_fetch_error(auth(), false);
+        assert!(app.flash.is_some(), "R always shows it");
+        app.flash = None;
+
+        app.report_fetch_error(None, true);
+        app.report_fetch_error(auth(), true);
+        assert!(app.flash.is_some(), "shown again after a success");
     }
 
     #[test]

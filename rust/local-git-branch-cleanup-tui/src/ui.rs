@@ -2151,6 +2151,19 @@ fn render_info_modal(frame: &mut Frame, view: ViewMode) {
 // ---------------------------------------------------------------------------
 
 /// Get the color for a worktree state
+/// Width of the worktree table's Name column: the longest worktree name in
+/// display columns, at least the "Name" header and at most
+/// `MAX_WORKTREE_NAME_WIDTH` (longer names are cut off)
+fn worktree_name_width(worktrees: &[crate::worktree_view::WorktreeInfo]) -> u16 {
+    const MAX_WORKTREE_NAME_WIDTH: usize = 30;
+    let longest = worktrees
+        .iter()
+        .map(|w| Line::from(w.name()).width())
+        .max()
+        .unwrap_or(0);
+    longest.clamp("Name".len(), MAX_WORKTREE_NAME_WIDTH) as u16
+}
+
 fn get_worktree_state_color(state: &WorktreeState) -> Color {
     match state {
         WorktreeState::Current => COLOR_CURRENT,
@@ -2316,14 +2329,21 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
+    // Name is sized to the longest worktree name (over all worktrees, so it
+    // does not jump when filters change); Branch takes all remaining space,
+    // since branch names are usually much longer than directory names
+    let name_width = app
+        .worktrees
+        .as_ref()
+        .map_or(0, |wt| worktree_name_width(&wt.worktrees));
     let mut widths = vec![
-        Constraint::Length(2),  // Cursor
-        Constraint::Length(4),  // Checkbox / main / locked marker
-        Constraint::Min(12),    // Name
-        Constraint::Min(16),    // Branch
-        Constraint::Length(14), // State
-        Constraint::Length(10), // Changes
-        Constraint::Length(15), // Last commit
+        Constraint::Length(2),          // Cursor
+        Constraint::Length(4),          // Checkbox / main / locked marker
+        Constraint::Length(name_width), // Name
+        Constraint::Fill(1),            // Branch
+        Constraint::Length(14),         // State
+        Constraint::Length(10),         // Changes
+        Constraint::Length(15),         // Last commit
     ];
     if show_pr {
         widths.push(Constraint::Length(10));
@@ -3198,6 +3218,27 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect()
+    }
+
+    #[test]
+    fn worktree_name_column_fits_the_longest_name_within_limits() {
+        let app = worktree_app();
+        let worktrees = &app.worktrees.as_ref().unwrap().worktrees;
+        assert_eq!(worktree_name_width(worktrees), 9); // "fix-login"
+        assert_eq!(worktree_name_width(&[]), 4); // the "Name" header
+
+        let mut long = worktrees[1].clone();
+        long.entry.path = format!("/wt/{}", "x".repeat(40)).into();
+        assert_eq!(worktree_name_width(&[long]), 30);
+    }
+
+    #[test]
+    fn worktree_branch_column_gets_the_spare_width() {
+        let mut app = worktree_app();
+        let long_branch = "feature/a-really-long-branch-name-for-the-table";
+        app.worktrees.as_mut().unwrap().worktrees[1].entry.branch = Some(long_branch.to_string());
+        let text = screen_text(&mut app);
+        assert!(text.contains(long_branch), "branch name was cut off");
     }
 
     #[test]

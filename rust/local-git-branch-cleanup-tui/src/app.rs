@@ -1,5 +1,6 @@
 // Application state management
 
+use crate::cache::PrCache;
 use crate::git::{self, BranchInfo, BranchStatus};
 use crate::pr::PrProviderKind;
 use std::collections::HashSet;
@@ -159,6 +160,8 @@ pub struct App {
     pub show_suggestions: bool,
     /// Which PR provider is enabled (None = PR integration disabled)
     pub pr_provider: Option<PrProviderKind>,
+    /// PR cache opened at startup; deleting a branch drops its entry
+    pub pr_cache: Option<PrCache>,
     /// "Update available" line for the footer, when a newer release is known
     pub update_notice: Option<String>,
 }
@@ -208,6 +211,7 @@ impl App {
             suggestion_index: None,
             show_suggestions: false,
             pr_provider: None,
+            pr_cache: None,
             update_notice: None,
         }
     }
@@ -856,6 +860,10 @@ impl App {
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {
                     let method = if use_force { "-D" } else { "-d" };
+                    // Best effort: a stale entry only costs a re-fetch later.
+                    if let Some(cache) = &self.pr_cache {
+                        cache.invalidate(branch_name).ok();
+                    }
                     self.action_log.push(ActionLogEntry {
                         branch_name: branch_name.clone(),
                         success: true,

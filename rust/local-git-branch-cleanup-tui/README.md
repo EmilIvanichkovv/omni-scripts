@@ -34,7 +34,7 @@ _Coming soon: Video demonstration of the TUI in action_
   - ! **Unmerged** - Has commits not in trunk (requires `--force`)
   - ○ **Local** - Never pushed to the remote; exists only locally (requires `--force`)
   - ⊘ **Protected** - main/master/develop (cannot be deleted)
-  - ⊞ **Protected-WT** - Checked out in another worktree; git refuses to delete it (the details pane
+  - ⑂ **Protected-WT** - Checked out in another worktree; git refuses to delete it (the details pane
     names the worktree)
   - ◉ **Current** - Currently checked out branch
 - **Flexible Sorting** - Sort branches by status, name, activity, or creation date
@@ -346,7 +346,7 @@ interactive interface.
 | !    | unmerged     | Has unmerged commits                           | ⚠️ Requires `--force` |
 | ○    | local        | Never pushed to the remote                     | ⚠️ Requires `--force` |
 | ⊘    | protected    | main/master/develop                            | ❌ Never              |
-| ⊞    | protected-wt | Checked out in another worktree                | ❌ Never              |
+| ⑂    | protected-wt | Checked out in another worktree                | ❌ Never              |
 | ◉    | current      | Currently checked out                          | ❌ Never              |
 
 ## Safety Features

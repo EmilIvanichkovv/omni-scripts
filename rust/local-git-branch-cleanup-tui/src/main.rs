@@ -666,9 +666,9 @@ fn run_cli_mode(
 
     // Print legend
     let legend = if pr_provider.is_some() {
-        "   Legend: ✓ merged  ↑ pr-merged  ↕ pr-diverged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⊞ protected-wt  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
+        "   Legend: ✓ merged  ↑ pr-merged  ↕ pr-diverged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⑂ protected-wt  ◉ current  │  PR: 🟢 merged  🟡 open  🔴 closed"
     } else {
-        "   Legend: ✓ merged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⊞ protected-wt  ◉ current"
+        "   Legend: ✓ merged  ↗ gone  ! unmerged  ○ local  ⊘ protected  ⑂ protected-wt  ◉ current"
     };
     print_boxed_line(legend);
     print_separator();

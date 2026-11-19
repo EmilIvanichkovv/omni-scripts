@@ -723,7 +723,7 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled("local  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
         Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("⊞ ", Style::default().fg(COLOR_DANGER)),
+        Span::styled("⑂ ", Style::default().fg(COLOR_DANGER)),
         Span::styled("protected-wt  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
         Span::styled("current", Style::default().fg(COLOR_MUTED)),
@@ -1723,7 +1723,7 @@ fn render_help_modal(frame: &mut Frame) {
             ),
         ]),
         Line::from(vec![Span::styled(
-            "    Not selectable: ⊘ protected  ⊞ protected-wt  ◉ current",
+            "    Not selectable: ⊘ protected  ⑂ protected-wt  ◉ current",
             Style::default().fg(COLOR_MUTED),
         )]),
         Line::from(""),
@@ -1946,7 +1946,7 @@ fn render_info_modal(frame: &mut Frame) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("    ⊞ protected-wt ", Style::default().fg(COLOR_DANGER)),
+            Span::styled("    ⑂ protected-wt ", Style::default().fg(COLOR_DANGER)),
             Span::styled(
                 "Checked out in another worktree",
                 Style::default().fg(COLOR_MUTED),

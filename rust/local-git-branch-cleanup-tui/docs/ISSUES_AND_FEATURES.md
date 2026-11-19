@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 17:17
+**Last Updated:** 19-11-2026 17:22
 
 ---
 
@@ -69,42 +69,6 @@ _No open critical issues._
 
 ---
 
-### Issue #23: Make the worktree view read-only until removal is switched on
-
-- **Status:** 🔴 Open
-- **Reported:** 19-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#69](https://github.com/EmilIvanichkovv/omni-scripts/issues/69)
-- **Description:**
-  - The worktree view is used mostly as an explorer, but removal is always armed: every removable
-    row shows a checkbox, and `Space`/`a` select worktrees that Enter then removes after one
-    confirmation. A stray `a` + Enter + `y` removes every clean stale worktree
-  - Selection is gated only by `WorktreeInfo::is_selectable()` (`removal_action()`); there is no
-    mode that turns removal off
-- **Expected Behavior:**
-  - The worktree view starts read-only on every launch (`--worktrees` or `w`): no checkboxes, and
-    `Space`, `a`, `c` and Enter do nothing except a footer hint
-    `Removal is off (press x to turn it on)`
-  - `x` toggles remove mode in the worktree view. When on, the header shows a `🗑 REMOVE` badge,
-    checkboxes and the selection keys work exactly as today, and the footer lists them; turning it
-    off clears the worktree selection
-  - Browsing keys (navigation, search, filters, `o`, `y`, `w`, help/info) work in both modes
-  - The branch view is unchanged, and `--worktrees --cli` is unchanged (it never removes anything)
-  - Help (`?`) and info (`i`) modals, README and usage guide describe the read-only default and `x`
-- **Proposed Fix:**
-  - `app.rs`: add `worktree_remove_mode: bool` (default `false`) and `toggle_worktree_remove_mode()`
-    that flips it and clears the worktree selection when turning off; `toggle_worktree_at_cursor()`,
-    `select_all_stale_worktrees()` and the Enter handler return early with the footer hint (via
-    `flash`) when it is off
-  - `main.rs`: bind `x` in the worktree-view key handler (`x` is unbound in both views)
-  - `ui.rs`: render checkboxes only when remove mode is on (the `is_selectable()` branch in
-    `render_worktree_list()`), add the header badge, and switch the footer hints between browse and
-    remove sets
-  - Tests: selection and removal are no-ops while off; toggling off clears the selection; the render
-    shows no checkboxes while off
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -118,6 +82,49 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #23: Make the worktree view read-only until removal is switched on
+
+- **Status:** 🟢 Resolved
+- **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#69](https://github.com/EmilIvanichkovv/omni-scripts/issues/69)
+- **Description:**
+  - The worktree view was used mostly as an explorer, but removal was always armed: every removable
+    row showed a checkbox, and `Space`/`a` selected worktrees that Enter then removed after one
+    confirmation. A stray `a` + Enter + `y` removed every clean stale worktree
+  - Selection was gated only by `WorktreeInfo::is_selectable()` (`removal_action()`); there was no
+    mode that turned removal off
+- **Expected Behavior:**
+  - The worktree view starts read-only on every launch (`--worktrees` or `w`): no checkboxes, and
+    `Space`, `a`, `c` and Enter do nothing except a footer hint
+    `Removal is off (press x to turn it on)`
+  - `x` toggles remove mode in the worktree view. When on, the header shows a `🗑 REMOVE` badge,
+    checkboxes and the selection keys work as before, and the footer lists them; turning it off
+    clears the worktree selection
+  - Browsing keys (navigation, search, filters, `o`, `y`, `w`, help/info) work in both modes
+  - The branch view and `--worktrees --cli` are unchanged
+- **Fix:**
+  - `app.rs`: new `App::worktree_remove_mode` (false on every launch) and
+    `toggle_worktree_remove_mode()`, which clears the worktree selection and the "also delete
+    branches" toggle when turning it off. `require_worktree_remove_mode()` sets the footer hint
+    (`REMOVAL_OFF_HINT`) and returns false while removal is off; `toggle_worktree_at_cursor()`,
+    `select_all_stale_worktrees()`, the new `request_worktree_removal()` (Enter) and the `c` key go
+    through it, and `remove_selected_worktrees()` also returns early while it is off
+  - `main.rs`: `x` toggles the mode in the worktree view; Enter calls `request_worktree_removal()`
+  - `ui.rs`: no checkboxes while removal is off (`◆` main and `🔒` locked markers stay); a
+    `🗑 REMOVE` header badge while on; the footer shows only browse keys plus `x remove mode` while
+    off, and the removal keys too while on; the help modal lists `x` under "Selection (removal is
+    off until x)"; the info modal explains the read-only start (one row taller)
+  - Tests: selection, select-all and Enter are no-ops with the hint while off; turning the mode on
+    allows them and turning it off clears the selection; `remove_selected_worktrees()` does nothing
+    while off; the render test checks the read-only screen, then the badge, footer and checkbox
+    after `x`
+  - Docs: README, usage guide (keys, footer, removal section), ARCHITECTURE, TESTING
+- **Commit:** `feat(tui): Make the worktree view read-only until x turns removal on`
+
+---
 
 ### Issue #22: Show new files as `N` and group changed files in the worktree details pane
 
@@ -956,3 +963,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 17:07 | #24   | Reported: Keep the selection when toggling force mode                  |
 | 19-11-2026 | 17:13 | #21   | Resolved: `y` copies the branch name in the branch view                |
 | 19-11-2026 | 17:17 | #22   | Resolved: `N` for new files, grouped changes in the details pane       |
+| 19-11-2026 | 17:22 | #23   | Resolved: Worktree view read-only until `x` turns removal on           |

@@ -355,9 +355,13 @@ interactive interface.
 activity. Columns: Name, Branch, State, Changes (`M` modified, `S` staged, `N` new; `…` while
 `git status` runs in the background) and Last commit, plus PR with `--github` / `--bitbucket`.
 
+The view starts read-only, as an explorer: there are no checkboxes and nothing can be removed until
+`x` turns remove mode on (the header then shows `🗑 REMOVE`). Turning it off clears the selection.
+
 | Key              | Action                                                               |
 | ---------------- | -------------------------------------------------------------------- |
-| `Space`          | Toggle selection                                                     |
+| `x`              | Turn remove mode on/off (off at every start)                         |
+| `Space`          | Toggle selection (remove mode)                                       |
 | `a`              | Select all clean stale worktrees (merged, gone, prunable)            |
 | `1`-`4` or `Tab` | Filter: Clean / Dirty / Stale / All                                  |
 | `/`              | Search by worktree name, branch or path                              |

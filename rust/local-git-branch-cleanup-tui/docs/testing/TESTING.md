@@ -214,7 +214,12 @@ directory was deleted (prunable).
 - [ ] Details pane: path, branch, branch status, upstream and ahead/behind, HEAD, last commit,
       changed paths grouped under Modified / Staged / New (empty groups hidden, `… and N more` past
       5), lock reason, prunable reason
-- [ ] Main, current and locked worktrees cannot be selected; dirty ones show `-` until `f`
+- [ ] On open the view is read-only: no checkboxes, no `🗑 REMOVE` badge; `Space`, `a`, `c` and
+      `Enter` only show `Removal is off (press x to turn it on)` in the footer
+- [ ] `x` turns remove mode on (badge, checkboxes, removal keys in the footer); `x` again turns it
+      off and clears the selection; restarting the tool starts read-only again
+- [ ] (Remove mode) Main, current and locked worktrees cannot be selected; dirty ones show `-` until
+      `f`
 - [ ] `a` selects only clean stale worktrees (merged, gone, prunable); pressing it again deselects
 - [ ] Filters `1`-`4` / `Tab`: Clean, Dirty, Stale, All, with counts
 - [ ] `/` search matches worktree name, branch and path

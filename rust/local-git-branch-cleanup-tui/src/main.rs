@@ -703,7 +703,12 @@ fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
         KeyCode::PageDown => app.page_down(),
         KeyCode::Char(' ') => app.toggle_worktree_at_cursor(),
         KeyCode::Char('a') => app.select_all_stale_worktrees(),
-        KeyCode::Char('c') => app.clear_selection(),
+        KeyCode::Char('c') => {
+            if app.require_worktree_remove_mode() {
+                app.clear_selection();
+            }
+        }
+        KeyCode::Char('x') => app.toggle_worktree_remove_mode(),
         KeyCode::Char('f') => {
             app.force_mode = !app.force_mode;
             app.clear_all_selections();
@@ -725,14 +730,7 @@ fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
         }
         KeyCode::Char('y') => app.copy_selected_worktree_path(),
         KeyCode::Char('w') => app.toggle_view(),
-        KeyCode::Enter => {
-            if app.selected_count() > 0 {
-                if let Some(wt) = app.worktrees.as_mut() {
-                    wt.delete_branches = false;
-                }
-                app.show_confirmation = true;
-            }
-        }
+        KeyCode::Enter => app.request_worktree_removal(),
         _ => {}
     }
 }

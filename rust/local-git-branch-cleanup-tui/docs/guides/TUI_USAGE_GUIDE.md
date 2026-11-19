@@ -475,6 +475,7 @@ prunable reason, and the PR.
 
 | Key        | Action                                                           |
 | ---------- | ---------------------------------------------------------------- |
+| `x`        | Turn remove mode on/off (off at every start)                     |
 | `Space`    | Toggle selection for the worktree under the cursor               |
 | `a`        | Select/deselect all clean stale worktrees                        |
 | `c`        | Clear the selection                                              |
@@ -492,12 +493,19 @@ prunable reason, and the PR.
 | `o`        | Open the branch's PR in the browser (PR integration enabled)     |
 | `w`        | Switch back to the branch view                                   |
 
-The footer reads
-`↑↓ nav  Space sel  a stale  c clr  f force  d dry  Enter remove  y copy path  / search  w branches  ? help  q quit`
+`Space`, `a`, `c` and `Enter` need remove mode (`x`); while it is off they only show
+`Removal is off (press x to turn it on)` in the footer.
+
+With remove mode off the footer reads
+`↑↓ nav  x remove mode  y copy path  / search  w branches  ? help  q quit`; with it on,
+`↑↓ nav  Space sel  a stale  c clr  f force  d dry  Enter remove  x remove mode  y copy path  / search  w branches  ? help  q quit`
 (plus `o pr` with PR integration).
 
 ### Removing Worktrees
 
+- Removal is off when the view opens: it is a read-only explorer with no checkboxes. Press `x` to
+  turn remove mode on (header badge `🗑 REMOVE`); pressing `x` again turns it off and clears the
+  selection
 - Clean worktrees are removed with `git worktree remove <path>`
 - Dirty worktrees are selectable only in force mode and are removed with
   `git worktree remove --force <path>` — their uncommitted changes are lost

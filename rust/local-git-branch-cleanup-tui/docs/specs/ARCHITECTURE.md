@@ -513,6 +513,11 @@ so navigation, search and paging code is shared. `ui.rs` adds `render_worktree_l
 confirmation modal frame. `main.rs` dispatches normal-mode keys to `handle_worktree_view_key()` in
 the worktree view and adds `run_worktree_cli_mode()` for `--worktrees --cli`.
 
+The worktree view starts read-only. `App::worktree_remove_mode` (toggled with `x`, off at every
+launch) gates every removal path through `App::require_worktree_remove_mode()`: selecting (`Space`,
+`a`, `c`), opening the confirmation (`App::request_worktree_removal()`) and
+`App::remove_selected_worktrees()` itself. Turning it off clears the worktree selection.
+
 ---
 
 ## Data Flow

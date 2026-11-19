@@ -352,7 +352,7 @@ interactive interface.
 ### Worktree View
 
 `--worktrees` (or `w`) shows one row per worktree: the main worktree (`◆`) first, then by last
-activity. Columns: Name, Branch, State, Changes (`M` modified, `S` staged, `?` untracked; `…` while
+activity. Columns: Name, Branch, State, Changes (`M` modified, `S` staged, `N` new; `…` while
 `git status` runs in the background) and Last commit, plus PR with `--github` / `--bitbucket`.
 
 | Key              | Action                                                               |

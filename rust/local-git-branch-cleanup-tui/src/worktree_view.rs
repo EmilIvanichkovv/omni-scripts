@@ -17,7 +17,7 @@ use std::thread;
 /// Upper bound on concurrent `git status` processes
 const MAX_STATUS_WORKERS: usize = 8;
 
-/// How many changed paths the details pane lists
+/// How many changed paths the details pane lists per group
 pub const MAX_CHANGED_PATHS: usize = 5;
 
 /// The branch-classifier status of a worktree's branch.
@@ -39,12 +39,23 @@ pub struct ChangeCounts {
     pub modified: usize,
     /// Files with staged changes in the index
     pub staged: usize,
-    /// Untracked files (or directories)
+    /// Untracked files (or directories), shown as "new" (`N`)
     pub untracked: usize,
     /// Number of status lines (changed paths)
     pub files: usize,
-    /// The first few changed paths
-    pub paths: Vec<String>,
+    /// The first few paths with unstaged changes
+    pub modified_paths: Vec<String>,
+    /// The first few paths with staged changes
+    pub staged_paths: Vec<String>,
+    /// The first few untracked paths
+    pub new_paths: Vec<String>,
+}
+
+/// One group of changed paths in the details pane
+pub struct ChangeGroup<'a> {
+    pub label: &'static str,
+    pub count: usize,
+    pub paths: &'a [String],
 }
 
 impl ChangeCounts {
@@ -52,7 +63,25 @@ impl ChangeCounts {
         self.files == 0
     }
 
-    /// Compact form for the table: `clean` or e.g. `3M 1S 2?`
+    /// The non-empty groups in display order: Modified, Staged, New (the
+    /// same order as `compact()`)
+    pub fn groups(&self) -> Vec<ChangeGroup<'_>> {
+        [
+            ("Modified", self.modified, &self.modified_paths),
+            ("Staged", self.staged, &self.staged_paths),
+            ("New", self.untracked, &self.new_paths),
+        ]
+        .into_iter()
+        .filter(|(_, count, _)| *count > 0)
+        .map(|(label, count, paths)| ChangeGroup {
+            label,
+            count,
+            paths,
+        })
+        .collect()
+    }
+
+    /// Compact form for the table: `clean` or e.g. `3M 1S 2N`
     pub fn compact(&self) -> String {
         if self.is_clean() {
             return "clean".to_string();
@@ -65,7 +94,7 @@ impl ChangeCounts {
             parts.push(format!("{}S", self.staged));
         }
         if self.untracked > 0 {
-            parts.push(format!("{}?", self.untracked));
+            parts.push(format!("{}N", self.untracked));
         }
         parts.join(" ")
     }
@@ -74,8 +103,15 @@ impl ChangeCounts {
 /// Parse `git status --porcelain=v1` output into change counts.
 ///
 /// Each line is `XY path`: `??` is untracked, otherwise a non-space `X` is a
-/// staged change and a non-space `Y` an unstaged one (a file can be both).
+/// staged change and a non-space `Y` an unstaged one (a file can be both, and
+/// is then listed in both groups).
 pub fn parse_porcelain_status(output: &str) -> ChangeCounts {
+    fn push_capped(paths: &mut Vec<String>, path: &str) {
+        if paths.len() < MAX_CHANGED_PATHS {
+            paths.push(path.to_string());
+        }
+    }
+
     let mut counts = ChangeCounts::default();
     for line in output.lines() {
         if line.len() < 3 {
@@ -87,22 +123,21 @@ pub fn parse_porcelain_status(output: &str) -> ChangeCounts {
         if x == '!' && y == '!' {
             continue; // ignored files (only with --ignored)
         }
+        let path = line.get(3..).unwrap_or_default();
         if x == '?' && y == '?' {
             counts.untracked += 1;
+            push_capped(&mut counts.new_paths, path);
         } else {
             if x != ' ' {
                 counts.staged += 1;
+                push_capped(&mut counts.staged_paths, path);
             }
             if y != ' ' {
                 counts.modified += 1;
+                push_capped(&mut counts.modified_paths, path);
             }
         }
         counts.files += 1;
-        if counts.paths.len() < MAX_CHANGED_PATHS {
-            counts
-                .paths
-                .push(line.get(3..).unwrap_or_default().to_string());
-        }
     }
     counts
 }
@@ -939,9 +974,37 @@ mod tests {
         assert_eq!(c.staged, 4); // b.rs, c.rs, added.rs, rename
         assert_eq!(c.untracked, 2);
         assert_eq!(c.files, 7);
-        assert_eq!(c.paths.len(), MAX_CHANGED_PATHS);
-        assert_eq!(c.paths[0], "src/a.rs");
-        assert_eq!(c.compact(), "2M 4S 2?");
+        assert_eq!(c.compact(), "2M 4S 2N");
+
+        // A file both staged and modified (MM) is listed in both groups
+        assert_eq!(c.modified_paths, ["src/a.rs", "src/c.rs"]);
+        assert_eq!(
+            c.staged_paths,
+            ["src/b.rs", "src/c.rs", "added.rs", "old.rs -> new.rs"]
+        );
+        assert_eq!(c.new_paths, ["new.txt", "dir/"]);
+
+        let groups: Vec<_> = c
+            .groups()
+            .iter()
+            .map(|g| (g.label, g.count, g.paths.len()))
+            .collect();
+        assert_eq!(
+            groups,
+            [("Modified", 2, 2), ("Staged", 4, 4), ("New", 2, 2)]
+        );
+    }
+
+    #[test]
+    fn change_groups_cap_paths_and_skip_empty_groups() {
+        let out: String = (0..7).map(|i| format!("?? new{i}.txt\n")).collect();
+        let c = parse_porcelain_status(&out);
+        let groups = c.groups();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].label, "New");
+        assert_eq!(groups[0].count, 7);
+        assert_eq!(groups[0].paths.len(), MAX_CHANGED_PATHS);
+        assert_eq!(c.compact(), "7N");
     }
 
     #[test]

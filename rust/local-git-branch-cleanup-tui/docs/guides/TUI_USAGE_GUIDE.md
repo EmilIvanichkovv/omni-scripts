@@ -448,7 +448,7 @@ its own cursor, search query and selection. The header shows `🌳 Worktrees` wh
 ```
   Name              Branch                     State        Changes  Last Commit
 ▶ ◆ omni-scripts    main                       ◉ current    clean    2 hours ago
- [ ] qa-session     qa/tui-session-2026-11-19  ✎ dirty      3M 1?    5 minutes ago
+ [ ] qa-session     qa/tui-session-2026-11-19  ✎ dirty      3M 1N    5 minutes ago
  [ ] fix-login      fix/login                  ✓ merged     clean    3 weeks ago
  [ ] review-pr-41   (detached @ 1a2b3c4)       ○ detached   clean    1 month ago
  [ ] old-experiment feat/old                   ✗ prunable   -        -
@@ -462,13 +462,14 @@ its own cursor, search query and selection. The header shows `🌳 Worktrees` wh
   `detached`, otherwise the branch's own status from the branch view (`merged`, `pr-merged`, `gone`,
   `unmerged`, `local`, `protected`, ...). The branch view shows branches held by other worktrees as
   `⑂ protected-wt`; this view shows the status they would have otherwise
-- **Changes** — counts from `git status --porcelain`: `M` modified, `S` staged, `?` untracked.
+- **Changes** — counts from `git status --porcelain`: `M` modified, `S` staged, `N` new (untracked).
   `git status` runs in the background for every worktree, so the column shows `…` until it arrives
 - **PR** — with `--github` / `--bitbucket`, the PR of the worktree's branch
 
 The details pane shows the full path, branch, branch status, upstream and ahead/behind, HEAD, the
-last commit, the change counts with the first few changed paths, the lock or prunable reason, and
-the PR.
+last commit, the change counts, the changed paths grouped under Modified, Staged and New (up to 5
+per group, then `… and N more`; a file both staged and modified appears in both), the lock or
+prunable reason, and the PR.
 
 ### Worktree Keys
 

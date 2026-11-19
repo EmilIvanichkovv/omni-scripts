@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 17:13
+**Last Updated:** 19-11-2026 17:17
 
 ---
 
@@ -105,53 +105,6 @@ _No open critical issues._
 
 ---
 
-### Issue #22: Show new files as `N` and group changed files in the worktree details pane
-
-- **Status:** 🔴 Open
-- **Reported:** 19-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#68](https://github.com/EmilIvanichkovv/omni-scripts/issues/68)
-- **Description:**
-  - The worktree view's Changes column marks untracked files with `?` (`ChangeCounts::compact()`,
-    e.g. `3M 1S 2?`), which reads like "unknown" next to the letter codes `M` and `S`
-  - The details pane lists the first `MAX_CHANGED_PATHS` (5) changed paths as one flat list
-    (`ChangeCounts::paths`), so the user cannot tell which files are new, modified or staged
-- **Expected Behavior:**
-  - Untracked files use `N` (new): `3M 1S 2N` in the table, the details pane, the `--cli` table, and
-    the `Changes:` legend line (`M modified  S staged  N new`)
-  - The details pane groups the changed paths under headings in the same order as the counts, each
-    listing up to 5 paths and a `… and N more` line when there are more:
-
-    ```text
-      Changes: 3M 1S 2N
-      Modified (3)
-        src/app.rs
-        src/ui.rs
-        README.md
-      Staged (1)
-        src/main.rs
-      New (2)
-        notes.txt
-        tmp/
-    ```
-
-  - A file both staged and modified (`MM`) appears in both groups, matching how it is counted
-  - Empty groups are not shown
-
-- **Proposed Fix:**
-  - `worktree_view.rs`: in `ChangeCounts`, rename `untracked` to `new` (or keep the field and change
-    only the label), replace `paths` with `modified_paths`, `staged_paths` and `new_paths` (each
-    capped at `MAX_CHANGED_PATHS`), and fill them in `parse_porcelain_status()`; `compact()` emits
-    `N` instead of `?`
-  - `ui.rs`: the details pane renders one heading + paths block per non-empty group; update the info
-    modal legend line
-  - `main.rs`: update the `--cli` legend line
-  - Update tests (`parse_porcelain_status`, `compact`, the render test asserting `1M 1S 1?`) and the
-    docs that show `?` (README, usage guide, TESTING); the tracker's resolved TUI-20 entry keeps its
-    historical mockup
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -165,6 +118,42 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #22: Show new files as `N` and group changed files in the worktree details pane
+
+- **Status:** 🟢 Resolved
+- **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#68](https://github.com/EmilIvanichkovv/omni-scripts/issues/68)
+- **Description:**
+  - The worktree view's Changes column marked untracked files with `?` (`ChangeCounts::compact()`,
+    e.g. `3M 1S 2?`), which read like "unknown" next to the letter codes `M` and `S`
+  - The details pane listed the first `MAX_CHANGED_PATHS` (5) changed paths as one flat list
+    (`ChangeCounts::paths`), so the user could not tell which files were new, modified or staged
+- **Expected Behavior:**
+  - Untracked files use `N` (new): `3M 1S 2N` in the table, the details pane, the `--cli` table, and
+    the `Changes:` legend line (`M modified  S staged  N new`)
+  - The details pane groups the changed paths under Modified, Staged and New, in the same order as
+    the counts, each with up to 5 paths and a `… and N more` line when there are more
+  - A file both staged and modified (`MM`) appears in both groups; empty groups are not shown
+- **Fix:**
+  - `worktree_view.rs`: `ChangeCounts::paths` became `modified_paths`, `staged_paths` and
+    `new_paths`, each capped at `MAX_CHANGED_PATHS` (now per group) and filled by
+    `parse_porcelain_status()`; the `untracked` count keeps its name (it is git's term) but
+    `compact()` shows it as `N`. New `ChangeCounts::groups()` returns the non-empty groups in
+    display order
+  - `ui.rs`: the details pane renders a `Modified (n)` / `Staged (n)` / `New (n)` heading per group
+    with its paths and a per-group `… and N more`; the table legend and the info modal say `N new`
+  - `main.rs`: the `--cli` legend says `N new`
+  - Tests: the porcelain parser test checks the per-group paths (including an `MM` file in both
+    groups), a new test covers the per-group cap and hidden empty groups, the render test checks
+    `1M 1S 1N` and the group order in the details pane, and the `--worktrees --cli` integration test
+    expects `1M 1N`
+  - Docs: README, usage guide (table mockup, Changes column, details pane), TESTING
+- **Commit:** `feat(tui): Show new files as N and group changes in the worktree details`
+
+---
 
 ### Issue #21: Copy the branch name under the cursor with `y`
 
@@ -966,3 +955,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 16:50 | #23   | Reported: Make the worktree view read-only until removal is on         |
 | 19-11-2026 | 17:07 | #24   | Reported: Keep the selection when toggling force mode                  |
 | 19-11-2026 | 17:13 | #21   | Resolved: `y` copies the branch name in the branch view                |
+| 19-11-2026 | 17:17 | #22   | Resolved: `N` for new files, grouped changes in the details pane       |

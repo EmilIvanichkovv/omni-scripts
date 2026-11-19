@@ -2359,8 +2359,8 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
         Span::styled(" modified  ", Style::default().fg(COLOR_MUTED)),
         Span::styled("S", Style::default().fg(COLOR_WARNING)),
         Span::styled(" staged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("?", Style::default().fg(COLOR_WARNING)),
-        Span::styled(" untracked", Style::default().fg(COLOR_MUTED)),
+        Span::styled("N", Style::default().fg(COLOR_WARNING)),
+        Span::styled(" new", Style::default().fg(COLOR_MUTED)),
     ]);
     frame.render_widget(Paragraph::new(legend), legend_area);
 }
@@ -2558,19 +2558,26 @@ fn render_worktree_details(frame: &mut Frame, app: &App, area: Rect) {
                 label("  Changes: "),
                 Span::styled(c.compact(), Style::default().fg(color)),
             ]));
-            for path in &c.paths {
+            // One block per non-empty group: Modified, Staged, New
+            for group in c.groups() {
                 lines.push(Line::from(Span::styled(
-                    format!("    {path}"),
-                    Style::default().fg(COLOR_MUTED),
+                    format!("  {} ({})", group.label, group.count),
+                    Style::default().fg(COLOR_WARNING),
                 )));
-            }
-            if c.files > c.paths.len() {
-                lines.push(Line::from(Span::styled(
-                    format!("    … and {} more", c.files - c.paths.len()),
-                    Style::default()
-                        .fg(COLOR_MUTED)
-                        .add_modifier(Modifier::ITALIC),
-                )));
+                for path in group.paths {
+                    lines.push(Line::from(Span::styled(
+                        format!("    {path}"),
+                        Style::default().fg(COLOR_MUTED),
+                    )));
+                }
+                if group.count > group.paths.len() {
+                    lines.push(Line::from(Span::styled(
+                        format!("    … and {} more", group.count - group.paths.len()),
+                        Style::default()
+                            .fg(COLOR_MUTED)
+                            .add_modifier(Modifier::ITALIC),
+                    )));
+                }
             }
         }
     }
@@ -2953,7 +2960,7 @@ fn worktree_info_lines() -> Vec<Line<'static>> {
         muted("    otherwise the branch status (never protected-wt here)"),
         muted("    (merged, pr-merged, gone, unmerged, local, ...)"),
         Line::from(""),
-        muted("  Changes: M modified  S staged  ? untracked  … loading"),
+        muted("  Changes: M modified  S staged  N new  … loading"),
         Line::from(""),
         Line::from(vec![
             Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
@@ -3171,12 +3178,20 @@ mod tests {
         assert!(text.contains("│ 🌳") && text.contains("Worktrees (3 shown, 0 selected)"));
         assert!(text.contains("fix-login"));
         assert!(text.contains("(detached @ 1a2b3c4)"));
-        assert!(text.contains("1M 1S 1?"));
+        assert!(text.contains("1M 1S 1N"));
+        assert!(!text.contains("1?"));
         assert!(text.contains("…"));
         assert!(text.contains("w branches"));
 
-        // fix-login is dirty: selectable only in force mode
+        // fix-login is dirty: the details pane groups its changed paths
         app.select_next();
+        let text = screen_text(&mut app);
+        let modified = text.find("Modified (1)").expect("Modified group");
+        let staged = text.find("Staged (1)").expect("Staged group");
+        let new = text.find("New (1)").expect("New group");
+        assert!(modified < staged && staged < new);
+
+        // fix-login is dirty: selectable only in force mode
         app.toggle_worktree_at_cursor();
         assert_eq!(app.selected_count(), 0);
         app.force_mode = true;

@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 14:20
+**Last Updated:** 19-11-2026 17:07
 
 ---
 
@@ -30,7 +30,157 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #24: Keep the selection when toggling force mode
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Bug
+- **GitHub:** [#70](https://github.com/EmilIvanichkovv/omni-scripts/issues/70)
+- **Description:**
+  - Pressing `f` throws away the whole selection. In the branch view the key handler in `main.rs`
+    calls `App::clear_selection()` after flipping `force_mode`; in the worktree view it calls
+    `App::clear_all_selections()`, which clears both views
+  - Turning force mode on only adds selectable rows, so nothing needs to be dropped. Turning it off
+    only makes force-only rows unselectable, so only those need to go
+- **Steps to Reproduce:**
+  1. In the branch view, select a few `merged`/`gone` branches with `Space`
+  2. Press `f` to turn force mode on
+  3. The selection is empty; select the branches again plus the `unmerged` ones
+  4. Press `f` to turn force mode off: every branch is deselected again
+- **Expected Behavior:**
+  - Force mode on: the selection is kept as is
+  - Force mode off: only selections that need force are dropped: branches whose
+    `status.requires_force()` is true (`unmerged`, `pr-diverged`, `local`), and in the worktree view
+    dirty worktrees (`removal_action(false)` is `None`); everything else stays selected
+  - The same rule applies to the other view's selection, so switching views with `w` after pressing
+    `f` shows a consistent state
+- **Actual Behavior:** Both directions clear the selection (the worktree view clears both views)
+- **Proposed Fix:**
+  - `app.rs`: add `App::toggle_force_mode()` that flips `force_mode` and, only when turning it off,
+    retains branch indices whose branch does not `requires_force()` and worktree paths whose
+    `removal_action(false)` is `Some`; call it from both views' `f` handlers instead of the clear
+    functions
+  - Tradeoff to keep in mind: `delete_selected_branches()` uses `-D` for every selected branch while
+    force mode is on, so a `merged` branch kept selected across `f` is deleted with `-D` instead of
+    `-d`. That is already the behavior for branches selected while force is on, and merged branches
+    lose nothing, but the confirmation modal should keep showing the method
+  - Tests: on keeps all; off drops exactly the force-only branches and dirty worktrees; both views'
+    selections are updated
+
+---
+
+### Issue #23: Make the worktree view read-only until removal is switched on
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#69](https://github.com/EmilIvanichkovv/omni-scripts/issues/69)
+- **Description:**
+  - The worktree view is used mostly as an explorer, but removal is always armed: every removable
+    row shows a checkbox, and `Space`/`a` select worktrees that Enter then removes after one
+    confirmation. A stray `a` + Enter + `y` removes every clean stale worktree
+  - Selection is gated only by `WorktreeInfo::is_selectable()` (`removal_action()`); there is no
+    mode that turns removal off
+- **Expected Behavior:**
+  - The worktree view starts read-only on every launch (`--worktrees` or `w`): no checkboxes, and
+    `Space`, `a`, `c` and Enter do nothing except a footer hint
+    `Removal is off (press x to turn it on)`
+  - `x` toggles remove mode in the worktree view. When on, the header shows a `🗑 REMOVE` badge,
+    checkboxes and the selection keys work exactly as today, and the footer lists them; turning it
+    off clears the worktree selection
+  - Browsing keys (navigation, search, filters, `o`, `y`, `w`, help/info) work in both modes
+  - The branch view is unchanged, and `--worktrees --cli` is unchanged (it never removes anything)
+  - Help (`?`) and info (`i`) modals, README and usage guide describe the read-only default and `x`
+- **Proposed Fix:**
+  - `app.rs`: add `worktree_remove_mode: bool` (default `false`) and `toggle_worktree_remove_mode()`
+    that flips it and clears the worktree selection when turning off; `toggle_worktree_at_cursor()`,
+    `select_all_stale_worktrees()` and the Enter handler return early with the footer hint (via
+    `flash`) when it is off
+  - `main.rs`: bind `x` in the worktree-view key handler (`x` is unbound in both views)
+  - `ui.rs`: render checkboxes only when remove mode is on (the `is_selectable()` branch in
+    `render_worktree_list()`), add the header badge, and switch the footer hints between browse and
+    remove sets
+  - Tests: selection and removal are no-ops while off; toggling off clears the selection; the render
+    shows no checkboxes while off
+
+---
+
+### Issue #22: Show new files as `N` and group changed files in the worktree details pane
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#68](https://github.com/EmilIvanichkovv/omni-scripts/issues/68)
+- **Description:**
+  - The worktree view's Changes column marks untracked files with `?` (`ChangeCounts::compact()`,
+    e.g. `3M 1S 2?`), which reads like "unknown" next to the letter codes `M` and `S`
+  - The details pane lists the first `MAX_CHANGED_PATHS` (5) changed paths as one flat list
+    (`ChangeCounts::paths`), so the user cannot tell which files are new, modified or staged
+- **Expected Behavior:**
+  - Untracked files use `N` (new): `3M 1S 2N` in the table, the details pane, the `--cli` table, and
+    the `Changes:` legend line (`M modified  S staged  N new`)
+  - The details pane groups the changed paths under headings in the same order as the counts, each
+    listing up to 5 paths and a `… and N more` line when there are more:
+
+    ```text
+      Changes: 3M 1S 2N
+      Modified (3)
+        src/app.rs
+        src/ui.rs
+        README.md
+      Staged (1)
+        src/main.rs
+      New (2)
+        notes.txt
+        tmp/
+    ```
+
+  - A file both staged and modified (`MM`) appears in both groups, matching how it is counted
+  - Empty groups are not shown
+
+- **Proposed Fix:**
+  - `worktree_view.rs`: in `ChangeCounts`, rename `untracked` to `new` (or keep the field and change
+    only the label), replace `paths` with `modified_paths`, `staged_paths` and `new_paths` (each
+    capped at `MAX_CHANGED_PATHS`), and fill them in `parse_porcelain_status()`; `compact()` emits
+    `N` instead of `?`
+  - `ui.rs`: the details pane renders one heading + paths block per non-empty group; update the info
+    modal legend line
+  - `main.rs`: update the `--cli` legend line
+  - Update tests (`parse_porcelain_status`, `compact`, the render test asserting `1M 1S 1?`) and the
+    docs that show `?` (README, usage guide, TESTING); the tracker's resolved TUI-20 entry keeps its
+    historical mockup
+
+---
+
+### Issue #21: Copy the branch name under the cursor with `y`
+
+- **Status:** 🔴 Open
+- **Reported:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#67](https://github.com/EmilIvanichkovv/omni-scripts/issues/67)
+- **Description:**
+  - The worktree view copies the worktree path with `y` (`App::copy_selected_worktree_path()`), but
+    the branch view has no copy key: users have to retype or mouse-select a branch name to use it in
+    another command (`git switch`, `git log`, PR search)
+  - `y` is unbound in the branch view's normal mode (it is only used to confirm in the confirmation
+    modal), and the footer already shows one-off messages via `App::flash`
+- **Expected Behavior:**
+  - In the branch view, `y` copies the name of the branch under the cursor (not the checked
+    selection) to the clipboard, and the footer confirms it:
+    `Copied feature/foo to the clipboard (wl-copy)`, or shows the error when no clipboard tool is
+    found
+  - Works on every row, including `protected`, `protected-wt` and `current` branches
+  - The footer hints, help modal (`?`), info modal (`i`), README and usage guide list `y copy` for
+    the branch view
+- **Proposed Fix:**
+  - Move `copy_to_clipboard()` and `clipboard_commands()` out of `worktree_view.rs` into a small
+    `clipboard.rs` module now that both views use them
+  - Add `App::copy_selected_branch_name()` mirroring `copy_selected_worktree_path()` (uses
+    `selected_branch()` and sets `flash`), and bind `KeyCode::Char('y')` to it in the branch view's
+    normal-mode key handling in `main.rs`; the confirmation modal's `y` is handled earlier, so it is
+    unaffected
+  - Tests: the copy method sets `flash` on success/failure (inject the copy function or test the
+    message formatting), and the key does nothing on an empty list
 
 ---
 
@@ -807,3 +957,7 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 13:55 | #20   | Reported: Add a worktree view (`--worktrees`)                          |
 | 19-11-2026 | 14:02 | #19   | Resolved: New `protected-wt` status for branches in other worktrees    |
 | 19-11-2026 | 14:20 | #20   | Resolved: Added the worktree view (`--worktrees` / `w`)                |
+| 19-11-2026 | 16:35 | #21   | Reported: Copy the branch name under the cursor with `y`               |
+| 19-11-2026 | 16:45 | #22   | Reported: Show new files as `N` and group changes in the details pane  |
+| 19-11-2026 | 16:50 | #23   | Reported: Make the worktree view read-only until removal is on         |
+| 19-11-2026 | 17:07 | #24   | Reported: Keep the selection when toggling force mode                  |

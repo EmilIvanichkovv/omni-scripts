@@ -133,6 +133,7 @@ When a non-default sort mode is active, the header displays a sort indicator: `ð
 | `s`     | Cycle sort mode                                  |
 | `o`     | Open PR in browser (when PR integration enabled) |
 | `w`     | Switch to the worktree view                      |
+| `y`     | Copy the branch name to the clipboard            |
 | `i`     | Show info modal (about the tool)                 |
 | `?`     | Show help modal                                  |
 

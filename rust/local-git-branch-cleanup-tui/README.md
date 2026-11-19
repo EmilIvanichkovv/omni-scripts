@@ -337,6 +337,7 @@ interactive interface.
 | `Enter`            | Delete selected (with confirmation)              |
 | `o`                | Open PR in browser (with --github / --bitbucket) |
 | `w`                | Switch between branch and worktree view          |
+| `y`                | Copy the branch name to the clipboard            |
 | `?`                | Show help                                        |
 | `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 

@@ -1112,9 +1112,34 @@ impl App {
             return;
         };
         let path = path.to_string_lossy().into_owned();
-        self.flash = Some(match crate::worktree_view::copy_to_clipboard(&path) {
-            Ok(tool) => format!("Copied {} to the clipboard ({})", path, tool),
-            Err(e) => format!("Cannot copy {}: {}", path, e),
+        self.copy_with(&path, crate::clipboard::copy_to_clipboard);
+    }
+
+    /// Copy the name of the branch under the cursor to the clipboard
+    pub fn copy_selected_branch_name(&mut self) {
+        self.copy_selected_branch_name_with(crate::clipboard::copy_to_clipboard);
+    }
+
+    /// `copy_selected_branch_name` with an injectable copy function (tests)
+    fn copy_selected_branch_name_with(
+        &mut self,
+        copy: impl FnOnce(&str) -> std::result::Result<&'static str, String>,
+    ) {
+        let Some(name) = self.selected_branch().map(|b| b.name.clone()) else {
+            return;
+        };
+        self.copy_with(&name, copy);
+    }
+
+    /// Copy `text` with `copy` and report the outcome in the footer
+    fn copy_with(
+        &mut self,
+        text: &str,
+        copy: impl FnOnce(&str) -> std::result::Result<&'static str, String>,
+    ) {
+        self.flash = Some(match copy(text) {
+            Ok(tool) => format!("Copied {} to the clipboard ({})", text, tool),
+            Err(e) => format!("Cannot copy {}: {}", text, e),
         });
     }
 
@@ -1235,6 +1260,50 @@ mod tests {
         assert_eq!(FilterMode::from_number(4), Some(FilterMode::All));
         assert_eq!(FilterMode::from_number(5), None);
         assert_eq!(FilterMode::from_number(0), None);
+    }
+
+    #[test]
+    fn copy_branch_name_copies_the_row_under_the_cursor() {
+        let mut app = create_test_app();
+        app.selected_index = 1;
+        let mut copied = String::new();
+        app.copy_selected_branch_name_with(|text| {
+            copied = text.to_string();
+            Ok("fake-clip")
+        });
+        assert_eq!(copied, "feature/merged");
+        assert_eq!(
+            app.flash.as_deref(),
+            Some("Copied feature/merged to the clipboard (fake-clip)")
+        );
+    }
+
+    #[test]
+    fn copy_branch_name_works_on_undeletable_rows_and_reports_errors() {
+        let mut app = create_test_app();
+        app.selected_index = 0; // main (protected)
+        app.copy_selected_branch_name_with(|_| Err("no clipboard tool found".to_string()));
+        assert_eq!(
+            app.flash.as_deref(),
+            Some("Cannot copy main: no clipboard tool found")
+        );
+    }
+
+    #[test]
+    fn copy_branch_name_does_nothing_on_an_empty_list() {
+        let mut app = App::new(
+            vec![],
+            "/test/repo".to_string(),
+            "main".to_string(),
+            "Test Author".to_string(),
+        );
+        let mut called = false;
+        app.copy_selected_branch_name_with(|_| {
+            called = true;
+            Ok("fake-clip")
+        });
+        assert!(!called);
+        assert_eq!(app.flash, None);
     }
 
     #[test]

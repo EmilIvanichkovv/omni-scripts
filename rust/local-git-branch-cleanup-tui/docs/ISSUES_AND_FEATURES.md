@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 17:07
+**Last Updated:** 19-11-2026 17:13
 
 ---
 
@@ -152,38 +152,6 @@ _No open critical issues._
 
 ---
 
-### Issue #21: Copy the branch name under the cursor with `y`
-
-- **Status:** 🔴 Open
-- **Reported:** 19-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#67](https://github.com/EmilIvanichkovv/omni-scripts/issues/67)
-- **Description:**
-  - The worktree view copies the worktree path with `y` (`App::copy_selected_worktree_path()`), but
-    the branch view has no copy key: users have to retype or mouse-select a branch name to use it in
-    another command (`git switch`, `git log`, PR search)
-  - `y` is unbound in the branch view's normal mode (it is only used to confirm in the confirmation
-    modal), and the footer already shows one-off messages via `App::flash`
-- **Expected Behavior:**
-  - In the branch view, `y` copies the name of the branch under the cursor (not the checked
-    selection) to the clipboard, and the footer confirms it:
-    `Copied feature/foo to the clipboard (wl-copy)`, or shows the error when no clipboard tool is
-    found
-  - Works on every row, including `protected`, `protected-wt` and `current` branches
-  - The footer hints, help modal (`?`), info modal (`i`), README and usage guide list `y copy` for
-    the branch view
-- **Proposed Fix:**
-  - Move `copy_to_clipboard()` and `clipboard_commands()` out of `worktree_view.rs` into a small
-    `clipboard.rs` module now that both views use them
-  - Add `App::copy_selected_branch_name()` mirroring `copy_selected_worktree_path()` (uses
-    `selected_branch()` and sets `flash`), and bind `KeyCode::Char('y')` to it in the branch view's
-    normal-mode key handling in `main.rs`; the confirmation modal's `y` is handled earlier, so it is
-    unaffected
-  - Tests: the copy method sets `flash` on success/failure (inject the copy function or test the
-    message formatting), and the key does nothing on an empty list
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -197,6 +165,42 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #21: Copy the branch name under the cursor with `y`
+
+- **Status:** 🟢 Resolved
+- **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#67](https://github.com/EmilIvanichkovv/omni-scripts/issues/67)
+- **Description:**
+  - The worktree view copied the worktree path with `y` (`App::copy_selected_worktree_path()`), but
+    the branch view had no copy key: users had to retype or mouse-select a branch name to use it in
+    another command (`git switch`, `git log`, PR search)
+- **Expected Behavior:**
+  - In the branch view, `y` copies the name of the branch under the cursor (not the checked
+    selection) to the clipboard, and the footer confirms it:
+    `Copied feature/foo to the clipboard (wl-copy)`, or shows the error when no clipboard tool is
+    found
+  - Works on every row, including `protected`, `protected-wt` and `current` branches
+  - The footer hints, help modal (`?`), README and usage guide list `y` for the branch view
+- **Fix:**
+  - Moved `copy_to_clipboard()` and `clipboard_commands()` out of `worktree_view.rs` into a new
+    `clipboard.rs` module, now shared by both views
+  - Added `App::copy_selected_branch_name()`, bound to `y` in the branch view's normal-mode key
+    handler (`main.rs`); the confirmation modal's `y` is handled earlier, so it is unaffected. Both
+    copy actions go through `App::copy_with()`, which sets the footer message (`flash`) from the
+    copy result
+  - Footer hints gained `y copy`; the help modal (`?`) lists `y` under Other and its height went
+    from 50 to 52 rows so the Quit row still fits; the branch details pane shows
+    `Press y to copy the branch name`, right under the `o` (open PR) hint when the branch has a PR
+  - Tests: copying the row under the cursor, copying a protected row and reporting a clipboard
+    error, and a no-op on an empty list (the copy function is injected, so no real clipboard is
+    touched); the details pane shows the `y` hint under the `o` hint, and without PR integration
+  - Docs: README and usage guide key tables, ARCHITECTURE (`clipboard.rs`), TESTING (manual check)
+- **Commit:** `feat(tui): Copy the branch name under the cursor with y`
+
+---
 
 ### Issue #20: Add a worktree view (`--worktrees`)
 
@@ -961,3 +965,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 16:45 | #22   | Reported: Show new files as `N` and group changes in the details pane  |
 | 19-11-2026 | 16:50 | #23   | Reported: Make the worktree view read-only until removal is on         |
 | 19-11-2026 | 17:07 | #24   | Reported: Keep the selection when toggling force mode                  |
+| 19-11-2026 | 17:13 | #21   | Resolved: `y` copies the branch name in the branch view                |

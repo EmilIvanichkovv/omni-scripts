@@ -100,17 +100,21 @@ struct Args {
     )]
     auto_refresh_interval: u64,
 
-    /// Run a full sync (as R: git fetch, reload, PR re-fetch) every MINUTES;
-    /// --auto-sync alone means every 5 minutes. Each sync costs one PR
-    /// lookup per branch with --github / --bitbucket.
+    /// Do not run the full sync (as R: git fetch, reload, PR re-fetch) on a
+    /// timer (R still syncs)
+    #[arg(long)]
+    no_auto_sync: bool,
+
+    /// Minutes between automatic full syncs. Each sync costs one PR lookup
+    /// per branch with --github / --bitbucket.
     #[arg(
         long,
         value_name = "MINUTES",
-        num_args = 0..=1,
-        default_missing_value = "5",
-        value_parser = clap::value_parser!(u64).range(1..)
+        default_value_t = 5,
+        value_parser = clap::value_parser!(u64).range(1..),
+        conflicts_with = "no_auto_sync"
     )]
-    auto_sync: Option<u64>,
+    auto_sync_interval: u64,
 
     /// Start in the worktree view (press `w` to switch views); with --cli,
     /// print the worktree table and exit
@@ -281,9 +285,8 @@ async fn main() -> Result<()> {
         LiveRefresh {
             auto: !args.no_auto_refresh,
             interval: std::time::Duration::from_secs(args.auto_refresh_interval),
-            sync_interval: args
-                .auto_sync
-                .map(|minutes| std::time::Duration::from_secs(minutes * 60)),
+            sync_interval: (!args.no_auto_sync)
+                .then(|| std::time::Duration::from_secs(args.auto_sync_interval * 60)),
             fingerprint: refs_fingerprint,
         },
         update_notice,
@@ -296,7 +299,7 @@ struct LiveRefresh {
     auto: bool,
     /// Time between automatic checks (--auto-refresh-interval)
     interval: std::time::Duration,
-    /// Time between automatic full syncs (--auto-sync)
+    /// Time between automatic full syncs (None with --no-auto-sync)
     sync_interval: Option<std::time::Duration>,
     /// Refs fingerprint read just before the branches at startup
     fingerprint: Option<String>,

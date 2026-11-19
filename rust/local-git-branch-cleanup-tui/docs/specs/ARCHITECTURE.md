@@ -536,8 +536,10 @@ See [LIVE_REFRESH.md](LIVE_REFRESH.md).
 - `App::replace_branches()` applies a result: PR info carried over (unless re-fetched), sort order,
   selection and cursor by name, `@author:` completion; `App::set_worktree_view()` carries the
   worktree selection, cursor and statuses over.
-- `--auto-sync` sets `Refresher::set_sync_interval()`: a `Full` sync starts every interval (the
-  first one an interval after startup; a manual `R` restarts the clock) and wins over a due `Check`.
+- `Refresher::set_sync_interval()` (5 min by default, `--auto-sync-interval`, None with
+  `--no-auto-sync`): a `Full` sync starts every interval (the first one an interval after startup; a
+  manual `R` restarts the clock) and wins over a due `Check`. Jobs and results carry `automatic`, so
+  `App::report_fetch_error()` shows a repeated fetch error from a timer only once.
 - Results are held while the delete confirmation is open.
 
 ---

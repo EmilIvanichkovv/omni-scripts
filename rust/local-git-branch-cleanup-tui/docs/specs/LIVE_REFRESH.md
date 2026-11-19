@@ -16,8 +16,9 @@ keybinding this spec replaces (section 9).
 4. **A refresh never changes what is about to be deleted.** Selections survive a refresh by branch
    name, and a refresh never applies while the delete confirmation is open.
 
-Non-goals: refreshing on a timer over the network by default (rate limits, section 10), watching
-files with `inotify` or FSEvents (section 3.1), and live updates in CLI mode.
+Non-goals (as proposed; the first was reversed, see section 12): refreshing on a timer over the
+network by default (rate limits, section 10), watching files with `inotify` or FSEvents (section
+3.1), and live updates in CLI mode.
 
 ## 2. Current state
 
@@ -250,7 +251,7 @@ Each phase is one PR and leaves the tool releasable.
 | #   | Decision                                                   | Why                                                                     |
 | --- | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
 | 1   | Fingerprint polling over a file watcher                    | No new dependency; works on WSL and network drives; 3 git calls per 2 s |
-| 2   | No network on a timer                                      | GitHub and Bitbucket rate limits; fetch may need credentials            |
+| 2   | No network on a timer (reversed: section 12)               | GitHub and Bitbucket rate limits; fetch may need credentials            |
 | 3   | `R` replaces GITHUB_PR_CACHE phase 3's `Ctrl+R`            | One "sync everything" key is easier to remember than two refresh keys   |
 | 4   | Auto refresh on by default, `--no-auto-refresh` to opt out | The cost is small and stale data is the problem being solved            |
 | 5   | Selection by name, not index                               | Required for correctness once the list can change under the user        |
@@ -268,8 +269,8 @@ Each phase is one PR and leaves the tool releasable.
 
 ## 11. Follow-ups (not in this spec)
 
-- ~~`--auto-fetch <minutes>`: periodic `git fetch` for users who want it.~~ Shipped as `--auto-sync`
-  (section 12).
+- ~~`--auto-fetch <minutes>`: periodic `git fetch` for users who want it.~~ Shipped as an automatic
+  full sync, on by default (section 12).
 - Re-fetch PR data only for branches whose tip changed.
 - The CLI-only parts of GITHUB_PR_CACHE phase 3 (`--refresh-cache`, `--cache-stats`, `--cache-ttl`,
   cache status in the header).
@@ -303,9 +304,13 @@ Built on `feat/live-refresh` (issue #71). Where the implementation differs from 
   A check costs about 6 ms on a Linux file system, so cost does not force a long interval, but focus
   events already cover coming back from another terminal, and a longer default keeps checks rare
   where git is slow (WSL `/mnt/c`, repos with hundreds of branches).
-- **`--auto-sync [MINUTES]`** (follow-up from section 11, added on request): runs the `R` full sync
-  every MINUTES, 5 when the flag has no value, at least 1. Opt-in because of decision 2 (no network
-  on a timer by default). The first sync waits one interval after startup, a manual `R` restarts the
-  clock, a due sync runs instead of a due check (it includes the reload), and nothing starts while
-  the confirmation is open. Verified in tmux: with `--auto-sync 1`, a branch deleted on the remote
-  turned `gone` after 61 s without a key press.
+- **Automatic full sync** (follow-up from section 11, added on request): the `R` full sync runs
+  every 5 minutes by default. `--auto-sync-interval <MINUTES>` (at least 1) sets the interval and
+  `--no-auto-sync` turns it off, mirroring `--auto-refresh-interval` / `--no-auto-refresh`. This
+  reverses decision 2: stale PR and remote state was the bigger problem, and the cost (one PR lookup
+  per branch every 5 minutes) is small next to GitHub's authenticated quota. The first sync waits
+  one interval after startup, a manual `R` restarts the clock, a due sync runs instead of a due
+  check (it includes the reload), and nothing starts while the confirmation is open. Because a
+  remote that needs credentials would otherwise flash `Fetch failed` every 5 minutes, an automatic
+  sync does not repeat the error already shown; `R` always shows it. Verified in tmux: with a
+  1-minute interval, a branch deleted on the remote turned `gone` after 61 s without a key press.

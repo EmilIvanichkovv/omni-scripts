@@ -851,11 +851,20 @@ impl App {
         }
     }
 
-    /// Clear the selections of both views (force mode changes what is selectable)
-    pub fn clear_all_selections(&mut self) {
-        self.selected_branches.clear();
+    /// Toggle force mode (`f`) in either view. Turning it on only makes more
+    /// rows selectable, so both selections are kept. Turning it off drops
+    /// just the selections that need force: branches whose status
+    /// `requires_force()` and dirty worktrees, in both views.
+    pub fn toggle_force_mode(&mut self) {
+        self.force_mode = !self.force_mode;
+        if self.force_mode {
+            return;
+        }
+        let branches = &self.branches;
+        self.selected_branches
+            .retain(|&i| branches.get(i).is_some_and(|b| !b.status.requires_force()));
         if let Some(wt) = self.worktrees.as_mut() {
-            wt.selected.clear();
+            wt.retain_selectable(false);
         }
     }
 
@@ -2094,6 +2103,58 @@ mod tests {
     }
 
     #[test]
+    fn force_mode_on_keeps_the_branch_selection() {
+        let mut app = create_test_app();
+        app.toggle_selection(1); // feature/merged
+        app.toggle_selection(2); // feature/gone
+        app.toggle_force_mode();
+        assert!(app.force_mode);
+        assert_eq!(app.selected_branches, HashSet::from([1, 2]));
+    }
+
+    #[test]
+    fn force_mode_off_drops_only_force_only_branches() {
+        let mut app = create_test_app();
+        app.toggle_force_mode();
+        app.toggle_selection(1); // merged
+        app.toggle_selection(2); // gone
+        app.toggle_selection(3); // unmerged (force only)
+        assert_eq!(app.selected_count(), 3);
+
+        app.toggle_force_mode();
+        assert!(!app.force_mode);
+        assert_eq!(app.selected_branches, HashSet::from([1, 2]));
+    }
+
+    #[test]
+    fn force_mode_off_drops_dirty_worktrees_in_both_views() {
+        use crate::worktree_view::{parse_porcelain_status, Changes};
+
+        let mut app = create_test_app();
+        let mut dirty = test_worktree("/wt/dirty", "feature/unmerged", BranchStatus::Unmerged);
+        dirty.changes = Changes::Loaded(parse_porcelain_status(" M src/a.rs\n"));
+        app.worktrees = Some(WorktreeView::from_infos(vec![
+            test_worktree("/wt/clean", "feature/merged", BranchStatus::SafeMerged),
+            dirty,
+        ]));
+        app.toggle_force_mode();
+        let wt = app.worktrees.as_mut().unwrap();
+        wt.toggle(std::path::Path::new("/wt/clean"), true);
+        wt.toggle(std::path::Path::new("/wt/dirty"), true);
+        app.toggle_selection(1); // merged branch
+        app.toggle_selection(3); // unmerged branch
+
+        // Toggled from the branch view: the worktree selection is pruned too
+        app.toggle_force_mode();
+        let selected = &app.worktrees.as_ref().unwrap().selected;
+        assert_eq!(
+            *selected,
+            HashSet::from([std::path::PathBuf::from("/wt/clean")])
+        );
+        assert_eq!(app.selected_branches, HashSet::from([1]));
+    }
+
+    #[test]
     fn test_selection_is_per_view() {
         let mut app = create_test_app_with_worktrees();
         app.toggle_selection(1);
@@ -2103,17 +2164,13 @@ mod tests {
         app.toggle_worktree_at_cursor();
         assert_eq!(app.selected_count(), 1);
 
-        // c clears only the view on screen; force toggling clears both
+        // c clears only the view on screen
         app.toggle_view();
         assert_eq!(app.selected_count(), 1);
         app.clear_selection();
         assert_eq!(app.selected_count(), 0);
         app.toggle_view();
         assert_eq!(app.selected_count(), 1);
-        app.toggle_selection(1);
-        app.clear_all_selections();
-        assert_eq!(app.selected_count(), 0);
-        assert_eq!(app.selected_branches.len(), 0);
     }
 
     #[test]

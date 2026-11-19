@@ -579,10 +579,9 @@ fn run_tui_mode(
                                     app.clear_selection();
                                 }
                                 KeyCode::Char('f') => {
-                                    // Toggle force mode
-                                    app.force_mode = !app.force_mode;
-                                    // Clear selection when toggling force mode
-                                    app.clear_selection();
+                                    // Toggle force mode; turning it off drops
+                                    // only the selections that need force
+                                    app.toggle_force_mode();
                                 }
                                 KeyCode::Char('d') => {
                                     // Toggle dry run mode
@@ -709,10 +708,7 @@ fn handle_worktree_view_key(app: &mut App, key: event::KeyEvent) {
             }
         }
         KeyCode::Char('x') => app.toggle_worktree_remove_mode(),
-        KeyCode::Char('f') => {
-            app.force_mode = !app.force_mode;
-            app.clear_all_selections();
-        }
+        KeyCode::Char('f') => app.toggle_force_mode(),
         KeyCode::Char('d') => app.dry_run = !app.dry_run,
         KeyCode::Char('?') => app.show_help = !app.show_help,
         KeyCode::Char('i') => app.show_info = !app.show_info,

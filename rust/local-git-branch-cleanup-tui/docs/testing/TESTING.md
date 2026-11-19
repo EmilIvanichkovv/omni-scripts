@@ -134,6 +134,11 @@ Compare behavior with the original bash script:
 - [ ] `f` - toggle force mode
 - [ ] Header shows "⚠️ FORCE" when enabled
 - [ ] Unmerged branches become selectable in force mode
+- [ ] Select merged/gone branches, press `f`: the selection is kept
+- [ ] With merged + unmerged branches selected in force mode, press `f` again: only the unmerged
+      (and pr-diverged/local) ones are deselected
+- [ ] Worktree view (remove mode): select a clean and a dirty worktree in force mode, press `f`:
+      only the dirty one is deselected; the branch view's selection is pruned the same way
 - [ ] Force delete uses `git branch -D`
 - [ ] Safe delete uses `git branch -d`
 

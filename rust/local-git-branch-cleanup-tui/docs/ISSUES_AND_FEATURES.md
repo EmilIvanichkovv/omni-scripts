@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 19-11-2026 17:22
+**Last Updated:** 19-11-2026 17:24
 
 ---
 
@@ -30,42 +30,7 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #24: Keep the selection when toggling force mode
-
-- **Status:** 🔴 Open
-- **Reported:** 19-11-2026
-- **Category:** UI/UX / Bug
-- **GitHub:** [#70](https://github.com/EmilIvanichkovv/omni-scripts/issues/70)
-- **Description:**
-  - Pressing `f` throws away the whole selection. In the branch view the key handler in `main.rs`
-    calls `App::clear_selection()` after flipping `force_mode`; in the worktree view it calls
-    `App::clear_all_selections()`, which clears both views
-  - Turning force mode on only adds selectable rows, so nothing needs to be dropped. Turning it off
-    only makes force-only rows unselectable, so only those need to go
-- **Steps to Reproduce:**
-  1. In the branch view, select a few `merged`/`gone` branches with `Space`
-  2. Press `f` to turn force mode on
-  3. The selection is empty; select the branches again plus the `unmerged` ones
-  4. Press `f` to turn force mode off: every branch is deselected again
-- **Expected Behavior:**
-  - Force mode on: the selection is kept as is
-  - Force mode off: only selections that need force are dropped: branches whose
-    `status.requires_force()` is true (`unmerged`, `pr-diverged`, `local`), and in the worktree view
-    dirty worktrees (`removal_action(false)` is `None`); everything else stays selected
-  - The same rule applies to the other view's selection, so switching views with `w` after pressing
-    `f` shows a consistent state
-- **Actual Behavior:** Both directions clear the selection (the worktree view clears both views)
-- **Proposed Fix:**
-  - `app.rs`: add `App::toggle_force_mode()` that flips `force_mode` and, only when turning it off,
-    retains branch indices whose branch does not `requires_force()` and worktree paths whose
-    `removal_action(false)` is `Some`; call it from both views' `f` handlers instead of the clear
-    functions
-  - Tradeoff to keep in mind: `delete_selected_branches()` uses `-D` for every selected branch while
-    force mode is on, so a `merged` branch kept selected across `f` is deleted with `-D` instead of
-    `-d`. That is already the behavior for branches selected while force is on, and merged branches
-    lose nothing, but the confirmation modal should keep showing the method
-  - Tests: on keeps all; off drops exactly the force-only branches and dirty worktrees; both views'
-    selections are updated
+_No open UI/UX issues._
 
 ---
 
@@ -82,6 +47,46 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #24: Keep the selection when toggling force mode
+
+- **Status:** 🟢 Resolved
+- **Reported:** 19-11-2026
+- **Resolved:** 19-11-2026
+- **Category:** UI/UX / Bug
+- **GitHub:** [#70](https://github.com/EmilIvanichkovv/omni-scripts/issues/70)
+- **Description:**
+  - Pressing `f` threw away the whole selection. In the branch view the key handler in `main.rs`
+    called `App::clear_selection()` after flipping `force_mode`; in the worktree view it called
+    `App::clear_all_selections()`, which cleared both views
+  - Turning force mode on only adds selectable rows, so nothing needed to be dropped. Turning it off
+    only makes force-only rows unselectable, so only those needed to go
+- **Steps to Reproduce:**
+  1. In the branch view, select a few `merged`/`gone` branches with `Space`
+  2. Press `f` to turn force mode on
+  3. The selection is empty; select the branches again plus the `unmerged` ones
+  4. Press `f` to turn force mode off: every branch is deselected again
+- **Expected Behavior:**
+  - Force mode on: the selection is kept as is
+  - Force mode off: only selections that need force are dropped: branches whose
+    `status.requires_force()` is true (`unmerged`, `pr-diverged`, `local`), and in the worktree view
+    dirty worktrees; everything else stays selected, in both views
+- **Actual Behavior:** Both directions cleared the selection (the worktree view cleared both views)
+- **Fix:**
+  - `app.rs`: new `App::toggle_force_mode()`, used by `f` in both views. Turning force on keeps both
+    selections; turning it off keeps only branches that do not `requires_force()` and calls the new
+    `WorktreeView::retain_selectable(false)`, which drops worktrees that are no longer selectable
+    (dirty ones). `clear_all_selections()`, used only by the old handler, was removed
+  - Selected branches are still deleted with `-D` while force mode is on
+    (`branch_delete_needs_force()`), now including merged branches kept selected across `f`; the
+    `⚠️ FORCE` header badge shows it. The usage guide wrongly said merged/gone branches keep `-d` in
+    force mode, and now describes the actual rule
+  - Tests: force on keeps the branch selection; force off drops only the unmerged branch; force off
+    from the branch view also drops the dirty worktree and keeps the clean one
+  - Docs: usage guide (Force Mode section), TESTING (force-mode selection checks)
+- **Commit:** `fix(tui): Keep the selection when toggling force mode`
+
+---
 
 ### Issue #23: Make the worktree view read-only until removal is switched on
 
@@ -964,3 +969,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 17:13 | #21   | Resolved: `y` copies the branch name in the branch view                |
 | 19-11-2026 | 17:17 | #22   | Resolved: `N` for new files, grouped changes in the details pane       |
 | 19-11-2026 | 17:22 | #23   | Resolved: Worktree view read-only until `x` turns removal on           |
+| 19-11-2026 | 17:24 | #24   | Resolved: `f` keeps the selection, dropping only force-only rows       |

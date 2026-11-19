@@ -335,10 +335,16 @@ accidentally deleting work that hasn't been merged or pushed.
 3. Unmerged, pr-diverged, and local branches now show `[ ]` instead of `-`
 4. You can now select them
 
+Toggling force mode keeps your selection. Turning it on keeps everything selected; turning it off
+deselects only what needs force (unmerged, pr-diverged and local branches, and dirty worktrees in
+the worktree view), in both views.
+
 ### Force Mode Behavior
 
-- Selected unmerged/pr-diverged/local branches will be deleted with `git branch -D` (force delete)
-- Merged/gone branches still use safe delete `git branch -d`
+- While force mode is on, every selected branch is deleted with `git branch -D` (force delete),
+  including merged ones selected before `f` was pressed
+- Without force mode, merged branches use the safe `git branch -d`; gone branches always use `-D`
+  (`-d` refuses squash/rebase merges)
 
 > **⚠️ Warning:** Force mode allows deletion of branches with unmerged commits. These commits may be
 > lost if not pushed or merged elsewhere. Use with caution!

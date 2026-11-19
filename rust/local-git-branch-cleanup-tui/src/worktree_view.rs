@@ -636,6 +636,17 @@ impl WorktreeView {
         }
     }
 
+    /// Drop selected worktrees that are not selectable with `force_mode`
+    /// (dirty ones once force mode is off)
+    pub fn retain_selectable(&mut self, force_mode: bool) {
+        let worktrees = &self.worktrees;
+        self.selected.retain(|path| {
+            worktrees
+                .iter()
+                .any(|w| &w.entry.path == path && w.is_selectable(force_mode))
+        });
+    }
+
     /// `a`: select every clean (or prunable) stale worktree; when they are all
     /// selected already, clear the selection instead
     pub fn select_all_clean_stale(&mut self, force_mode: bool) {

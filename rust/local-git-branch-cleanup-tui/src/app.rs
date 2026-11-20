@@ -225,6 +225,8 @@ pub struct App {
     pub last_reload: Option<(Instant, String)>,
     /// Error of the last failed `git fetch`, until one succeeds
     last_fetch_error: Option<String>,
+    /// PR lookups that failed in the last full sync whose fetch worked
+    last_pr_failures: usize,
 }
 
 /// Footer hint shown when a removal key is pressed while removal is off
@@ -277,6 +279,7 @@ impl App {
             refresher: Refresher::default(),
             last_reload: None,
             last_fetch_error: None,
+            last_pr_failures: 0,
         }
     }
 
@@ -1017,8 +1020,8 @@ impl App {
                 if full_sync {
                     let fetch_failed = fetch_error.is_some();
                     self.report_fetch_error(fetch_error, automatic);
-                    if !fetch_failed && pr_failures > 0 {
-                        self.flash = Some(format!("PR lookup failed for {} branches", pr_failures));
+                    if !fetch_failed {
+                        self.report_pr_failures(pr_failures, automatic);
                     }
                 }
             }
@@ -1043,6 +1046,16 @@ impl App {
             }
             None => self.last_fetch_error = None,
         }
+    }
+
+    /// Show failed PR lookups in the footer, with the same rule as
+    /// `report_fetch_error`: an automatic sync does not repeat the count
+    /// already shown
+    fn report_pr_failures(&mut self, failures: usize, automatic: bool) {
+        if failures > 0 && (!automatic || failures != self.last_pr_failures) {
+            self.flash = Some(format!("PR lookup failed for {} branches", failures));
+        }
+        self.last_pr_failures = failures;
     }
 
     /// Footer status of background reloads: running, or recently finished
@@ -2410,6 +2423,25 @@ mod tests {
         app.apply_refresh_result(reloaded(&app, true, None));
         app.apply_refresh_result(reloaded(&app, true, auth()));
         assert!(app.flash.is_some(), "shown again after a fetch worked");
+    }
+
+    #[test]
+    fn automatic_syncs_do_not_repeat_failed_pr_lookups() {
+        let mut app = create_test_app();
+        app.report_pr_failures(2, true);
+        assert!(app.flash.is_some(), "the first failure is shown");
+        app.flash = None;
+
+        app.report_pr_failures(2, true);
+        assert!(app.flash.is_none(), "the same count is not repeated");
+
+        app.report_pr_failures(2, false);
+        assert!(app.flash.is_some(), "R always shows it");
+        app.flash = None;
+
+        app.report_pr_failures(0, true);
+        app.report_pr_failures(2, true);
+        assert!(app.flash.is_some(), "shown again after all lookups worked");
     }
 
     #[test]

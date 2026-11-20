@@ -3,7 +3,7 @@
 **Project**: Rust-based TUI replacement for `local-git-branch-cleanup.sh` **Target Name**:
 `local-git-branch-cleanup-tui` **Location**: `./rust/local-git-branch-cleanup-tui/` (Cargo workspace
 member) **Status**: 🚀 Active Development — Post-MVP enhancements in progress **Last Updated**:
-2026-11-19
+2026-11-20
 
 ---
 
@@ -25,7 +25,7 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - ✅ Dry run mode for previewing deletions
 - ✅ Help modal with keyboard shortcuts
 - ✅ CLI mode for bash-like behavior
-- ✅ Comprehensive test suite (292 tests: 248 unit, 32 integration, 12 update-command; 85 at MVP)
+- ✅ Comprehensive test suite (340 tests: 290 unit, 38 integration, 12 update-command; 85 at MVP)
 - ✅ Complete documentation (README, ARCHITECTURE, MIGRATION, TESTING)
 - ✅ Flexible sorting (status, name, activity, creation date)
 - ✅ Powerful search with `@author:` filter and autocomplete
@@ -41,6 +41,9 @@ TUI (Text User Interface) that provides interactive branch cleanup capabilities.
 - ✅ Worktree support: branches checked out in other worktrees are `protected-wt` (0.6.0), and a
   read-only worktree explorer with optional removal (`--worktrees` / `w`, 0.7.0 – 0.8.0)
 - ✅ Copy the branch name or worktree path to the clipboard (`y`)
+- ✅ Live refresh: the list follows branch changes made elsewhere (checked every 10 s and on focus),
+  `r` reloads, `R` fetches the remote and re-fetches PR data, and a full sync runs every 5 minutes
+  (0.9.0, 2026-11-20)
 
 **Key Improvements Over Bash Script:**
 
@@ -885,6 +888,9 @@ hours) **Depends On**: M5
 - **Commit style**: Conventional Commits, checked in CI and by a pre-commit hook
 - **Worktree discovery**: `git worktree list --porcelain -z`, shared by the branch and worktree
   views
+- **Live refresh**: poll a cheap refs fingerprint (3 git calls) instead of watching `.git` with a
+  file watcher, which is unreliable on WSL and network drives; reloads run on a background thread
+  ([LIVE_REFRESH.md](LIVE_REFRESH.md))
 
 ### ⚠️ Pending Decisions
 
@@ -1083,6 +1089,7 @@ touch src/app.rs src/git.rs src/ui.rs
 - **2026-10-13**: ✅ M15 — `update` command and update notice (0.3.0 – 0.4.1)
 - **2026-11-19**: ✅ M16 — worktree support (0.6.0 – 0.8.0: TUI-19 – TUI-24); PR cache entries
   dropped on delete (0.5.0); dependency security fixes (0.4.2); roadmap brought up to date
+- **2026-11-20**: ✅ M17 — live refresh (0.9.0: `r`, `R`, automatic checks and syncs)
 
 ---
 
@@ -1211,6 +1218,24 @@ local SQLite database. A cached entry is valid for 1 hour (configurable).
       (TUI-22); the Branch column takes the spare width
 - [x] `y` copies the worktree path, or the branch name in the branch view (TUI-21)
 - [x] `f` keeps the selection, dropping only rows that need force (TUI-24)
+
+---
+
+### ✅ Milestone 17: Live Refresh
+
+**Status**: ✅ Complete (0.9.0, 2026-11-20) **Spec**: [LIVE_REFRESH.md](LIVE_REFRESH.md) **Issue**:
+[#71](https://github.com/EmilIvanichkovv/omni-scripts/issues/71)
+
+- [x] `r` reloads the branch list in the background; the cursor, selection, sort order, `--trunk`
+      and worktree state are kept, and results wait while the delete confirmation is open
+- [x] Automatic check every 10 s (`--auto-refresh-interval`, `--no-auto-refresh`) and when the
+      terminal regains focus; the branches are re-read only when the refs fingerprint changed
+- [x] `R` full sync: `git fetch --prune` without credential prompts (60 s timeout), reload, and
+      re-fetch PR data with `--github` / `--bitbucket`
+- [x] Full sync every 5 minutes by default (`--auto-sync-interval`, `--no-auto-sync`); a failed
+      fetch or PR lookup is shown once, not on every sync
+- [x] Works in the worktree view too; the footer shows the running reload and when the list was last
+      updated
 
 ---
 

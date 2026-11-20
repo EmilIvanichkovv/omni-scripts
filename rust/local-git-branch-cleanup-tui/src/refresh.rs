@@ -223,7 +223,8 @@ pub struct Refresher {
     pub auto: bool,
     /// Time between automatic checks
     pub interval: Duration,
-    /// Time between automatic full syncs (`--auto-sync`); None: only on `R`
+    /// Time between automatic full syncs (`--auto-sync-interval`); None
+    /// (`--no-auto-sync`): only on `R`
     sync_interval: Option<Duration>,
     /// When the last full sync started (or the clock was set at startup)
     last_sync: Option<Instant>,
@@ -263,15 +264,16 @@ impl Refresher {
         }
     }
 
-    /// Make an automatic check due now (e.g. the terminal regained focus).
-    /// Does nothing while automatic refresh is off.
-    /// Run a full sync every `interval` from `now` on (`--auto-sync`). The
-    /// first one waits a whole interval: startup has just read everything.
+    /// Run a full sync every `interval` from `now` on
+    /// (`--auto-sync-interval`; None with `--no-auto-sync`). The first one
+    /// waits a whole interval: startup has just read everything.
     pub fn set_sync_interval(&mut self, interval: Option<Duration>, now: Instant) {
         self.sync_interval = interval;
         self.last_sync = Some(now);
     }
 
+    /// Make an automatic check due now (e.g. the terminal regained focus).
+    /// Does nothing while automatic refresh is off.
     pub fn check_soon(&mut self) {
         self.last_started = None;
     }
@@ -412,8 +414,9 @@ impl Refresher {
         result
     }
 
-    /// Whether an automatic check should start now: on, nothing waiting to
-    /// be applied, and `interval` since the last reload started
+    /// Whether an automatic full sync should start now: on, nothing
+    /// waiting to be applied, and `sync_interval` since the last full sync
+    /// started
     fn auto_sync_due(&self, hold: bool, now: Instant) -> bool {
         self.sync_interval.is_some_and(|interval| {
             !hold
@@ -424,8 +427,8 @@ impl Refresher {
         })
     }
 
-    /// Whether an automatic check should start now (see `auto_sync_due`
-    /// for the full sync)
+    /// Whether an automatic check should start now: on, nothing waiting to
+    /// be applied, and `interval` since the last reload started
     fn auto_check_due(&self, hold: bool, now: Instant) -> bool {
         self.auto
             && !hold

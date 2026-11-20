@@ -1007,10 +1007,16 @@ impl App {
                 full_sync,
                 fetch_error,
                 prs_refetched,
-                pr_failures,
+                pr_failed,
                 automatic,
                 ..
             } => {
+                let mut branches = branches;
+                if prs_refetched {
+                    // A failed lookup (offline, rate limit) tells nothing new
+                    // about the PR: keep what was known
+                    self.carry_pr_info(&mut branches, |name| pr_failed.iter().any(|f| f == name));
+                }
                 self.replace_branches_with(branches, !prs_refetched);
                 self.reload_worktrees_if_loaded();
                 self.last_reload = Some((
@@ -1023,7 +1029,7 @@ impl App {
                     let fetch_failed = fetch_error.is_some();
                     self.report_fetch_error(fetch_error, automatic);
                     if !fetch_failed {
-                        self.report_pr_failures(pr_failures, automatic);
+                        self.report_pr_failures(pr_failed.len(), automatic);
                     }
                 }
             }
@@ -1099,11 +1105,7 @@ impl App {
         // Carry over PR info fetched at startup; a refresh only re-reads
         // git, so without this PrMerged branches revert to Unmerged.
         if carry_pr_info {
-            for branch in branches.iter_mut() {
-                if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
-                    branch.pr_info = old.pr_info.clone();
-                }
-            }
+            self.carry_pr_info(&mut branches, |_| true);
         }
         git::apply_pr_merge_status(&mut branches);
         self.branches = branches;
@@ -1127,6 +1129,16 @@ impl App {
             ViewMode::Worktrees => {
                 let last = self.branches.len().saturating_sub(1);
                 self.other_nav.selected_index = self.other_nav.selected_index.min(last);
+            }
+        }
+    }
+
+    /// Copy the PR info already known into `branches`, for the branches
+    /// `which` names
+    fn carry_pr_info(&self, branches: &mut [BranchInfo], which: impl Fn(&str) -> bool) {
+        for branch in branches.iter_mut().filter(|b| which(&b.name)) {
+            if let Some(old) = self.branches.iter().find(|b| b.name == branch.name) {
+                branch.pr_info = old.pr_info.clone();
             }
         }
     }
@@ -2403,7 +2415,7 @@ mod tests {
             full_sync,
             fetch_error,
             prs_refetched: false,
-            pr_failures: 0,
+            pr_failed: Vec::new(),
             pr_cache: None,
             automatic: true,
         }
@@ -2458,6 +2470,35 @@ mod tests {
         );
         let later = now + RELOAD_NOTICE_DURATION + Duration::from_secs(1);
         assert_eq!(app.refresh_status(later), None);
+    }
+
+    #[test]
+    fn a_failed_pr_lookup_keeps_the_known_pr_info() {
+        use crate::pr::{PrInfo, PrState};
+        let mut app = create_test_app();
+        app.branches[1].pr_info = Some(PrInfo {
+            number: 7,
+            state: PrState::Merged,
+            title: String::new(),
+            url: String::new(),
+        });
+        let name = app.branches[1].name.clone();
+        let mut fresh = app.branches.clone();
+        fresh.iter_mut().for_each(|b| b.pr_info = None);
+
+        app.apply_refresh_result(JobResult::Reloaded {
+            generation: 0,
+            branches: fresh,
+            fingerprint: None,
+            full_sync: true,
+            fetch_error: None,
+            prs_refetched: true,
+            pr_failed: vec![name.clone()],
+            pr_cache: None,
+            automatic: true,
+        });
+        let branch = app.branches.iter().find(|b| b.name == name).unwrap();
+        assert_eq!(branch.pr_info.as_ref().map(|p| p.number), Some(7));
     }
 
     #[test]

@@ -81,6 +81,9 @@ pub enum JobResult {
     Failed {
         generation: u64,
         error: String,
+        /// Refs fingerprint read before the failed reload: checks skip
+        /// these refs instead of failing again every interval
+        fingerprint: Option<String>,
         pr_cache: Option<PrCache>,
     },
 }
@@ -132,6 +135,7 @@ fn run_local(job: &Job) -> JobResult {
         Err(e) => JobResult::Failed {
             generation: job.generation,
             error: e.to_string(),
+            fingerprint,
             pr_cache: None,
         },
     }
@@ -160,6 +164,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
             return JobResult::Failed {
                 generation,
                 error: e.to_string(),
+                fingerprint,
                 pr_cache: job.pr.and_then(|pr| pr.cache),
             }
         }
@@ -413,7 +418,10 @@ impl Refresher {
             return None;
         }
         let result = self.pending.take();
-        if let Some(JobResult::Reloaded { fingerprint, .. }) = &result {
+        if let Some(
+            JobResult::Reloaded { fingerprint, .. } | JobResult::Failed { fingerprint, .. },
+        ) = &result
+        {
             self.fingerprint = fingerprint.clone();
         }
         result
@@ -606,6 +614,7 @@ mod tests {
         send(&jobs, 0, |generation| JobResult::Failed {
             generation,
             error: "boom".to_string(),
+            fingerprint: None,
             pr_cache: Some(
                 PrCache::open_with_conn(
                     Connection::open_in_memory().unwrap(),
@@ -785,6 +794,32 @@ mod tests {
         assert_eq!(
             jobs.borrow()[1].0.known_fingerprint.as_deref(),
             Some("refs-1")
+        );
+    }
+
+    #[test]
+    fn a_failed_reload_is_not_retried_until_the_refs_change() {
+        let (mut refresher, jobs) = recording();
+        refresher.auto = true;
+        refresher.set_fingerprint(Some("old".into()));
+        let start = Instant::now();
+        poll_at(&mut refresher, false, start);
+        send(&jobs, 0, |generation| JobResult::Failed {
+            generation,
+            error: "no trunk".to_string(),
+            fingerprint: Some("new".into()),
+            pr_cache: None,
+        });
+        assert!(matches!(
+            poll_at(&mut refresher, false, start),
+            Some(JobResult::Failed { .. })
+        ));
+
+        poll_at(&mut refresher, false, start + DEFAULT_AUTO_REFRESH_INTERVAL);
+        assert_eq!(
+            jobs.borrow()[1].0.known_fingerprint.as_deref(),
+            Some("new"),
+            "the next check only reloads when the refs change again"
         );
     }
 }

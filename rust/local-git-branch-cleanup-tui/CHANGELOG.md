@@ -3,6 +3,37 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.9.0 - 20-11-2026
+
+### Features
+
+- **tui:** Keep the cursor, selection and worktree state across reloads
+- **tui:** Reload the branch list in the background with r
+- **tui:** Reload automatically when branches change elsewhere
+- **tui:** Check for branch changes when the terminal regains focus
+- **tui:** Fetch the remote and re-fetch PR data with R
+- **tui:** Check for branch changes every 10 s, set with --auto-refresh-interval
+- **tui:** Run R's full sync on a timer with --auto-sync
+- **tui:** Sync every 5 minutes by default
+- **tui:** Show a failed automatic fetch once, not every sync
+
+### Bug fixes
+
+- **tui:** Keep the selection on the same branches when the list changes
+- **tui:** Keep --trunk and the sort order when the branch list reloads
+- **tui:** Keep the user's GIT_SSH program when R fetches
+- **tui:** Read git fetch's stderr while it runs
+- **tui:** Only a full sync clears a shown fetch error
+- **tui:** Do not repeat failed PR lookups on every automatic sync
+- **tui:** Stop retrying a failed reload every interval
+- **tui:** Keep known PR info when a sync's PR lookup fails
+- **tui:** Drop PR cache entries of branches deleted during a sync
+- **tui:** Keep the branch view's cursor across reloads in the worktree view
+
+### Performance
+
+- **tui:** Leave ahead/behind counts out of the refs fingerprint
+
 ## 0.8.0 - 19-11-2026
 
 ### Features

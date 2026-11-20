@@ -63,6 +63,9 @@ pub enum JobResult {
         branches: Vec<BranchInfo>,
         /// Refs fingerprint read just before the branches
         fingerprint: Option<String>,
+        /// A full sync: `git fetch` ran (when there is a remote), so
+        /// `fetch_error` says whether it worked
+        full_sync: bool,
         /// `git fetch` failed; the reload still ran on local data
         fetch_error: Option<String>,
         /// PR data was re-fetched, so it replaces what the app had
@@ -119,6 +122,7 @@ fn run_local(job: &Job) -> JobResult {
             generation: job.generation,
             branches,
             fingerprint,
+            full_sync: false,
             fetch_error: None,
             prs_refetched: false,
             pr_failures: 0,
@@ -185,6 +189,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
         generation,
         branches,
         fingerprint,
+        full_sync: true,
         fetch_error,
         prs_refetched,
         pr_failures,
@@ -481,6 +486,7 @@ mod tests {
             generation,
             branches: Vec::new(),
             fingerprint: Some(format!("refs-{generation}")),
+            full_sync: false,
             fetch_error: None,
             prs_refetched: false,
             pr_failures: 0,

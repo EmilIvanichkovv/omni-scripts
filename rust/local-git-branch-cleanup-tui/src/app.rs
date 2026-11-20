@@ -989,32 +989,44 @@ impl App {
         let result = self
             .refresher
             .poll(hold, Instant::now(), &self.trunk, &mut self.pr_cache);
+        if let Some(result) = result {
+            self.apply_refresh_result(result);
+        }
+    }
+
+    /// Apply one finished background reload (see `poll_refresh`)
+    fn apply_refresh_result(&mut self, result: JobResult) {
         match result {
-            Some(JobResult::Reloaded {
+            JobResult::Reloaded {
                 branches,
+                full_sync,
                 fetch_error,
                 prs_refetched,
                 pr_failures,
                 automatic,
                 ..
-            }) => {
+            } => {
                 self.replace_branches_with(branches, !prs_refetched);
                 self.reload_worktrees_if_loaded();
                 self.last_reload = Some((
                     Instant::now(),
                     chrono::Local::now().format("%H:%M:%S").to_string(),
                 ));
-                let fetch_failed = fetch_error.is_some();
-                self.report_fetch_error(fetch_error, automatic);
-                if !fetch_failed && pr_failures > 0 {
-                    self.flash = Some(format!("PR lookup failed for {} branches", pr_failures));
+                // Only a full sync fetched; `r` and automatic checks say
+                // nothing about whether the remote is reachable now
+                if full_sync {
+                    let fetch_failed = fetch_error.is_some();
+                    self.report_fetch_error(fetch_error, automatic);
+                    if !fetch_failed && pr_failures > 0 {
+                        self.flash = Some(format!("PR lookup failed for {} branches", pr_failures));
+                    }
                 }
             }
-            Some(JobResult::Failed { error, .. }) => {
+            JobResult::Failed { error, .. } => {
                 self.flash = Some(format!("Reload failed: {}", error));
             }
             // poll() keeps progress and unchanged checks to itself
-            Some(JobResult::Progress { .. } | JobResult::Unchanged { .. }) | None => {}
+            JobResult::Progress { .. } | JobResult::Unchanged { .. } => {}
         }
     }
 
@@ -2365,6 +2377,39 @@ mod tests {
         app.report_fetch_error(None, true);
         app.report_fetch_error(auth(), true);
         assert!(app.flash.is_some(), "shown again after a success");
+    }
+
+    /// A finished background reload of the app's own branches
+    fn reloaded(app: &App, full_sync: bool, fetch_error: Option<String>) -> JobResult {
+        JobResult::Reloaded {
+            generation: 0,
+            branches: app.branches.clone(),
+            fingerprint: None,
+            full_sync,
+            fetch_error,
+            prs_refetched: false,
+            pr_failures: 0,
+            pr_cache: None,
+            automatic: true,
+        }
+    }
+
+    #[test]
+    fn a_local_reload_does_not_reset_the_shown_fetch_error() {
+        let mut app = create_test_app();
+        let auth = || Some("authentication required".to_string());
+        app.apply_refresh_result(reloaded(&app, true, auth()));
+        assert!(app.flash.is_some());
+        app.flash = None;
+
+        // r or an automatic check: no fetch ran
+        app.apply_refresh_result(reloaded(&app, false, None));
+        app.apply_refresh_result(reloaded(&app, true, auth()));
+        assert!(app.flash.is_none(), "the same error is not repeated");
+
+        app.apply_refresh_result(reloaded(&app, true, None));
+        app.apply_refresh_result(reloaded(&app, true, auth()));
+        assert!(app.flash.is_some(), "shown again after a fetch worked");
     }
 
     #[test]

@@ -67,10 +67,13 @@ network by default (rate limits, section 10), watching files with `inotify` or F
 The fingerprint is the concatenated output of:
 
 ```
-git for-each-ref --format='%(refname) %(objectname) %(upstream) %(upstream:track)' refs/heads refs/remotes
+git for-each-ref --format='%(refname) %(objectname) %(upstream)' refs/heads refs/remotes
 git symbolic-ref -q HEAD            # checkout of another branch changes the "current" status
 git worktree list --porcelain -z    # new or removed worktrees change protection (TUI-19)
 ```
+
+Ahead/behind counts (`%(upstream:track)`) are left out: they follow from the branch and
+remote-tracking tips already listed, and computing them walks history for every branch.
 
 Hashing is not needed; the strings are compared directly. A full re-read runs only when the
 fingerprint differs from the last applied one.

@@ -772,7 +772,8 @@ fn describe_fetch_error(stderr: &str) -> String {
 
 /// A cheap snapshot of everything a reload would show differently: branch
 /// and remote-tracking tips with their upstreams, the checked-out branch,
-/// and the worktree list. Live refresh re-reads the branches only when this
+/// and the worktree list. Ahead/behind counts are left out: they follow
+/// from the tips, and computing them walks history for every branch. Live refresh re-reads the branches only when this
 /// changes (3 git calls instead of about 6 per branch).
 pub fn refs_fingerprint() -> Result<String> {
     refs_fingerprint_in(Path::new("."))
@@ -784,7 +785,7 @@ pub fn refs_fingerprint_in(dir: &Path) -> Result<String> {
 
     let refs = run(&[
         "for-each-ref",
-        "--format=%(refname) %(objectname) %(upstream) %(upstream:track)",
+        "--format=%(refname) %(objectname) %(upstream)",
         "refs/heads",
         "refs/remotes",
     ])?;

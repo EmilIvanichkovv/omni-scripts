@@ -227,6 +227,9 @@ pub struct App {
     last_fetch_error: Option<String>,
     /// PR lookups that failed in the last full sync whose fetch worked
     last_pr_failures: usize,
+    /// Branches deleted while a full sync held the PR cache; their entries
+    /// are dropped when the cache comes back
+    stale_pr_entries: Vec<String>,
 }
 
 /// Footer hint shown when a removal key is pressed while removal is off
@@ -280,6 +283,7 @@ impl App {
             last_reload: None,
             last_fetch_error: None,
             last_pr_failures: 0,
+            stale_pr_entries: Vec::new(),
         }
     }
 
@@ -940,10 +944,7 @@ impl App {
             match git::delete_branch_with_mode(branch_name, use_force) {
                 Ok(_) => {
                     let method = if use_force { "-D" } else { "-d" };
-                    // Best effort: a stale entry only costs a re-fetch later.
-                    if let Some(cache) = &self.pr_cache {
-                        cache.invalidate(branch_name).ok();
-                    }
+                    self.forget_cached_pr(branch_name);
                     self.action_log.push(ActionLogEntry {
                         branch_name: branch_name.clone(),
                         success: true,
@@ -994,8 +995,34 @@ impl App {
         let result = self
             .refresher
             .poll(hold, Instant::now(), &self.trunk, &mut self.pr_cache);
+        self.flush_stale_pr_entries();
         if let Some(result) = result {
             self.apply_refresh_result(result);
+        }
+    }
+
+    /// Drop a deleted branch's cached PR entry (best effort: a stale entry
+    /// only costs a re-fetch later). While a full sync holds the cache the
+    /// name waits in `stale_pr_entries`, or the sync would write it back.
+    fn forget_cached_pr(&mut self, name: &str) {
+        match &self.pr_cache {
+            Some(cache) => {
+                cache.invalidate(name).ok();
+            }
+            None if self.refresher.running() == Some(RefreshKind::Full) => {
+                self.stale_pr_entries.push(name.to_string());
+            }
+            None => {}
+        }
+    }
+
+    /// Drop the entries of branches deleted during a full sync, once the
+    /// sync has handed the PR cache back
+    fn flush_stale_pr_entries(&mut self) {
+        if let Some(cache) = &self.pr_cache {
+            for name in self.stale_pr_entries.drain(..) {
+                cache.invalidate(&name).ok();
+            }
         }
     }
 
@@ -1367,10 +1394,15 @@ impl App {
             self.force_mode,
             wt.delete_branches,
         );
-        let log =
-            crate::worktree_view::execute_removals(&plans, self.dry_run, self.pr_cache.as_ref());
+        let mut deleted = Vec::new();
+        let log = crate::worktree_view::execute_removals(&plans, self.dry_run, &mut |name| {
+            deleted.push(name.to_string())
+        });
         wt.selected.clear();
         wt.delete_branches = false;
+        for name in &deleted {
+            self.forget_cached_pr(name);
+        }
         self.action_log.extend(log);
         self.show_confirmation = false;
         if !self.dry_run {
@@ -2470,6 +2502,35 @@ mod tests {
         );
         let later = now + RELOAD_NOTICE_DURATION + Duration::from_secs(1);
         assert_eq!(app.refresh_status(later), None);
+    }
+
+    #[test]
+    fn branches_deleted_during_a_sync_leave_the_returned_pr_cache() {
+        use crate::cache::{CacheResult, PrCache};
+        let mut cache = PrCache::open_with_conn(
+            rusqlite::Connection::open_in_memory().unwrap(),
+            "test/repo",
+            Duration::from_secs(3600),
+        )
+        .unwrap();
+        cache.set("feature/merged", None).unwrap();
+        let mut app = create_test_app();
+        app.stale_pr_entries.push("feature/merged".to_string());
+
+        app.flush_stale_pr_entries();
+        assert_eq!(
+            app.stale_pr_entries.len(),
+            1,
+            "kept until the cache is back"
+        );
+
+        app.pr_cache = Some(cache);
+        app.flush_stale_pr_entries();
+        assert!(app.stale_pr_entries.is_empty());
+        assert!(matches!(
+            app.pr_cache.as_mut().unwrap().get("feature/merged"),
+            CacheResult::Miss
+        ));
     }
 
     #[test]

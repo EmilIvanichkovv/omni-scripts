@@ -778,12 +778,12 @@ fn run_git(args: &[String]) -> std::result::Result<(), String> {
 
 /// Carry out (or, in dry-run mode, describe) the planned removals.
 /// `git worktree prune` runs at most once, however many prunable worktrees
-/// are selected. A deleted branch's cached PR entry is dropped from
-/// `pr_cache`, as in the branch view.
+/// are selected. `on_branch_deleted` gets the name of every branch deleted
+/// (the app drops its cached PR entry, as in the branch view).
 pub fn execute_removals(
     plans: &[RemovalPlan],
     dry_run: bool,
-    pr_cache: Option<&crate::cache::PrCache>,
+    on_branch_deleted: &mut dyn FnMut(&str),
 ) -> Vec<ActionLogEntry> {
     let mut log = Vec::new();
     let mut prune_result: Option<std::result::Result<(), String>> = None;
@@ -851,9 +851,7 @@ pub fn execute_removals(
                 } else {
                     match crate::git::delete_branch_with_mode(name, *force) {
                         Ok(()) => {
-                            if let Some(cache) = pr_cache {
-                                cache.invalidate(name).ok();
-                            }
+                            on_branch_deleted(name);
                             log.push(ActionLogEntry {
                                 branch_name: name.clone(),
                                 success: true,
@@ -1279,7 +1277,7 @@ mod tests {
                 force: false,
             },
         }];
-        let log = execute_removals(&plans, true, None);
+        let log = execute_removals(&plans, true, &mut |_| {});
         assert_eq!(log.len(), 2);
         assert!(log.iter().all(|e| e.success));
         assert_eq!(
@@ -1290,22 +1288,7 @@ mod tests {
     }
 
     #[test]
-    fn dry_run_keeps_cached_pr_entry() {
-        use crate::cache::{CacheResult, PrCache};
-        use crate::pr::PrState;
-
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
-        let mut cache =
-            PrCache::open_with_conn(conn, "test/repo", std::time::Duration::from_secs(3600))
-                .unwrap();
-        let pr = PrInfo {
-            number: 7,
-            state: PrState::Merged,
-            title: "PR #7".into(),
-            url: "https://github.com/test/repo/pull/7".into(),
-        };
-        cache.set("m", Some(&pr)).unwrap();
-
+    fn dry_run_deletes_no_branch() {
         let plans = vec![RemovalPlan {
             name: "m".into(),
             path: PathBuf::from("/nonexistent/wt/m"),
@@ -1315,9 +1298,9 @@ mod tests {
                 force: false,
             },
         }];
-        execute_removals(&plans, true, Some(&cache));
-
-        assert!(matches!(cache.get("m"), CacheResult::Hit(Some(_))));
+        let mut deleted = Vec::new();
+        execute_removals(&plans, true, &mut |name| deleted.push(name.to_string()));
+        assert!(deleted.is_empty());
     }
 
     #[test]

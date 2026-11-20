@@ -970,9 +970,11 @@ impl App {
     pub fn refresh_branches(&mut self) {
         // A background reload that read git before this point is out of date
         self.refresher.invalidate();
-        // Read before the branches, so a change in between is seen later
-        self.refresher.set_fingerprint(git::refs_fingerprint().ok());
+        // Read before the branches, so a change in between is seen later.
+        // Kept only when the reload worked; otherwise the next check retries.
+        let fingerprint = git::refs_fingerprint().ok();
         if let Ok(branches) = git::get_branches_with_classification(Some(&self.trunk)) {
+            self.refresher.set_fingerprint(fingerprint);
             self.replace_branches(branches);
             self.reload_worktrees_if_loaded();
         }

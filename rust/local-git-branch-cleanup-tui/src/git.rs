@@ -714,6 +714,15 @@ pub fn fetch_remote_in(dir: &Path, remote: &str) -> Result<()> {
     }
 
     let mut child = cmd.spawn()?;
+    // Read stderr while git runs: a full pipe would block git until the timeout
+    let stderr_reader = child.stderr.take().map(|mut pipe| {
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut stderr = String::new();
+            let _ = pipe.read_to_string(&mut stderr);
+            stderr
+        })
+    });
     let started = std::time::Instant::now();
     let status = loop {
         if let Some(status) = child.try_wait()? {
@@ -732,11 +741,9 @@ pub fn fetch_remote_in(dir: &Path, remote: &str) -> Result<()> {
     if status.success() {
         return Ok(());
     }
-    let mut stderr = String::new();
-    if let Some(mut pipe) = child.stderr.take() {
-        use std::io::Read;
-        let _ = pipe.read_to_string(&mut stderr);
-    }
+    let stderr = stderr_reader
+        .and_then(|reader| reader.join().ok())
+        .unwrap_or_default();
     Err(color_eyre::eyre::eyre!("{}", describe_fetch_error(&stderr)))
 }
 

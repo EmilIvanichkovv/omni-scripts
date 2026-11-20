@@ -676,7 +676,8 @@ const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 /// hang. HTTPS prompts are turned off with `GIT_TERMINAL_PROMPT=0`, Git
 /// Credential Manager's own dialogs with `GCM_INTERACTIVE=never` (passed on
 /// to the Windows GCM through `WSLENV` under WSL), and SSH runs with
-/// `BatchMode=yes` unless the user set their own SSH command. Stored
+/// `BatchMode=yes` unless the user set their own SSH command (`GIT_SSH`,
+/// `GIT_SSH_COMMAND` or `core.sshCommand`). Stored
 /// credentials and ssh-agent keep working. A fetch still running after
 /// `FETCH_TIMEOUT` is killed.
 pub fn fetch_remote(remote: &str) -> Result<()> {
@@ -685,7 +686,10 @@ pub fn fetch_remote(remote: &str) -> Result<()> {
 
 /// `fetch_remote` for the repository at `dir`
 pub fn fetch_remote_in(dir: &Path, remote: &str) -> Result<()> {
+    // core.sshCommand wins over GIT_SSH, so a user's GIT_SSH (e.g. plink)
+    // counts as their own SSH command too
     let has_ssh_command = std::env::var_os("GIT_SSH_COMMAND").is_some()
+        || std::env::var_os("GIT_SSH").is_some()
         || Command::new("git")
             .arg("-C")
             .arg(dir)

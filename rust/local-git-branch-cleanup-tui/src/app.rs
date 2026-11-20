@@ -1124,10 +1124,13 @@ impl App {
     /// `replace_branches`, where `carry_pr_info = false` keeps the PR info
     /// that came with `branches` (a full sync re-fetched it)
     pub fn replace_branches_with(&mut self, mut branches: Vec<BranchInfo>, carry_pr_info: bool) {
-        let cursor_name = match self.view {
-            ViewMode::Branches => self.selected_branch().map(|b| b.name.clone()),
-            ViewMode::Worktrees => None,
-        };
+        // While the worktree view is shown, the branch view's cursor and
+        // search wait in other_nav: swap them in to keep that cursor too
+        let in_worktrees = self.view == ViewMode::Worktrees;
+        if in_worktrees {
+            self.swap_nav();
+        }
+        let cursor_name = self.selected_branch().map(|b| b.name.clone());
 
         // Carry over PR info fetched at startup; a refresh only re-reads
         // git, so without this PrMerged branches revert to Unmerged.
@@ -1151,13 +1154,20 @@ impl App {
             })
         });
 
-        match self.view {
-            ViewMode::Branches => self.restore_branch_cursor(cursor_name.as_deref()),
-            ViewMode::Worktrees => {
-                let last = self.branches.len().saturating_sub(1);
-                self.other_nav.selected_index = self.other_nav.selected_index.min(last);
-            }
+        self.restore_branch_cursor(cursor_name.as_deref());
+        if in_worktrees {
+            self.swap_nav();
         }
+    }
+
+    /// Swap the shown view's cursor, scroll and search with the other
+    /// view's (kept in other_nav)
+    fn swap_nav(&mut self) {
+        let other = &mut self.other_nav;
+        std::mem::swap(&mut self.selected_index, &mut other.selected_index);
+        std::mem::swap(&mut self.scroll_offset, &mut other.scroll_offset);
+        std::mem::swap(&mut self.search_query, &mut other.search_query);
+        std::mem::swap(&mut self.search_cursor_pos, &mut other.search_cursor_pos);
     }
 
     /// Copy the PR info already known into `branches`, for the branches
@@ -2260,6 +2270,35 @@ mod tests {
             test_worktree("/wt/b", "feature/unmerged", BranchStatus::Unmerged),
         ]));
         app
+    }
+
+    #[test]
+    fn a_reload_in_the_worktree_view_keeps_the_branch_view_cursor() {
+        let mut app = create_test_app_with_worktrees();
+        app.search_query = "feature".to_string();
+        let filtered: Vec<String> = app
+            .filtered_branches()
+            .iter()
+            .map(|b| b.name.clone())
+            .collect();
+        assert!(filtered.len() >= 2);
+        let cursor = filtered.len() - 1;
+        app.selected_index = cursor;
+        let name = filtered[cursor].clone();
+        app.toggle_view();
+
+        // The branch above the cursor goes away while the worktree view is shown
+        let fresh: Vec<BranchInfo> = app
+            .branches
+            .iter()
+            .filter(|b| b.name != filtered[cursor - 1])
+            .cloned()
+            .collect();
+        app.replace_branches(fresh);
+
+        app.toggle_view();
+        assert_eq!(app.search_query, "feature");
+        assert_eq!(app.selected_branch().map(|b| b.name.clone()), Some(name));
     }
 
     #[test]

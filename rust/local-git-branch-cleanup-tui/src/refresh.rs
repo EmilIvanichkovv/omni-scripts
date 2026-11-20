@@ -70,8 +70,9 @@ pub enum JobResult {
         fetch_error: Option<String>,
         /// PR data was re-fetched, so it replaces what the app had
         prs_refetched: bool,
-        /// PR lookups that failed during the re-fetch
-        pr_failures: usize,
+        /// Branches whose PR lookup failed during the re-fetch; they keep
+        /// the PR info the app already had
+        pr_failed: Vec<String>,
         pr_cache: Option<PrCache>,
         /// Started by a timer, not a key
         automatic: bool,
@@ -128,7 +129,7 @@ fn run_local(job: &Job) -> JobResult {
             full_sync: false,
             fetch_error: None,
             prs_refetched: false,
-            pr_failures: 0,
+            pr_failed: Vec::new(),
             pr_cache: None,
             automatic: job.automatic,
         },
@@ -171,7 +172,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
     };
 
     let mut prs_refetched = false;
-    let mut pr_failures = 0;
+    let mut pr_failed = Vec::new();
     let mut pr_cache = None;
     if let Some(PrJob {
         provider,
@@ -186,7 +187,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
             cache.as_mut(),
         ));
         prs_refetched = true;
-        pr_failures = report.failed;
+        pr_failed = report.errors.into_iter().map(|e| e.branch).collect();
         pr_cache = cache;
     }
 
@@ -197,7 +198,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
         full_sync: true,
         fetch_error,
         prs_refetched,
-        pr_failures,
+        pr_failed,
         pr_cache,
         automatic: job.automatic,
     }
@@ -497,7 +498,7 @@ mod tests {
             full_sync: false,
             fetch_error: None,
             prs_refetched: false,
-            pr_failures: 0,
+            pr_failed: Vec::new(),
             pr_cache: None,
             automatic: false,
         });

@@ -1,6 +1,6 @@
 # TUI Usage Guide
 
-This guide covers how to use the interactive terminal interface for Local Git Branch Cleanup.
+This guide covers how to use the interactive terminal interface of Git Manager.
 
 ## Interface Overview
 
@@ -158,7 +158,7 @@ If `gh` is not installed, the tool prints a warning and continues without PR int
 
 ```bash
 # Start with GitHub PR integration
-local-git-branch-cleanup-tui --github
+git-manager --github
 
 # Or with cargo
 cargo run -- --github
@@ -178,14 +178,14 @@ cargo run -- --github
 read -rs BITBUCKET_TOKEN && export BITBUCKET_TOKEN
 
 # Start with Bitbucket PR integration
-local-git-branch-cleanup-tui --bitbucket
+git-manager --bitbucket
 ```
 
 The Bitbucket base URL, project key, and repository slug are derived from the `origin` remote. When
 derivation fails (nonstandard remote, context path, custom HTTP port), supply explicit overrides:
 
 ```bash
-local-git-branch-cleanup-tui --bitbucket \
+git-manager --bitbucket \
   --bitbucket-base-url 'https://bitbucket.example.com' \
   --bitbucket-project 'PROJ' \
   --bitbucket-repo 'my-repo'
@@ -268,9 +268,9 @@ just cache-db      # open interactive sqlite3 REPL
 just cache-clear   # delete all cached rows (forces fresh fetch on next run)
 ```
 
-The same directory holds `local-git-branch-cleanup-tui-update-check.json`, the result of the daily
-"update available" check (see the README, section Updating): when it last ran and the newest version
-it found. Delete it to check again on the next run.
+The same directory holds `git-manager-update-check.json`, the result of the daily "update available"
+check (see the README, section Updating): when it last ran and the newest version it found. Delete
+it to check again on the next run.
 
 > **Note:** PR integration requires additional API calls at startup for cache misses, which may slow
 > down the initial load with many branches. Subsequent runs within the TTL are instant.

@@ -27,8 +27,8 @@ use ratatui::prelude::*;
 use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
-#[command(name = "local-git-branch-cleanup-tui")]
-#[command(about = "Interactive TUI for cleaning up local Git branches", long_about = None)]
+#[command(name = "git-manager")]
+#[command(about = "Terminal application for managing local Git branches and worktrees", long_about = None)]
 #[command(version)]
 #[command(args_conflicts_with_subcommands = true)]
 struct Args {
@@ -1178,7 +1178,7 @@ fn print_header() {
 
 fn print_header_w(width: usize) {
     println!("┌{}┐", "─".repeat(width - 2));
-    print_centered("🧹 Local Git Branch Cleanup", width);
+    print_centered("🧹 Git Manager", width);
     println!("├{}┤", "─".repeat(width - 2));
 }
 

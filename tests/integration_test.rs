@@ -1,4 +1,4 @@
-// Integration tests for local-git-branch-cleanup-tui
+// Integration tests for git-manager
 
 #![allow(deprecated)] // Command::cargo_bin is deprecated but still functional
 
@@ -103,18 +103,18 @@ impl TestRepo {
 
 #[test]
 fn test_cli_help() {
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.arg("--help");
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("local-git-branch-cleanup-tui"))
+        .stdout(predicate::str::contains("git-manager"))
         .stdout(predicate::str::contains("--trunk"))
         .stdout(predicate::str::contains("--force"));
 }
 
 #[test]
 fn test_cli_version() {
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.arg("--version");
     cmd.assert()
         .success()
@@ -125,7 +125,7 @@ fn test_cli_version() {
 fn test_non_git_directory() {
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(temp_dir.path()).arg("--cli");
 
     // Should fail because it's not a git repository
@@ -138,7 +138,7 @@ fn test_non_git_directory() {
 fn test_empty_repository() {
     let repo = TestRepo::new();
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     // Should succeed - empty repo only has main/master which is protected
@@ -155,7 +155,7 @@ fn test_repository_with_merged_branches() {
     repo.create_branch("feature/merged", "Add merged feature");
     repo.merge_branch("feature/merged");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     cmd.assert()
@@ -171,7 +171,7 @@ fn test_repository_with_unmerged_branches() {
     // Create an unmerged branch
     repo.create_branch("feature/unmerged", "Add unmerged feature");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     cmd.assert()
@@ -185,7 +185,7 @@ fn test_protected_branches_not_shown() {
     let repo = TestRepo::new();
 
     // Main should exist but not be shown as deletable
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     let output = cmd.output().expect("Failed to execute command");
@@ -214,7 +214,7 @@ fn test_trunk_override() {
     TestRepo::run_git(repo.path(), &["checkout", "main"]);
 
     // With default trunk (main), feature/test should be unmerged
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
     cmd.assert()
         .success()
@@ -222,7 +222,7 @@ fn test_trunk_override() {
         .stdout(predicate::str::contains("unmerged"));
 
     // With trunk=develop, feature/test should be merged
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .arg("--cli")
         .arg("--trunk")
@@ -239,7 +239,7 @@ fn test_force_flag() {
     repo.create_branch("feature/unmerged", "Unmerged work");
 
     // Without --force, should show force mode disabled
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     let output = cmd.output().expect("Failed to execute command");
@@ -247,7 +247,7 @@ fn test_force_flag() {
     assert!(!stdout.contains("FORCE MODE"));
 
     // With --force, should indicate force mode
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--force");
 
     let output = cmd.output().expect("Failed to execute command");
@@ -260,7 +260,7 @@ fn test_dry_run_flag() {
     let repo = TestRepo::new();
     repo.create_branch("feature/test", "Test feature");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
 
     let output = cmd.output().expect("Failed to execute command");
@@ -284,7 +284,7 @@ fn test_mixed_branch_types() {
     // Note: Testing "gone" branches is complex as it requires actual remote setup
     // We've covered the basic scenarios
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     cmd.assert()
@@ -301,7 +301,7 @@ fn test_branch_count_summary() {
     repo.create_branch("feature/one", "Feature one");
     repo.create_branch("feature/two", "Feature two");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli");
 
     let output = cmd.output().expect("Failed to execute command");
@@ -321,7 +321,7 @@ fn test_github_flag_without_gh_cli() {
     // We just verify the binary exits (any status) without crashing.
     let repo = TestRepo::new();
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--github");
 
     // The binary may exit 0 (no PRs found) or non-zero (gh not found / API
@@ -339,7 +339,7 @@ fn test_sequential_flag_accepted() {
     // --sequential is a hidden flag; the binary must accept it without error.
     let repo = TestRepo::new();
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .arg("--cli")
         .arg("--sequential");
@@ -359,7 +359,7 @@ fn test_multiple_protected_branch_names() {
         // Checkout 'feature/test' branch
         TestRepo::run_git(repo.path(), &["checkout", "feature/test"]);
 
-        let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+        let mut cmd = Command::cargo_bin("git-manager").unwrap();
         cmd.current_dir(repo.path())
             .arg("--cli")
             .arg("--trunk")
@@ -386,7 +386,7 @@ fn test_dry_run_does_not_delete_branches() {
     repo.merge_branch("feature/merged");
 
     // Run with --dry-run — the branch should still exist afterwards.
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
     cmd.assert().success();
 
@@ -404,7 +404,7 @@ fn test_dry_run_does_not_delete_branches() {
 #[test]
 fn test_github_and_bitbucket_flags_conflict() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .arg("--github")
         .arg("--bitbucket");
@@ -421,7 +421,7 @@ fn test_bitbucket_override_requires_bitbucket_flag() {
         "--bitbucket-project=PROJ",
         "--bitbucket-repo=demo-repo",
     ] {
-        let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+        let mut cmd = Command::cargo_bin("git-manager").unwrap();
         cmd.current_dir(repo.path()).arg("--cli").arg(flag);
         cmd.assert().failure().stderr(
             predicate::str::contains("required").or(predicate::str::contains("--bitbucket")),
@@ -432,7 +432,7 @@ fn test_bitbucket_override_requires_bitbucket_flag() {
 /// Build a command with all Bitbucket env vars cleared and an isolated cache
 /// dir, so tests never depend on (or write to) the developer's environment.
 fn bitbucket_cmd(repo: &TestRepo) -> Command {
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .env_remove("BITBUCKET_TOKEN")
         .env_remove("BITBUCKET_BASE_URL")
@@ -741,7 +741,7 @@ fn test_local_status_for_never_pushed_branch() {
     // Never pushed with unmerged commits: also local.
     repo.create_branch("feature/local-wip", "Local WIP");
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
     cmd.write_stdin("n\n");
     cmd.assert()
@@ -773,7 +773,7 @@ fn test_pushed_without_tracking_is_not_local() {
     // (init default is master) — leave the feature branch explicitly.
     TestRepo::run_git(repo.path(), &["checkout", "master"]);
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
     cmd.write_stdin("n\n");
     cmd.assert()
@@ -803,7 +803,7 @@ fn test_remote_not_named_origin() {
     repo.create_branch("feature/never-pushed", "Never pushed");
     TestRepo::run_git(repo.path(), &["checkout", "master"]);
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).arg("--cli").arg("--dry-run");
     cmd.write_stdin("n\n");
     cmd.assert()
@@ -837,7 +837,7 @@ fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
     add("feature/pruned", "pruned-wt");
     fs::remove_dir_all(wt("pruned-wt")).unwrap();
 
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--worktrees", "--cli", "--dry-run", "--no-update-check"]);
     cmd.assert()
@@ -869,7 +869,7 @@ fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
     assert!(String::from_utf8_lossy(&list.stdout).contains("pruned-wt"));
 
     // Force mode makes the dirty worktree removable with --force
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["-w", "--cli", "--dry-run", "--force", "--no-update-check"]);
     cmd.assert().success().stdout(
@@ -882,7 +882,7 @@ fn test_worktrees_cli_dry_run_lists_states_and_removal_commands() {
 #[test]
 fn test_auto_refresh_interval_must_be_at_least_one_second() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--cli", "--auto-refresh-interval", "0"]);
     cmd.assert()
@@ -893,7 +893,7 @@ fn test_auto_refresh_interval_must_be_at_least_one_second() {
 #[test]
 fn test_auto_refresh_interval_conflicts_with_no_auto_refresh() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path()).args([
         "--cli",
         "--no-auto-refresh",
@@ -908,7 +908,7 @@ fn test_auto_refresh_interval_conflicts_with_no_auto_refresh() {
 #[test]
 fn test_auto_refresh_interval_is_accepted() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--cli", "--auto-refresh-interval", "30"]);
     cmd.assert().success();
@@ -917,7 +917,7 @@ fn test_auto_refresh_interval_is_accepted() {
 #[test]
 fn test_auto_sync_interval_is_accepted() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--cli", "--auto-sync-interval", "15"]);
     cmd.assert().success();
@@ -926,7 +926,7 @@ fn test_auto_sync_interval_is_accepted() {
 #[test]
 fn test_auto_sync_interval_must_be_at_least_one_minute() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--cli", "--auto-sync-interval", "0"]);
     cmd.assert()
@@ -937,7 +937,7 @@ fn test_auto_sync_interval_must_be_at_least_one_minute() {
 #[test]
 fn test_auto_sync_interval_conflicts_with_no_auto_sync() {
     let repo = TestRepo::new();
-    let mut cmd = Command::cargo_bin("local-git-branch-cleanup-tui").unwrap();
+    let mut cmd = Command::cargo_bin("git-manager").unwrap();
     cmd.current_dir(repo.path())
         .args(["--cli", "--no-auto-sync", "--auto-sync-interval", "15"]);
     cmd.assert()

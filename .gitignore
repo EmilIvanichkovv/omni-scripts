@@ -8,3 +8,14 @@ result
 
 # dist output (dist runs from the repo root)
 /target
+# Build output of the old rust/ layout (pre git-manager)
+/rust/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

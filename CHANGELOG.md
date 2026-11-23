@@ -1,7 +1,18 @@
 # Changelog
 
-All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
-release adds its entry automatically from conventional commit messages.
+All notable changes to Git Manager, previously `local-git-branch-cleanup-tui`, are recorded here.
+Releases add entries automatically from conventional commit messages.
+
+## 0.10.0 - 23-11-2026
+
+### Breaking changes
+
+- Rename the application and executable to `git-manager`. Existing installations require a manual
+  migration; see the README. The existing PR cache remains in place.
+
+### Changes
+
+- Make Git Manager the primary product and move the Rust application to the repository root.
 
 ## 0.9.0 - 20-11-2026
 

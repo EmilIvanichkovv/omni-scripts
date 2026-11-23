@@ -1,4 +1,4 @@
-# Manual Testing Checklist for local-git-branch-cleanup-tui
+# Manual Testing Checklist for git-manager
 
 This document provides a comprehensive checklist for manual testing of the Rust TUI branch cleanup
 tool. Use this to verify functionality before release.
@@ -38,11 +38,6 @@ tool. Use this to verify functionality before release.
 - [ ] Master branch marked as "protected" ⊘
 - [ ] Develop branch marked as "protected" ⊘
 - [ ] Current branch marked as "current" ◉
-- [ ] Branch checked out in another worktree (`git worktree add ../wt-x x`) marked as "protected-wt"
-      ⑂, has no checkbox, and the details pane shows `Worktree: wt-x (<path>)`; after
-      `rm -rf ../wt-x` (without `git worktree prune`) it stays protected and the details pane notes
-      the worktree is prunable; run from inside `../wt-x`, `x` is "current" and the main checkout's
-      branch is "protected-wt"
 - [ ] Merged branches marked as "merged" ✓
 - [ ] Unmerged branches marked as "unmerged" !
 
@@ -75,14 +70,8 @@ Compare behavior with the original bash script:
 
 - [ ] `j` / Down arrow - move selection down
 - [ ] `k` / Up arrow - move selection up
-- [ ] Selection stops at top/bottom (no wrap)
+- [ ] Selection wraps around at top/bottom
 - [ ] Selection indicator (highlight) visible
-- [ ] `g` / Home - go to first item
-- [ ] `G` / End - go to last item
-- [ ] `Ctrl+U` - go to first item
-- [ ] `Ctrl+D` - go to last item
-- [ ] `Page Up` - move up by one page
-- [ ] `Page Down` - move down by one page
 
 #### 3.2 Selection
 
@@ -90,7 +79,6 @@ Compare behavior with the original bash script:
 - [ ] Checkbox appears when branch selected `[x]`
 - [ ] Cannot select protected branches (main/master/develop)
 - [ ] Cannot select current branch
-- [ ] Cannot select branches checked out in another worktree (protected-wt)
 - [ ] Cannot select unmerged branches without force mode
 - [ ] `a` - select all safe branches
 - [ ] `a` again - deselect all
@@ -105,8 +93,6 @@ Compare behavior with the original bash script:
 - [ ] Tab - cycle through filters
 - [ ] Filter counts update correctly
 - [ ] Selection index resets when changing filters
-- [ ] `/` → `@author:` → accept `me` (or a single-word name): dropdown closes and `↓` browses the
-      filtered branches
 
 #### 3.4 Details Pane
 
@@ -114,9 +100,6 @@ Compare behavior with the original bash script:
 - [ ] Shows: commit SHA, author, message, ahead/behind counts
 - [ ] Updates when selection changes
 - [ ] Text wraps properly in pane
-- [ ] `y` copies the name of the branch under the cursor (also on `protected`, `protected-wt` and
-      `current` rows); the footer shows `Copied <branch> to the clipboard (<tool>)`, or the error
-      when no clipboard tool is installed; the next key clears the message
 
 #### 3.5 Deletion Flow
 
@@ -134,11 +117,6 @@ Compare behavior with the original bash script:
 - [ ] `f` - toggle force mode
 - [ ] Header shows "⚠️ FORCE" when enabled
 - [ ] Unmerged branches become selectable in force mode
-- [ ] Select merged/gone branches, press `f`: the selection is kept
-- [ ] With merged + unmerged branches selected in force mode, press `f` again: only the unmerged
-      (and pr-diverged/local) ones are deselected
-- [ ] Worktree view (remove mode): select a clean and a dirty worktree in force mode, press `f`:
-      only the dirty one is deselected; the branch view's selection is pruned the same way
 - [ ] Force delete uses `git branch -D`
 - [ ] Safe delete uses `git branch -d`
 
@@ -162,85 +140,9 @@ Compare behavior with the original bash script:
 #### 3.9 Exit
 
 - [ ] `q` - quit application
-- [ ] Esc once (not in modal, empty search) - footer shows "Press Esc again to quit", app stays open
-- [ ] Esc twice within 1s - quit application
-- [ ] Esc, then wait over 1s or press another key - hint disappears, next Esc only re-arms
-- [ ] Esc closing a popup does not quit the app
+- [ ] Esc - quit application (when not in modal)
 - [ ] Terminal restored properly on exit
 - [ ] No artifacts left on screen
-
-#### 3.10 GitHub PR Integration (with --github flag)
-
-- [ ] `--github` flag enables GitHub integration
-- [ ] PR column appears in branch list when enabled
-- [ ] PR status icons display correctly (🟢 merged, 🟡 open, 🔴 closed, ⚪ none)
-- [ ] PR number shows next to icon (e.g., "🟢 #165")
-- [ ] Details pane shows PR title when branch has PR
-- [ ] Details pane shows PR state and number
-- [ ] `o` key opens PR URL in browser
-- [ ] `o` key does nothing when no PR associated
-- [ ] Footer shows `o pr` hint when GitHub enabled
-- [ ] Help modal includes GitHub section
-- [ ] Error handling when `gh` CLI not installed
-- [ ] Works without --github (PR column hidden, no extra API calls)
-
-#### 3.11 Bitbucket PR Integration (with --bitbucket flag)
-
-Bitbucket HTTP behavior is covered by automated `wiremock`-based mock tests (auth headers, query
-parameters, status handling, retries) — no real network access is needed in CI. Manual testing
-against a real Bitbucket Data Center instance follows the acceptance checklist in the spec:
-
-📋
-**[Manual acceptance test — BITBUCKET_SUPPORT.md §13.6](../specs/BITBUCKET_SUPPORT.md#136-manual-acceptance-test)**
-
-Quick smoke checks:
-
-- [ ] `--bitbucket` flag enables Bitbucket integration (requires `BITBUCKET_TOKEN` in environment)
-- [ ] Missing/empty `BITBUCKET_TOKEN` fails with a clear error before the TUI opens
-- [ ] `--github --bitbucket` together is rejected
-- [ ] `--bitbucket-*` overrides without `--bitbucket` are rejected
-- [ ] PR column, details pane, and `o` (open in browser) work the same as with `--github`
-- [ ] Second run within 1h reports cache hits and is materially faster
-- [ ] No token ever appears in output, errors, or the cache
-
-#### 3.12 Worktree View (--worktrees / w)
-
-Setup: a repo with linked worktrees — one on a merged branch, one with uncommitted and untracked
-changes, one locked (`git worktree lock`), one detached (`git worktree add --detach`), and one whose
-directory was deleted (prunable).
-
-- [ ] `--worktrees` / `-w` starts in the worktree view; header shows `🌳 Worktrees`
-- [ ] `w` switches views both ways; each view keeps its cursor, search query and selection
-- [ ] Main worktree is first and marked `◆`; the rest are ordered by last activity
-- [ ] States: `◉ current`, `✗ prunable`, `🔒 locked`, `✎ dirty`, `○ detached`, else the branch
-      status (same label as in the branch view)
-- [ ] Changes column shows `…` briefly, then `clean` or counts like `1M 1S 1N`; the UI stays
-      responsive while statuses load
-- [ ] Details pane: path, branch, branch status, upstream and ahead/behind, HEAD, last commit,
-      changed paths grouped under Modified / Staged / New (empty groups hidden, `… and N more` past
-      5), lock reason, prunable reason
-- [ ] On open the view is read-only: no checkboxes, no `🗑 REMOVE` badge; `Space`, `a`, `c` and
-      `Enter` only show `Removal is off (press x to turn it on)` in the footer
-- [ ] `x` turns remove mode on (badge, checkboxes, removal keys in the footer); `x` again turns it
-      off and clears the selection; restarting the tool starts read-only again
-- [ ] (Remove mode) Main, current and locked worktrees cannot be selected; dirty ones show `-` until
-      `f`
-- [ ] `a` selects only clean stale worktrees (merged, gone, prunable); pressing it again deselects
-- [ ] Filters `1`-`4` / `Tab`: Clean, Dirty, Stale, All, with counts
-- [ ] `/` search matches worktree name, branch and path
-- [ ] `Enter` opens the confirmation modal listing each worktree with `remove`, `remove --force` or
-      `prune`; `b` toggles "also delete branches"
-- [ ] Confirm: clean worktree removed, prunable one pruned, dirty one (force mode) removed with
-      `--force`; action log shows each result; the list refreshes
-- [ ] With `b` on: merged branches deleted with `-d`, gone with `-D`, unmerged/local kept unless
-      force mode
-- [ ] Dry run (`d`): action log shows `[DRY RUN] Would run: git worktree ...`, nothing changes on
-      disk
-- [ ] `y` copies the path (footer names the clipboard tool); without any clipboard tool the footer
-      says so and nothing crashes
-- [ ] With `--github` / `--bitbucket`: PR column and details; `o` opens the PR, or the footer says
-      there is none
-- [ ] `?` and `i` show the worktree help and worktree states while in the worktree view
 
 ### 4. CLI Mode Tests
 
@@ -257,8 +159,6 @@ directory was deleted (prunable).
 - [ ] `--trunk develop` - uses develop as trunk branch
 - [ ] `--force` - shows "FORCE MODE" indicator
 - [ ] `--dry-run` - shows "DRY RUN" indicator
-- [ ] `--github` - enables GitHub PR integration
-- [ ] `--bitbucket` - enables Bitbucket Data Center PR integration
 - [ ] `--help` - shows comprehensive help
 - [ ] `--version` - shows version number
 
@@ -269,14 +169,6 @@ directory was deleted (prunable).
 - [ ] Accepts 'n' or 'no' to cancel
 - [ ] Shows summary of deleted branches
 - [ ] Handles errors gracefully
-
-#### 4.4 Worktree CLI
-
-- [ ] `--worktrees --cli` prints the worktree table (name, branch, state, changes, last commit) and
-      exits without prompting or removing anything
-- [ ] `--worktrees --cli --dry-run` also lists `[DRY RUN] git worktree remove <path>` /
-      `git worktree prune` for the clean stale worktrees
-- [ ] Adding `--force` lists `git worktree remove --force <path>` for dirty stale worktrees
 
 ### 5. Edge Cases
 

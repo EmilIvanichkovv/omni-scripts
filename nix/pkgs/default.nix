@@ -14,8 +14,7 @@
         # Bash script version (original)
         local-git-branch-cleanup = pkgs.callPackage ./local-git-branch-cleanup { };
 
-        # Rust TUI version (interactive)
-        local-git-branch-cleanup-tui = pkgs.callPackage ./local-git-branch-cleanup/tui.nix {
+        git-manager = pkgs.callPackage ./local-git-branch-cleanup/tui.nix {
           inherit (pkgs)
             lib
             git
@@ -25,8 +24,14 @@
           inherit craneLib;
         };
 
-        # Default to TUI version
-        default = self'.packages.local-git-branch-cleanup-tui;
+        # Old name: same package, plus the old command as a symlink so existing scripts and
+        # `nix profile` installs keep working after the rename.
+        local-git-branch-cleanup-tui = pkgs.symlinkJoin {
+          inherit (self'.packages.git-manager) name meta;
+          paths = [ self'.packages.git-manager ];
+          postBuild = "ln -s git-manager $out/bin/local-git-branch-cleanup-tui";
+        };
+        default = self'.packages.git-manager;
       };
     };
 }

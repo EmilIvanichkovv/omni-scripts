@@ -13,7 +13,7 @@
         # Vendored crates so clippy also works inside the `nix flake check` sandbox, which has no
         # network access to crates.io.
         settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {
-          lockFile = ../../rust/Cargo.lock;
+          lockFile = ../../Cargo.lock;
         };
 
         hooks = {
@@ -53,7 +53,7 @@
           rustfmt = {
             enable = true;
             name = "cargo fmt";
-            entry = "bash -c 'cd rust && cargo fmt --all'";
+            entry = "cargo fmt --all";
             files = "\\.rs$";
             pass_filenames = false;
           };
@@ -67,7 +67,7 @@
               # Locally and in CI cargo may still need to download crates; the sandbox gets them
               # through cargoDeps above instead.
               offline = false;
-              extraArgs = "--manifest-path rust/Cargo.toml --workspace --all-targets";
+              extraArgs = "--manifest-path Cargo.toml --workspace --all-targets";
             };
           };
 
@@ -106,8 +106,7 @@
       _module.args.pre-commit-check = pre-commit-check;
 
       checks = {
-        # The vendored cargoDeps are checked against rust/Cargo.lock, not one at the repo root.
-        pre-commit-check = pre-commit-check.overrideAttrs { cargoRoot = "rust"; };
+        pre-commit-check = pre-commit-check;
       };
     };
 }

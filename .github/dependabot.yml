@@ -16,7 +16,7 @@ updates:
       include: scope
 
   - package-ecosystem: cargo
-    directory: /rust
+    directory: /
     schedule:
       interval: weekly
     # One PR for compatible bumps; major bumps still get their own PR each.
@@ -27,5 +27,5 @@ updates:
       prefix: build
       include: scope
     ignore:
-      # Held at 2.0.0 on purpose: see the comment in rust/Cargo.toml.
+      # Held at 2.0.0 on purpose: see the comment in Cargo.toml.
       - dependency-name: axoasset

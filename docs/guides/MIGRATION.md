@@ -1,7 +1,7 @@
 # Migration Guide: Bash Script → Rust TUI
 
-This guide helps you migrate from the legacy bash script (`bash/local-git-branch-cleanup.sh`) to the
-new Rust-based TUI (`rust/local-git-branch-cleanup-tui`).
+This guide helps you migrate from the legacy bash script (`bash/local-git-branch-cleanup.sh`) to Git
+Manager, the Rust-based TUI at the repository root.
 
 ## Quick Start
 
@@ -11,15 +11,14 @@ Keep both versions and test the Rust TUI on non-critical repositories first:
 
 ```bash
 # Build the Rust version
-cd rust
 cargo build --release
 
 # Test it on a test repository
 cd /path/to/test/repo
-/path/to/rust/target/release/local-git-branch-cleanup-tui
+/path/to/git-manager/target/release/git-manager
 
 # If satisfied, install it
-cp /path/to/rust/target/release/local-git-branch-cleanup-tui ~/.local/bin/
+cp /path/to/git-manager/target/release/git-manager ~/.local/bin/
 ```
 
 ### Option 2: Replace Bash Script
@@ -28,15 +27,14 @@ If you're confident, replace the bash script entirely:
 
 ```bash
 # Build the Rust version
-cd rust
 cargo build --release
 
 # Replace bash script (backup first!)
 cp bash/local-git-branch-cleanup.sh bash/local-git-branch-cleanup.sh.backup
-cp rust/target/release/local-git-branch-cleanup-tui ~/.local/bin/local-git-branch-cleanup
+cp target/release/git-manager ~/.local/bin/local-git-branch-cleanup
 
 # Create alias for backward compatibility
-alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
+alias local-git-branch-cleanup='git-manager --cli'
 ```
 
 ## Feature Comparison
@@ -68,10 +66,10 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 ./bash/local-git-branch-cleanup.sh
 
 # Rust TUI (interactive mode)
-./rust/target/release/local-git-branch-cleanup-tui
+./target/release/git-manager
 
 # Rust TUI (CLI mode - closest to bash script)
-./rust/target/release/local-git-branch-cleanup-tui --cli
+./target/release/git-manager --cli
 ```
 
 ### With Trunk Override
@@ -81,7 +79,7 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 # Manual workaround needed
 
 # Rust TUI
-./rust/target/release/local-git-branch-cleanup-tui --trunk develop
+./target/release/git-manager --trunk develop
 ```
 
 ### Force Delete
@@ -91,7 +89,7 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 ./bash/local-git-branch-cleanup.sh
 
 # Rust TUI (safe delete by default)
-./rust/target/release/local-git-branch-cleanup-tui --force
+./target/release/git-manager --force
 ```
 
 ### Dry Run / Preview
@@ -101,7 +99,7 @@ alias local-git-branch-cleanup='local-git-branch-cleanup-tui --cli'
 # Manual review needed
 
 # Rust TUI
-./rust/target/release/local-git-branch-cleanup-tui --dry-run
+./target/release/git-manager --dry-run
 ```
 
 ## Behavior Changes
@@ -193,7 +191,7 @@ TUI mode.
 Use CLI mode with force flag (not recommended):
 
 ```bash
-local-git-branch-cleanup-tui --cli --force
+git-manager --cli --force
 ```
 
 This matches bash script behavior:
@@ -239,7 +237,7 @@ Keep both installed with different names:
 cp bash/local-git-branch-cleanup.sh ~/.local/bin/git-branch-cleanup-legacy
 
 # Install Rust version
-cp rust/target/release/local-git-branch-cleanup-tui ~/.local/bin/git-branch-cleanup
+cp target/release/git-manager ~/.local/bin/git-branch-cleanup
 
 # Use based on preference
 git-branch-cleanup          # Interactive TUI (default)
@@ -319,7 +317,7 @@ cp bash/local-git-branch-cleanup.sh ~/.local/bin/local-git-branch-cleanup
 
 ```bash
 # Just remove the Rust version
-rm ~/.local/bin/local-git-branch-cleanup-tui
+rm ~/.local/bin/git-manager
 
 # Continue using bash version
 ./bash/local-git-branch-cleanup.sh
@@ -363,7 +361,6 @@ Both versions have similar performance for typical repositories.
 
 ```bash
 # Solution: Build the binary first
-cd rust
 cargo build --release
 
 # Or ensure it's in PATH
@@ -377,7 +374,7 @@ This is expected! Unmerged branches require force mode:
 ```bash
 # Press 'f' in TUI mode to toggle force mode
 # Or use CLI with --force flag
-local-git-branch-cleanup-tui --force
+git-manager --force
 ```
 
 ### Issue 3: "TUI looks weird in my terminal"
@@ -386,7 +383,7 @@ Try a different terminal emulator or use CLI mode:
 
 ```bash
 # Use CLI mode instead
-local-git-branch-cleanup-tui --cli
+git-manager --cli
 ```
 
 Supported terminals:
@@ -404,10 +401,10 @@ Use force mode:
 
 ```bash
 # TUI mode: press 'f' to enable force mode
-local-git-branch-cleanup-tui
+git-manager
 
 # CLI mode: use --force flag
-local-git-branch-cleanup-tui --cli --force
+git-manager --cli --force
 ```
 
 ⚠️ **Warning:** Force mode deletes branches with unmerged commits. Use with caution!
@@ -453,10 +450,10 @@ confirmation (for safety). A `--yes` flag for automation is planned.
 
 ## Getting Help
 
-- **Documentation:** See [README.md](README.md) for detailed usage
-- **Architecture:** See [ARCHITECTURE.md](ARCHITECTURE.md) for technical details
+- **Documentation:** See [README.md](../../README.md) for detailed usage
+- **Architecture:** See [ARCHITECTURE.md](../specs/ARCHITECTURE.md) for technical details
 - **Issues:** File bugs or feature requests on the repository
-- **Testing:** See [TESTING.md](TESTING.md) for testing guidelines
+- **Testing:** See [TESTING.md](../testing/TESTING.md) for testing guidelines
 
 ## Summary
 

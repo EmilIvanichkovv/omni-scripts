@@ -1,6 +1,6 @@
 name: Auto release
 
-# Releases local-git-branch-cleanup-tui after every merge to main with releasable commits (rules in
+# Releases git-manager after every merge to main with releasable commits (rules in
 # scripts/release/next-version.sh). It pushes a version bump commit and a tag; the tag starts
 # release.yml (dist), which builds the binaries and publishes the GitHub Release.
 # Run it by hand for a forced bump, a prerelease from any branch, or a dry run (`just release-*`).
@@ -9,10 +9,11 @@ on:
     branches: [main]
     # Workflow paths cannot use variables: keep in sync with APP_DIR and next-version.sh.
     paths:
-      - rust/local-git-branch-cleanup-tui/**
-      - "!rust/local-git-branch-cleanup-tui/docs/**"
-      - rust/Cargo.toml
-      - rust/Cargo.lock
+      - src/**
+      - tests/**
+      - README.md
+      - Cargo.toml
+      - Cargo.lock
       - dist-workspace.toml
       - rust-toolchain.toml
   workflow_dispatch:
@@ -40,8 +41,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP: local-git-branch-cleanup-tui
-  APP_DIR: rust/local-git-branch-cleanup-tui
+  APP: git-manager
+  APP_DIR: .
 
 jobs:
   release:
@@ -62,7 +63,7 @@ jobs:
           exit 1
 
       # Tags pushed with GITHUB_TOKEN do not start other workflows, so publishing uses a token of
-      # the release GitHub App (setup: rust/local-git-branch-cleanup-tui/docs/specs/
+      # the release GitHub App (setup: docs/specs/
       # RELEASE_DISTRIBUTION.md, section 6.4). Dry runs do not push and need no App.
       - id: app-token
         if: ${{ !inputs.dry-run }}

@@ -1,5 +1,8 @@
 # Cross-Platform Release and Distribution Specification
 
+> Historical specification for the original application name and layout. See
+> [Git Manager migration](../GIT_MANAGER_MIGRATION.md) for the current transition.
+
 Status: Proposed implementation specification. Target project: `rust/local-git-branch-cleanup-tui`.
 Repository: `EmilIvanichkovv/omni-scripts`. Source snapshot reviewed: `main` @ `0466bfb`,
 2026-10-09.

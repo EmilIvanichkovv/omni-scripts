@@ -9,7 +9,7 @@
 # Writes release, version and tag to $GITHUB_OUTPUT when set.
 set -euo pipefail
 
-APP=${APP:-local-git-branch-cleanup-tui}
+APP=${APP:-git-manager}
 export APP
 
 prerelease=false

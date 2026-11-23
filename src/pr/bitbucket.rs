@@ -672,10 +672,7 @@ impl BitbucketProvider {
         crate::tls::install_crypto_provider();
         let client = reqwest::Client::builder()
             .default_headers(headers)
-            .user_agent(concat!(
-                "local-git-branch-cleanup-tui/",
-                env!("CARGO_PKG_VERSION")
-            ))
+            .user_agent(concat!("git-manager/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(connect_timeout)
             .timeout(total_timeout)
             .redirect(reqwest::redirect::Policy::none())
@@ -1435,8 +1432,7 @@ mod tests {
         use wiremock::matchers::{header, method, path, query_param};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
-        const USER_AGENT: &str =
-            concat!("local-git-branch-cleanup-tui/", env!("CARGO_PKG_VERSION"));
+        const USER_AGENT: &str = concat!("git-manager/", env!("CARGO_PKG_VERSION"));
 
         fn provider_for(server: &MockServer) -> BitbucketProvider {
             BitbucketProvider::new(

@@ -9,7 +9,7 @@ use tempfile::TempDir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const APP: &str = "local-git-branch-cleanup-tui";
+const APP: &str = "git-manager";
 const CURRENT: &str = env!("CARGO_PKG_VERSION");
 const RELEASES: &str = "/api/v3/repos/EmilIvanichkovv/omni-scripts/releases";
 /// The releases feed, which follows the GHE base URL like the API.
@@ -23,10 +23,10 @@ fn update_cmd(server: &MockServer, config_dir: &Path) -> Command {
         .env("AXOUPDATER_CONFIG_PATH", config_dir)
         // The GHE variable accepts a plain http://127.0.0.1 URL and appends /api/v3.
         .env(
-            "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL",
+            "GIT_MANAGER_INSTALLER_GHE_BASE_URL",
             format!("{}/", server.uri()),
         )
-        .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL")
+        .env_remove("GIT_MANAGER_INSTALLER_GITHUB_BASE_URL")
         .env_remove("LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN")
         .env_remove("GH_TOKEN")
         .env_remove("GITHUB_TOKEN");

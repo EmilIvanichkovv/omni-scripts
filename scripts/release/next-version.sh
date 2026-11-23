@@ -13,8 +13,10 @@
 # goes to stderr. Exits 0 with release=false when there is nothing to release.
 set -euo pipefail
 
-APP=${APP:-local-git-branch-cleanup-tui}
-APP_DIR=${APP_DIR:-rust/local-git-branch-cleanup-tui}
+APP=${APP:-git-manager}
+# The package was released as this before the rename to git-manager.
+OLD_APP=local-git-branch-cleanup-tui
+APP_DIR=${APP_DIR:-.}
 
 # Commit types that trigger a release. refactor (no behaviour change) and build(deps) (dependency
 # updates, mostly Dependabot) do not: they ship with the next release that does, and their changelog
@@ -59,8 +61,7 @@ cd "$(git rev-parse --show-toplevel)"
 cargo_toml="$APP_DIR/Cargo.toml"
 changelog="$APP_DIR/CHANGELOG.md"
 # Paths whose changes can affect the shipped binary.
-paths=("$APP_DIR" rust/Cargo.toml rust/Cargo.lock dist-workspace.toml rust-toolchain.toml
-    ":(exclude)$APP_DIR/docs" ":(exclude)$changelog")
+paths=(src tests Cargo.toml Cargo.lock README.md dist-workspace.toml rust-toolchain.toml)
 
 current=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$cargo_toml" | head -n 1)
 [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
@@ -142,12 +143,16 @@ fi
 # Changelog entry: keep a hand-written one, otherwise render the commits since the last release.
 entry=""
 if ! grep -qE "^## \[?$version\]?( |$)" "$changelog"; then
-    range=${previous:+$previous..}HEAD
+    # Before the first git-manager tag, count from the last release under the old name so the
+    # entry does not swallow the whole history (relevant for prereleases of the first version).
+    base=${previous:-$(git tag --list "$OLD_APP-v*" --merged HEAD |
+        grep -E "^$OLD_APP-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1 || true)}
+    range=${base:+$base..}HEAD
     include=()
     for p in "${paths[@]}"; do
         [[ "$p" == :* ]] || include+=(--include-path "$p" --include-path "$p/**")
     done
-    entry=$(git cliff --config cliff.toml "${include[@]}" --exclude-path "$APP_DIR/docs/**" \
+    entry=$(git cliff --config cliff.toml "${include[@]}" \
         --tag "$APP-v$version" --strip all "$range")
     [[ "$entry" == *"###"* ]] || entry+=$'\n\nNo user-facing changes.'
 fi
@@ -164,8 +169,8 @@ if [[ "$version" != "$current" ]]; then
     awk -v app="$APP" -v v="$version" '
         $0 == "name = \"" app "\"" { hit = 1; print; next }
         hit && /^version = / { print "version = \"" v "\""; hit = 0; next }
-        { hit = 0; print }' rust/Cargo.lock >rust/Cargo.lock.tmp
-    mv rust/Cargo.lock.tmp rust/Cargo.lock
+        { hit = 0; print }' Cargo.lock >Cargo.lock.tmp
+    mv Cargo.lock.tmp Cargo.lock
 fi
 if [[ -n "$entry" ]]; then
     # Insert above the newest entry, below the file's title and intro.

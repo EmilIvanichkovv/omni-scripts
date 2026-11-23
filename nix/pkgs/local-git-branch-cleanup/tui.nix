@@ -9,29 +9,26 @@
 let
   src = craneLib.cleanCargoSource (
     lib.fileset.toSource {
-      root = ../../../rust;
+      root = ../../..;
       fileset = lib.fileset.unions [
-        ../../../rust/Cargo.toml
-        ../../../rust/Cargo.lock
-        ../../../rust/local-git-branch-cleanup-tui/Cargo.toml
-        ../../../rust/local-git-branch-cleanup-tui/src
-        ../../../rust/local-git-branch-cleanup-tui/tests
-        ../../../rust/omni-lib/Cargo.toml
-        ../../../rust/omni-lib/src
+        ../../../Cargo.toml
+        ../../../Cargo.lock
+        ../../../src
+        ../../../tests
       ];
     }
   );
 
   # Name and version come from Cargo.toml, the single source of the TUI's version.
   crateInfo = craneLib.crateNameFromCargoToml {
-    cargoToml = ../../../rust/local-git-branch-cleanup-tui/Cargo.toml;
+    cargoToml = ../../../Cargo.toml;
   };
 
   commonArgs = {
     inherit src;
     inherit (crateInfo) pname version;
 
-    cargoExtraArgs = "-p local-git-branch-cleanup-tui";
+    cargoExtraArgs = "-p git-manager";
 
     nativeBuildInputs = [
       git
@@ -53,11 +50,11 @@ craneLib.buildPackage (
     inherit cargoArtifacts;
 
     meta = with lib; {
-      description = "Interactive TUI for cleaning up local Git branches";
+      description = "Terminal application for managing Git branches and worktrees";
       homepage = "https://github.com/EmilIvanichkovv/omni-scripts";
       license = licenses.mit;
       maintainers = [ ];
-      mainProgram = "local-git-branch-cleanup-tui";
+      mainProgram = "git-manager";
     };
   }
 )

@@ -363,6 +363,10 @@ impl App {
     /// under the pointer. An open modal takes every wheel event; over the
     /// details pane it scrolls the details; over the list it moves the cursor.
     pub fn scroll_at(&mut self, column: u16, row: u16, down: bool) {
+        // Nothing but the "too small" message is on screen
+        if self.too_small {
+            return;
+        }
         let pos = Position::new(column, row);
         let rows = if down { WHEEL_ROWS } else { -WHEEL_ROWS };
         if self.modal_open() {

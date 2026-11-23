@@ -469,8 +469,8 @@ fn run_tui_mode(
                 if key.kind == KeyEventKind::Press && app.too_small {
                     // Only the "too small" message is on screen; a key meant
                     // for a hidden modal or search must not act blind
-                    if matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q')) {
-                        app.should_quit = true;
+                    if key.code == KeyCode::Char('q') {
+                        app.quit();
                     }
                 } else if key.kind == KeyEventKind::Press {
                     // Any key other than Esc cancels a pending Esc quit
@@ -791,12 +791,22 @@ impl crossterm::Command for EnableWheelCapture {
     fn execute_winapi(&self) -> io::Result<()> {
         crossterm::Command::execute_winapi(&crossterm::event::EnableMouseCapture)
     }
+
+    // crossterm reads Windows input with ReadConsoleInput, which only gets
+    // mouse events once the console mouse input mode is set through winapi
+    #[cfg(windows)]
+    fn is_ansi_code_supported(&self) -> bool {
+        false
+    }
 }
 
 /// Whether the TUI owns the terminal (raw mode, alternate screen, mouse)
 static TUI_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// The thread running the TUI; only its panics end the TUI
 static TUI_THREAD: std::sync::OnceLock<std::thread::ThreadId> = std::sync::OnceLock::new();
+/// Panic reports of background threads while the TUI runs, printed once
+/// the terminal is restored instead of over the screen
+static HELD_PANICS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
 /// Give the terminal back: raw mode off, main screen, no mouse or focus
 /// reporting, cursor shown. Safe to call more than once.
@@ -810,6 +820,10 @@ fn restore_terminal() {
             LeaveAlternateScreen,
             crossterm::cursor::Show
         );
+        let held = std::mem::take(&mut *HELD_PANICS.lock().unwrap_or_else(|e| e.into_inner()));
+        for report in held {
+            eprintln!("{report}");
+        }
     }
 }
 
@@ -832,15 +846,28 @@ impl Drop for TerminalGuard {
 
 /// Restore the terminal before a panic on the TUI thread is reported.
 /// Background threads (refresh, worktree status, update check) can panic
-/// without ending the TUI, so their panics leave the terminal alone.
+/// without ending the TUI, so their panics leave the terminal alone; their
+/// reports are held and printed after the TUI exits, since printing them
+/// now would write over the screen.
 fn install_tui_panic_hook() {
     if TUI_THREAD.set(std::thread::current().id()).is_err() {
         return; // already installed
     }
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        if TUI_THREAD.get() == Some(&std::thread::current().id()) {
+        let tui_thread = TUI_THREAD.get() == Some(&std::thread::current().id());
+        if tui_thread {
             restore_terminal();
+        } else if TUI_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {
+            let thread = std::thread::current();
+            let name = thread.name().unwrap_or("<unnamed>");
+            HELD_PANICS
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(format!(
+                    "thread '{name}' panicked while the TUI ran: {info}"
+                ));
+            return;
         }
         previous_hook(info);
     }));

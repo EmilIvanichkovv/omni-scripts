@@ -193,7 +193,8 @@ fn char_width(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
-fn str_width(s: &str) -> usize {
+/// Display width of `s` in terminal columns
+pub fn str_width(s: &str) -> usize {
     s.chars().map(char_width).sum()
 }
 

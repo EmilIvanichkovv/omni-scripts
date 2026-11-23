@@ -236,8 +236,9 @@ pub struct App {
     pub layout_mode: LayoutMode,
     /// Rows the details pane is scrolled down by (clamped while rendering)
     pub details_scroll: usize,
-    /// Item the details scroll belongs to; another item starts at the top
-    pub details_anchor: Option<(ViewMode, usize)>,
+    /// Item the details scroll belongs to (branch name or worktree path);
+    /// another item starts at the top
+    pub details_anchor: Option<(ViewMode, String)>,
     /// Rows the open help / about / confirmation modal is scrolled down by
     /// (clamped while rendering)
     pub modal_scroll: usize,
@@ -247,6 +248,12 @@ pub struct App {
     pub list_area: Rect,
     /// Where the details pane was drawn last frame (`None` when hidden)
     pub details_area: Option<Rect>,
+    /// Whether the open help / about had more lines than fit last frame;
+    /// when not, scroll keys close it like any other key
+    pub modal_overflows: bool,
+    /// Whether the last frame was the "terminal too small" screen, which
+    /// hides everything: keys other than `q` are ignored meanwhile
+    pub too_small: bool,
 }
 
 /// Rows one mouse-wheel notch scrolls the details pane or a modal by
@@ -311,6 +318,8 @@ impl App {
             modal_viewport: 0,
             list_area: Rect::default(),
             details_area: None,
+            modal_overflows: false,
+            too_small: false,
         }
     }
 
@@ -319,15 +328,30 @@ impl App {
         self.layout_mode = self.layout_mode.next();
     }
 
-    /// Scroll the details pane by `delta` rows (positive = down)
+    /// Scroll the details pane by `delta` rows (positive = down). Does
+    /// nothing while the pane is hidden, so it does not reappear scrolled.
     pub fn scroll_details(&mut self, delta: isize) {
-        self.details_scroll = self.details_scroll.saturating_add_signed(delta);
+        if self.details_area.is_some() {
+            self.details_scroll = self.details_scroll.saturating_add_signed(delta);
+        }
+    }
+
+    /// Identity of the item under the cursor: branch name or worktree path
+    fn cursor_item_key(&self) -> Option<String> {
+        match self.view {
+            ViewMode::Branches => self.selected_branch().map(|b| b.name.clone()),
+            ViewMode::Worktrees => self
+                .selected_worktree()
+                .map(|wt| wt.entry.path.display().to_string()),
+        }
     }
 
     /// The details scroll for the item under the cursor: kept while the
-    /// cursor stays on the item it was scrolled for, reset otherwise
+    /// cursor stays on the item it was scrolled for, reset for any other
+    /// item (also when a search, filter, sort or reload puts another item
+    /// at the same row)
     pub fn details_scroll_for_cursor(&mut self) -> usize {
-        let anchor = Some((self.view, self.selected_index));
+        let anchor = self.cursor_item_key().map(|key| (self.view, key));
         if self.details_anchor != anchor {
             self.details_anchor = anchor;
             self.details_scroll = 0;
@@ -346,10 +370,20 @@ impl App {
         } else if self.details_area.is_some_and(|area| area.contains(pos)) {
             self.scroll_details(rows);
         } else if self.list_area.contains(pos) {
-            if down {
-                self.select_next();
-            } else {
-                self.select_prev();
+            // Like ↓ / ↑: with suggestions showing they move through them;
+            // otherwise search mode ends, so the next key is not typed into
+            // the query
+            match (self.show_suggestions, down) {
+                (true, true) => self.suggestion_next(),
+                (true, false) => self.suggestion_prev(),
+                (false, _) => {
+                    self.search_active = false;
+                    if down {
+                        self.select_next();
+                    } else {
+                        self.select_prev();
+                    }
+                }
             }
         }
     }

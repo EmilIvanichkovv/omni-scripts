@@ -34,7 +34,8 @@ The layout adapts to the terminal size and is redrawn as soon as the window is r
 - **Smaller still**: only the list is shown; its bottom border reads `details hidden: v layout`.
 - **Fewer than 30 rows**: the header, search box, filter tabs and footer lose their borders to leave
   more rows for the list.
-- **Below 40×10**: a "Terminal too small" message replaces the layout (`q` still quits).
+- **Below 40×10**: a "Terminal too small" message replaces the layout. `q` quits; other keys are
+  ignored until the terminal is large enough again.
 
 Press `v` to override the automatic choice: auto → side by side → stacked → list only → auto. A
 forced arrangement shows in the header (`▥ stacked`) and falls back to list only when the window is

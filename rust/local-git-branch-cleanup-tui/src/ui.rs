@@ -36,7 +36,11 @@ const COLOR_PR_CLOSED: Color = Color::Rgb(255, 85, 85); // Red for closed PRs
 /// (docs/specs/RESPONSIVE_LAYOUT.md).
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
-    if responsive::is_too_small(area) {
+    app.too_small = responsive::is_too_small(area);
+    if app.too_small {
+        // Nothing is drawn, so the mouse wheel has nothing to act on
+        app.list_area = Rect::default();
+        app.details_area = None;
         render_too_small(frame, area);
         return;
     }
@@ -1534,6 +1538,7 @@ fn render_confirmation_modal(frame: &mut Frame, app: &mut App) {
     );
     app.modal_scroll = scroll.offset;
     app.modal_viewport = scroll.viewport;
+    app.modal_overflows = scroll.overflows();
 }
 
 /// Body of the confirmation modal in the branch view: every selected branch
@@ -2243,6 +2248,7 @@ fn render_help_modal(frame: &mut Frame, app: &mut App) {
     );
     app.modal_scroll = scroll.offset;
     app.modal_viewport = scroll.viewport;
+    app.modal_overflows = scroll.overflows();
 }
 
 /// Render the info modal
@@ -2373,6 +2379,7 @@ fn render_info_modal(frame: &mut Frame, app: &mut App) {
     );
     app.modal_scroll = scroll.offset;
     app.modal_viewport = scroll.viewport;
+    app.modal_overflows = scroll.overflows();
 }
 
 // ---------------------------------------------------------------------------
@@ -2425,7 +2432,9 @@ fn wrap_words(text: &str, width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     let mut current = String::new();
     for word in text.split_whitespace() {
-        if !current.is_empty() && current.chars().count() + 1 + word.chars().count() > width {
+        if !current.is_empty()
+            && responsive::str_width(&current) + 1 + responsive::str_width(word) > width
+        {
             lines.push(std::mem::take(&mut current));
         }
         if !current.is_empty() {
@@ -3831,8 +3840,8 @@ mod tests {
     #[test]
     fn details_scroll_is_clamped_and_resets_on_another_item() {
         let mut app = worktree_app();
+        app.details_scroll_for_cursor();
         app.details_scroll = 1000;
-        app.details_anchor = Some((app.view, app.selected_index));
         // Stacked at 80×30: the details pane is too short for its content
         screen_at(&mut app, 80, 30);
         assert!(app.details_scroll > 0 && app.details_scroll < 1000);
@@ -3927,5 +3936,71 @@ mod tests {
         assert_eq!(list_height(8, false), 5); // box with 1 line
         assert_eq!(list_height(20, false), 16); // box with 2 lines
         assert_eq!(list_height(6, true), 5); // compact: 1 line, no border
+    }
+
+    #[test]
+    fn details_scroll_resets_when_another_item_takes_the_same_row() {
+        let mut app = worktree_app();
+        screen_at(&mut app, 80, 30);
+        app.scroll_details(2);
+        screen_at(&mut app, 80, 30);
+        assert!(app.details_scroll > 0);
+
+        // Another worktree lands on row 0 (as after a search or re-sort)
+        app.worktrees.as_mut().unwrap().worktrees.swap(0, 1);
+        app.selected_index = 0;
+        screen_at(&mut app, 80, 30);
+        assert_eq!(app.details_scroll, 0);
+    }
+
+    #[test]
+    fn details_scroll_keys_do_nothing_while_the_pane_is_hidden() {
+        let mut app = worktree_app();
+        app.layout_mode = LayoutMode::ListOnly;
+        screen_at(&mut app, 80, 30);
+        app.scroll_details(5);
+        assert_eq!(app.details_scroll, 0);
+    }
+
+    #[test]
+    fn too_small_screen_leaves_the_mouse_nothing_to_act_on() {
+        let mut app = many_branches_app(10);
+        screen_at(&mut app, 120, 40);
+        assert!(!app.too_small);
+        let list = app.list_area;
+
+        screen_at(&mut app, 30, 8);
+        assert!(app.too_small);
+        app.scroll_at(list.x + 2, list.y + 2, true);
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn help_reports_whether_it_overflows() {
+        let mut app = many_branches_app(3);
+        app.show_help = true;
+        screen_at(&mut app, 200, 80);
+        assert!(!app.modal_overflows);
+        screen_at(&mut app, 80, 24);
+        assert!(app.modal_overflows);
+    }
+
+    #[test]
+    fn wheel_over_the_list_ends_search_mode() {
+        let mut app = many_branches_app(10);
+        screen_at(&mut app, 120, 40);
+        app.search_active = true;
+        let list = app.list_area;
+        app.scroll_at(list.x + 2, list.y + 3, true);
+        assert!(!app.search_active);
+        assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn flash_messages_wrap_by_display_width() {
+        // 10 double-width characters per word: 20 columns each
+        let word = "功".repeat(10);
+        let lines = wrap_words(&format!("{word} {word}"), 30);
+        assert_eq!(lines.len(), 2);
     }
 }

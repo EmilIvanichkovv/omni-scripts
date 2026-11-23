@@ -22,6 +22,8 @@ Technical documentation for developers and contributors:
 - **[Release & Distribution](specs/RELEASE_DISTRIBUTION.md)** — Cross-platform binaries, one-line
   installers, release on every merge
 - **[Self-Update](specs/SELF_UPDATE.md)** — `update` command and update-available notice
+- **[Responsive Layout](specs/RESPONSIVE_LAYOUT.md)** — Resizing, pane arrangement, scrolling and
+  wrapping
 
 ## 🧪 Testing
 

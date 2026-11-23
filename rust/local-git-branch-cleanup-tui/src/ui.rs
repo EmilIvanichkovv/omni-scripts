@@ -3,12 +3,16 @@
 use crate::app::{App, FilterMode, SortMode, ViewMode};
 use crate::git::BranchStatus;
 use crate::pr::PrState;
+use crate::responsive::{self, LayoutMode, Scroll};
 use crate::worktree_view::{short_sha, Changes, WorktreeFilter, WorktreeState};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Flex, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{
+        Block, Borders, Cell, Clear, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Table, TableState, Wrap,
+    },
     Frame,
 };
 
@@ -27,74 +31,93 @@ const COLOR_PR_OPEN: Color = Color::Rgb(255, 203, 107); // Yellow/amber for open
 const COLOR_PR_MERGED: Color = Color::Rgb(80, 250, 123); // Green for merged PRs
 const COLOR_PR_CLOSED: Color = Color::Rgb(255, 85, 85); // Red for closed PRs
 
-/// Render the TUI
+/// Render the TUI. Every size decision is made here from `frame.area()`, so
+/// a resized terminal is laid out afresh on the next frame
+/// (docs/specs/RESPONSIVE_LAYOUT.md).
 pub fn render(frame: &mut Frame, app: &mut App) {
-    // Create main layout: Header, [Search], [Filters], Content, Action Log, Footer
+    let area = frame.area();
+    if responsive::is_too_small(area) {
+        render_too_small(frame, area);
+        return;
+    }
+
+    let compact = responsive::is_compact(area);
+    // Rows and columns the chrome's borders take
+    let border = if compact { 0 } else { 2 };
+    let inner_width = area.width.saturating_sub(border);
+
     let has_log = !app.action_log.is_empty();
     let show_filter = app.show_filter;
     let show_search = app.search_active || !app.search_query.is_empty();
 
-    // Build constraints dynamically based on visible components
-    let mut constraints = vec![Constraint::Length(3)]; // Header always present
+    let header_rows = header_lines(app, inner_width).len() as u16;
+    let filter_rows = filter_tab_lines(app, inner_width).len() as u16;
+    let footer_rows = footer_lines(app, inner_width, compact).len() as u16;
+    let log_rows = app.action_log.len().min(if compact { 1 } else { 4 }) as u16;
 
+    // Header, [Search], [Filters], Content, [Action Log], Footer
+    let mut constraints = vec![Constraint::Length(header_rows + border)];
     if show_search {
-        constraints.push(Constraint::Length(3)); // Search bar
+        constraints.push(Constraint::Length(1 + border));
     }
     if show_filter {
-        constraints.push(Constraint::Length(3)); // Filter tabs
+        constraints.push(Constraint::Length(filter_rows + border));
     }
     constraints.push(Constraint::Min(5)); // Main content
     if has_log {
-        constraints.push(Constraint::Length(6)); // Action log
+        constraints.push(Constraint::Length(log_rows + 2));
     }
-    constraints.push(Constraint::Length(3)); // Footer
+    constraints.push(Constraint::Length(footer_rows + border));
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
-        .split(frame.area());
+        .split(area);
 
-    // Track current chunk index
     let mut idx = 0;
-
-    render_header(frame, app, chunks[idx]);
+    render_header(frame, app, chunks[idx], compact);
     idx += 1;
 
+    let mut search_area = None;
     if show_search {
-        render_search_box(frame, app, chunks[idx]);
+        render_search_box(frame, app, chunks[idx], compact);
+        search_area = Some(chunks[idx]);
         idx += 1;
     }
 
     if show_filter {
-        render_filter_tabs(frame, app, chunks[idx]);
+        render_filter_tabs(frame, app, chunks[idx], compact);
         idx += 1;
     }
 
-    let content_idx = idx;
+    let content = chunks[idx];
     idx += 1;
 
-    // Split main content area into branch list (70%) and details pane (30%)
-    let main_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(70), // Branch list
-            Constraint::Percentage(30), // Details pane
-        ])
-        .split(chunks[content_idx]);
+    let arrangement = responsive::arrange(app.layout_mode, content);
+    let (list_area, details_area) = responsive::split_content(arrangement, content);
+    let details_hidden = details_area.is_none();
+    app.list_area = list_area;
+    app.details_area = details_area;
 
     if app.view == ViewMode::Worktrees {
-        render_worktree_list(frame, app, main_chunks[0]);
-        render_worktree_details(frame, app, main_chunks[1]);
+        render_worktree_list(frame, app, list_area, details_hidden);
     } else {
-        render_branch_list(frame, app, main_chunks[0]);
-        render_details_pane(frame, app, main_chunks[1]);
+        render_branch_list(frame, app, list_area, details_hidden);
+    }
+    if let Some(details_area) = details_area {
+        let scroll = app.details_scroll_for_cursor();
+        app.details_scroll = if app.view == ViewMode::Worktrees {
+            render_worktree_details(frame, app, details_area, scroll)
+        } else {
+            render_details_pane(frame, app, details_area, scroll)
+        };
     }
 
     if has_log {
         render_action_log(frame, app, chunks[idx]);
         idx += 1;
     }
-    render_footer(frame, app, chunks[idx]);
+    render_footer(frame, app, chunks[idx], compact);
 
     // Render confirmation modal on top if shown
     if app.show_confirmation {
@@ -103,98 +126,174 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     // Render suggestions dropdown on top if shown (before help/info modals)
     if app.show_suggestions && !app.suggestions.is_empty() {
-        render_suggestions_dropdown(frame, app, show_search, show_filter);
+        if let Some(search_area) = search_area {
+            render_suggestions_dropdown(frame, app, search_area);
+        }
     }
 
     // Render help modal on top if shown
     if app.show_help {
-        render_help_modal(frame, app.view);
+        render_help_modal(frame, app);
     }
 
     // Render info modal on top if shown
     if app.show_info {
-        render_info_modal(frame, app.view);
+        render_info_modal(frame, app);
     }
 }
 
-/// Render the header with app name and repo info
-fn render_header(frame: &mut Frame, app: &App, area: Rect) {
-    let selected_info = if app.selected_count() > 0 {
-        format!(" │ 📦 {} selected", app.selected_count())
-    } else {
-        String::new()
-    };
-
-    let force_indicator = if app.force_mode {
-        " │ ⚠️ FORCE"
-    } else {
-        ""
-    };
-
-    let dry_run_indicator = if app.dry_run { " │ 🔍 DRY RUN" } else { "" };
-
-    let view_indicator = if app.view == ViewMode::Worktrees {
-        " │ 🌳 Worktrees"
-    } else {
-        ""
-    };
-
-    let remove_indicator = if app.view == ViewMode::Worktrees && app.worktree_remove_mode {
-        " │ 🗑 REMOVE"
-    } else {
-        ""
-    };
-
-    // Sort indicator - show when not using default sort
-    let sort_indicator = if app.sort_mode != SortMode::Status && app.view == ViewMode::Branches {
-        format!(" │ 🔀 {}", app.sort_mode.label())
-    } else {
-        String::new()
-    };
-
-    let header_text = vec![Line::from(vec![
-        Span::styled("🧹 ", Style::default()),
-        Span::styled(
-            "Local Git Branch Cleanup",
+/// Shown instead of the layout when the terminal is below the minimum size
+fn render_too_small(frame: &mut Frame, area: Rect) {
+    let lines = vec![
+        Line::from(Span::styled(
+            "Terminal too small",
             Style::default()
-                .fg(COLOR_ACCENT)
+                .fg(COLOR_WARNING)
                 .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" │ ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("📂 ", Style::default()),
-        Span::styled(&app.repo_path, Style::default().fg(COLOR_MUTED)),
-        Span::styled(" │ ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("🌳 ", Style::default()),
-        Span::styled(&app.trunk, Style::default().fg(COLOR_SUCCESS)),
-        Span::styled(
-            view_indicator,
-            Style::default()
-                .fg(COLOR_ACCENT)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            remove_indicator,
-            Style::default()
-                .fg(COLOR_DANGER)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(&selected_info, Style::default().fg(COLOR_SELECTED)),
-        Span::styled(force_indicator, Style::default().fg(COLOR_DANGER)),
-        Span::styled(dry_run_indicator, Style::default().fg(COLOR_WARNING)),
-        Span::styled(&sort_indicator, Style::default().fg(COLOR_ACCENT)),
-    ])];
-
-    let header = Paragraph::new(header_text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(COLOR_MUTED)),
+        )),
+        Line::from(Span::styled(
+            format!(
+                "{}×{}, need {}×{}",
+                area.width,
+                area.height,
+                responsive::MIN_WIDTH,
+                responsive::MIN_HEIGHT
+            ),
+            Style::default().fg(COLOR_MUTED),
+        )),
+        Line::from(Span::styled("q quits", Style::default().fg(COLOR_MUTED))),
+    ];
+    let height = (lines.len() as u16).min(area.height);
+    let [middle] = Layout::vertical([Constraint::Length(height)])
+        .flex(Flex::Center)
+        .areas(area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true }),
+        middle,
     );
+}
 
+/// Block of a chrome panel (header, search, filters, footer): bordered, or
+/// bare when the terminal is short. A bare block has no title either, since
+/// a title would take a row of its own.
+fn chrome_block<'a>(compact: bool, title: Option<Line<'a>>, border_color: Color) -> Block<'a> {
+    if compact {
+        return Block::default();
+    }
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(border_color));
+    match title {
+        Some(title) => block.title(title),
+        None => block,
+    }
+}
+
+/// Styled `key label` group of the footer hints
+fn key_hint(key: &'static str, label: &'static str, key_color: Color) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(
+            key,
+            Style::default().fg(key_color).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(format!(" {label}"), Style::default().fg(COLOR_MUTED)),
+    ]
+}
+
+/// `icon label` group of a legend
+fn legend_item(icon: &'static str, label: &'static str, color: Color) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(icon, Style::default().fg(color)),
+        Span::styled(format!(" {label}"), Style::default().fg(COLOR_MUTED)),
+    ]
+}
+
+/// Header content, wrapped to `width` columns (at most 3 lines)
+fn header_lines(app: &App, width: u16) -> Vec<Line<'static>> {
+    let bold = |color: Color| Style::default().fg(color).add_modifier(Modifier::BOLD);
+    // The path is shortened so that it and the trunk always fit on one line:
+    // "📂 " + path + " │ " + "🌳 " + trunk
+    let trunk_width = Line::from(app.trunk.as_str()).width();
+    let path_budget = (width as usize)
+        .saturating_sub(3 + 3 + 3 + trunk_width)
+        .max(10);
+    let path = responsive::truncate_middle(&app.repo_path, path_budget);
+
+    let mut groups = vec![
+        vec![
+            Span::raw("🧹 "),
+            Span::styled("Local Git Branch Cleanup", bold(COLOR_ACCENT)),
+        ],
+        vec![
+            Span::raw("📂 "),
+            Span::styled(path, Style::default().fg(COLOR_MUTED)),
+        ],
+        vec![
+            Span::raw("🌳 "),
+            Span::styled(app.trunk.clone(), Style::default().fg(COLOR_SUCCESS)),
+        ],
+    ];
+    if app.view == ViewMode::Worktrees {
+        groups.push(vec![Span::styled("🌳 Worktrees", bold(COLOR_ACCENT))]);
+        if app.worktree_remove_mode {
+            groups.push(vec![Span::styled("🗑 REMOVE", bold(COLOR_DANGER))]);
+        }
+    }
+    if app.selected_count() > 0 {
+        groups.push(vec![Span::styled(
+            format!("📦 {} selected", app.selected_count()),
+            Style::default().fg(COLOR_SELECTED),
+        )]);
+    }
+    if app.force_mode {
+        groups.push(vec![Span::styled(
+            "⚠️ FORCE",
+            Style::default().fg(COLOR_DANGER),
+        )]);
+    }
+    if app.dry_run {
+        groups.push(vec![Span::styled(
+            "🔍 DRY RUN",
+            Style::default().fg(COLOR_WARNING),
+        )]);
+    }
+    // Sort indicator - show when not using default sort
+    if app.sort_mode != SortMode::Status && app.view == ViewMode::Branches {
+        groups.push(vec![Span::styled(
+            format!("🔀 {}", app.sort_mode.label()),
+            Style::default().fg(COLOR_ACCENT),
+        )]);
+    }
+    // Layout indicator - show when the arrangement is forced with `v`
+    if app.layout_mode != LayoutMode::Auto {
+        groups.push(vec![Span::styled(
+            format!("▥ {}", app.layout_mode.label()),
+            Style::default().fg(COLOR_ACCENT),
+        )]);
+    }
+
+    responsive::flow_lines(
+        groups,
+        width,
+        0,
+        Span::styled(" │ ", Style::default().fg(COLOR_MUTED)),
+        3,
+        vec![Span::styled("…", Style::default().fg(COLOR_MUTED))],
+    )
+}
+
+/// Render the header with app name and repo info
+fn render_header(frame: &mut Frame, app: &App, area: Rect, compact: bool) {
+    let block = chrome_block(compact, None, COLOR_MUTED);
+    let width = block.inner(area).width;
+    let header = Paragraph::new(header_lines(app, width)).block(block);
     frame.render_widget(header, area);
 }
 
-/// Render filter tabs
-fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
+/// Filter tab content, wrapped to `width` columns (all 4 tabs always fit)
+fn filter_tab_lines(app: &App, width: u16) -> Vec<Line<'static>> {
     // (label, count, active) per tab, keys 1-4 in order
     let tabs: Vec<(&str, usize, bool)> = match (app.view, &app.worktrees) {
         (ViewMode::Worktrees, Some(wt)) => [
@@ -217,39 +316,37 @@ fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect) {
         .collect(),
     };
 
-    let mut spans = vec![Span::styled("  ", Style::default())];
+    let groups = tabs
+        .into_iter()
+        .enumerate()
+        .map(|(i, (label, count, is_active))| {
+            let style = if is_active {
+                Style::default()
+                    .fg(Color::White)
+                    .bg(COLOR_ACCENT)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(COLOR_MUTED)
+            };
+            vec![Span::styled(
+                format!("{} {} ({}) ", i + 1, label, count),
+                style,
+            )]
+        })
+        .collect();
 
-    for (i, (label, count, is_active)) in tabs.into_iter().enumerate() {
-        let key = i + 1;
+    responsive::flow_lines(groups, width, 2, Span::raw(" "), 4, Vec::new())
+}
 
-        // Add separator
-        if i > 0 {
-            spans.push(Span::styled(" ", Style::default()));
-        }
-
-        // Create tab label with key hint
-        let label = format!("{} {} ({}) ", key, label, count);
-
-        let style = if is_active {
-            Style::default()
-                .fg(Color::White)
-                .bg(COLOR_ACCENT)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(COLOR_MUTED)
-        };
-
-        spans.push(Span::styled(label, style));
-    }
-
-    let tabs = Paragraph::new(Line::from(spans)).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(COLOR_MUTED))
-            .title(" Filters (1-4 or Tab) ")
-            .title_style(Style::default().fg(COLOR_ACCENT)),
-    );
-
+/// Render filter tabs
+fn render_filter_tabs(frame: &mut Frame, app: &App, area: Rect, compact: bool) {
+    let title = Line::from(Span::styled(
+        " Filters (1-4 or Tab) ",
+        Style::default().fg(COLOR_ACCENT),
+    ));
+    let block = chrome_block(compact, Some(title), COLOR_MUTED);
+    let width = block.inner(area).width;
+    let tabs = Paragraph::new(filter_tab_lines(app, width)).block(block);
     frame.render_widget(tabs, area);
 }
 
@@ -335,7 +432,7 @@ fn render_styled_text<'a>(spans: &mut Vec<Span<'a>>, text: &'a str) {
 }
 
 /// Render the search input box with border
-fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
+fn render_search_box(frame: &mut Frame, app: &App, area: Rect, compact: bool) {
     let match_count = app.visible_len();
 
     let search_text = if app.search_query.is_empty() && !app.search_active {
@@ -397,36 +494,41 @@ fn render_search_box(frame: &mut Frame, app: &App, area: Rect) {
         " 🔍 Search (/ to edit, Esc to clear) "
     };
 
-    let search_box = Paragraph::new(search_text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color))
-            .title(title)
-            .title_style(Style::default().fg(border_color)),
-    );
+    // Borderless in a short terminal: the title is gone, so the icon moves
+    // into the line in place of the indent
+    let search_text = if compact {
+        let mut spans = search_text.spans;
+        if let Some(first) = spans.first_mut() {
+            *first = Span::styled(
+                format!("🔍 {}", first.content.trim_start_matches("  ")),
+                first.style,
+            );
+        }
+        Line::from(spans)
+    } else {
+        search_text
+    };
+
+    let title = Line::from(Span::styled(title, Style::default().fg(border_color)));
+    let search_box =
+        Paragraph::new(search_text).block(chrome_block(compact, Some(title), border_color));
 
     frame.render_widget(search_box, area);
 }
 
 /// Render the autocomplete suggestions dropdown
-fn render_suggestions_dropdown(
-    frame: &mut Frame,
-    app: &App,
-    show_search: bool,
-    _show_filter: bool,
-) {
+fn render_suggestions_dropdown(frame: &mut Frame, app: &App, search_area: Rect) {
     if app.suggestions.is_empty() {
         return;
     }
 
     let area = frame.area();
 
-    // Calculate position: below the search box
-    // Header is 3 lines, search box is 3 lines (if shown)
-    let y_offset = 3 + if show_search { 3 } else { 0 };
+    // Calculate position: right below the search box
+    let y_offset = search_area.bottom();
 
     // Calculate available space for dropdown
-    let available_height = area.height.saturating_sub(y_offset as u16 + 2); // Reserve some space at bottom
+    let available_height = area.height.saturating_sub(y_offset + 2); // Reserve some space at bottom
 
     // Calculate how many items we can show (accounting for borders and potential "..." indicators)
     let total_suggestions = app.suggestions.len();
@@ -452,12 +554,12 @@ fn render_suggestions_dropdown(
     };
 
     let dropdown_height = (visible_items + 2) as u16; // +2 for borders
-    let dropdown_width = 40.min(area.width - 4);
+    let dropdown_width = 40.min(area.width.saturating_sub(4));
 
     // Position dropdown below the search box, aligned to the left with some padding
     let dropdown_area = Rect {
-        x: 3,
-        y: y_offset as u16,
+        x: search_area.x + 3,
+        y: y_offset,
         width: dropdown_width,
         height: dropdown_height,
     };
@@ -564,47 +666,193 @@ fn render_suggestions_dropdown(
     frame.render_widget(dropdown, dropdown_area);
 }
 
-/// Render the branch list as a table
-fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
-    // Split area inside the block: branch table + legend line at bottom
-    let inner_area = area.inner(ratatui::layout::Margin {
+/// Draw a vertical scrollbar along the right edge of `area` (a block's
+/// right border, typically)
+fn render_scrollbar(frame: &mut Frame, area: Rect, scroll: Scroll) {
+    let mut state = ScrollbarState::new(scroll.positions())
+        .position(scroll.offset)
+        .viewport_content_length(scroll.viewport);
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .thumb_style(Style::default().fg(COLOR_ACCENT))
+        .track_style(Style::default().fg(COLOR_MUTED))
+        .begin_style(Style::default().fg(COLOR_MUTED))
+        .end_style(Style::default().fg(COLOR_MUTED));
+    frame.render_stateful_widget(scrollbar, area, &mut state);
+}
+
+/// Bordered block of a list pane. With the details pane hidden, its bottom
+/// border says how to bring it back.
+fn list_block(title: String, details_hidden: bool) -> Block<'static> {
+    let mut block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(COLOR_MUTED))
+        .title(title)
+        .title_style(Style::default().fg(COLOR_ACCENT));
+    if details_hidden {
+        block = block.title_bottom(
+            Line::from(vec![
+                Span::styled(" details hidden: ", Style::default().fg(COLOR_MUTED)),
+                Span::styled(
+                    "v",
+                    Style::default()
+                        .fg(COLOR_ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" layout ", Style::default().fg(COLOR_MUTED)),
+            ])
+            .right_aligned(),
+        );
+    }
+    block
+}
+
+/// Inside a list pane's border: the table on top, `legend` below it
+fn list_areas(area: Rect, legend: &[Line]) -> (Rect, Rect) {
+    let inner = area.inner(Margin {
         horizontal: 1,
         vertical: 1,
     });
+    // The legend never takes the table's last rows (header + 2 rows)
+    let legend_rows = (legend.len() as u16).min(inner.height.saturating_sub(3));
+    let [table, legend] =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(legend_rows)]).areas(inner);
+    (table, legend)
+}
 
-    let branch_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),    // Branch table rows
-            Constraint::Length(1), // Legend line (no border)
-        ])
-        .split(inner_area);
+/// Draw a list `table` of `row_count` rows in `table_area`, the cursor on
+/// row `selected`, scrolled by `offset` rows. Returns the offset actually
+/// shown, which the caller stores back in `App::scroll_offset` so it stays
+/// in step with the screen after a resize. Draws a scrollbar on the right
+/// border of `area` when rows are out of view.
+fn render_list_table(
+    frame: &mut Frame,
+    table: Table,
+    row_count: usize,
+    selected: usize,
+    offset: usize,
+    area: Rect,
+    table_area: Rect,
+) -> usize {
+    // Rows below the header row
+    let viewport = table_area.height.saturating_sub(1) as usize;
+    // After the terminal grows, pull the rows back up to fill the space
+    let offset = Scroll::clamped(offset, viewport, row_count).offset;
 
-    let table_inner_area = branch_chunks[0];
-    let legend_area = branch_chunks[1];
+    let mut state = TableState::default()
+        .with_selected(Some(selected))
+        .with_offset(offset);
+    frame.render_stateful_widget(table, table_area, &mut state);
+    // Ratatui moves the offset to keep the cursor row on screen
+    let offset = state.offset();
 
-    // Update visible height in app for scroll calculations
-    // Subtract 1 for the header row
-    app.visible_height = table_inner_area.height as usize;
+    let scroll = Scroll::clamped(offset, viewport, row_count);
+    if scroll.overflows() {
+        let bar_area = Rect {
+            x: area.x,
+            y: table_area.y + 1,
+            width: area.width,
+            height: viewport as u16,
+        };
+        render_scrollbar(frame, bar_area, scroll);
+    }
+    offset
+}
 
-    // Get filtered branches
-    let filtered_branches = app.filtered_branches();
+/// Resolved width of column `index` when `widths` share `width` columns the
+/// way `Table` lays them out
+fn column_width(widths: &[Constraint], width: u16, index: usize) -> usize {
+    Layout::horizontal(widths.iter().copied())
+        .spacing(1)
+        .split(Rect::new(0, 0, width, 1))
+        .get(index)
+        .map_or(0, |r| r.width as usize)
+}
 
-    // Create table header (conditionally include PR column)
-    let header_labels: Vec<&str> = if app.pr_provider.is_some() {
-        vec!["", "☑", "Branch", "Last Commit", "Status", "PR"]
+/// Legend of the branch table, wrapped to `width` (at most 2 lines)
+fn branch_legend_lines(app: &App, width: u16) -> Vec<Line<'static>> {
+    let mut groups = vec![
+        vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
+        legend_item("✓", "merged", COLOR_SUCCESS),
+    ];
+    // pr-merged/pr-diverged can only occur when a PR provider supplied merge evidence
+    if app.pr_provider.is_some() {
+        groups.push(legend_item("↑", "pr-merged", COLOR_ACCENT));
+        groups.push(legend_item("↕", "pr-diverged", COLOR_DIVERGED));
+    }
+    groups.extend([
+        legend_item("↗", "gone", COLOR_SUCCESS),
+        legend_item("!", "unmerged", COLOR_WARNING),
+        legend_item("○", "local", COLOR_LOCAL),
+        legend_item("⊘", "protected", COLOR_DANGER),
+        legend_item("⑂", "protected-wt", COLOR_DANGER),
+        legend_item("◉", "current", COLOR_CURRENT),
+    ]);
+    // Add PR legend items when PR integration is enabled
+    if app.pr_provider.is_some() {
+        groups.push(vec![Span::styled(
+            "│ PR:",
+            Style::default().fg(COLOR_MUTED),
+        )]);
+        groups.push(legend_item("🟢", "merged", COLOR_PR_MERGED));
+        groups.push(legend_item("🟡", "open", COLOR_PR_OPEN));
+        groups.push(legend_item("🔴", "closed", COLOR_PR_CLOSED));
+    }
+    responsive::flow_lines(
+        groups,
+        width,
+        0,
+        Span::raw("  "),
+        2,
+        key_hint("…", "i about", COLOR_ACCENT),
+    )
+}
+
+/// Render the branch list as a table
+fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
+    let legend = branch_legend_lines(app, area.width.saturating_sub(2));
+    let (table_area, legend_area) = list_areas(area, &legend);
+
+    // Rows that fit, for page up / down
+    app.visible_height = table_area.height as usize;
+
+    let has_pr = app.pr_provider.is_some();
+    let cols = responsive::branch_columns(table_area.width, has_pr);
+
+    // Column widths and header, leaving out what does not fit
+    let mut widths = vec![
+        Constraint::Length(2), // Cursor indicator
+        Constraint::Length(4), // Checkbox
+        Constraint::Min(15),   // Branch name
+    ];
+    let mut header_labels = vec!["", "☑", "Branch"];
+    if cols.last_commit {
+        widths.push(Constraint::Length(15));
+        header_labels.push("Last Commit");
+    }
+    if cols.status_label {
+        widths.push(Constraint::Length(15));
+        header_labels.push("Status");
     } else {
-        vec!["", "☑", "Branch", "Last Commit", "Status"]
-    };
+        widths.push(Constraint::Length(responsive::ICON_COLUMN_WIDTH));
+        header_labels.push("St");
+    }
+    if cols.pr {
+        widths.push(Constraint::Length(10));
+        header_labels.push("PR");
+    }
+    let name_width = column_width(&widths, table_area.width, 2);
 
-    let header_cells = header_labels.iter().map(|h| {
+    let header = Row::new(header_labels.iter().map(|h| {
         Cell::from(*h).style(
             Style::default()
                 .fg(COLOR_ACCENT)
                 .add_modifier(Modifier::BOLD),
         )
-    });
-    let header = Row::new(header_cells).height(1);
+    }))
+    .height(1);
+
+    // Get filtered branches
+    let filtered_branches = app.filtered_branches();
 
     // Create table rows from filtered branches
     let rows: Vec<Row> = filtered_branches
@@ -648,30 +896,35 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
                     .style(Style::default().fg(COLOR_ACCENT)),
                 // Checkbox
                 Cell::from(checkbox).style(checkbox_style),
-                // Branch name
-                Cell::from(branch.name.as_str()).style(if is_cursor {
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD)
-                } else if is_checked {
-                    Style::default().fg(COLOR_SELECTED)
-                } else {
-                    Style::default().fg(COLOR_MUTED)
-                }),
-                // Last commit time
-                Cell::from(branch.last_commit_relative.as_str())
-                    .style(Style::default().fg(COLOR_MUTED)),
-                // Status (icon + label combined)
-                Cell::from(format!(
-                    "{} {}",
-                    branch.status.icon(),
-                    branch.status.label()
-                ))
-                .style(status_style),
+                // Branch name, cut with `…` when too long (full name in details)
+                Cell::from(responsive::truncate_end(&branch.name, name_width)).style(
+                    if is_cursor {
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD)
+                    } else if is_checked {
+                        Style::default().fg(COLOR_SELECTED)
+                    } else {
+                        Style::default().fg(COLOR_MUTED)
+                    },
+                ),
             ];
+            if cols.last_commit {
+                cells.push(
+                    Cell::from(branch.last_commit_relative.as_str())
+                        .style(Style::default().fg(COLOR_MUTED)),
+                );
+            }
+            // Status (icon + label combined, or icon alone when narrow)
+            let status = if cols.status_label {
+                format!("{} {}", branch.status.icon(), branch.status.label())
+            } else {
+                branch.status.icon().to_string()
+            };
+            cells.push(Cell::from(status).style(status_style));
 
-            // Add PR column if PR integration is enabled
-            if app.pr_provider.is_some() {
+            // Add PR column if PR integration is enabled and it fits
+            if cols.pr {
                 let (pr_text, pr_style) = match &branch.pr_info {
                     Some(pr) => {
                         let color = get_pr_state_color(&pr.state);
@@ -695,107 +948,37 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect) {
             }
         })
         .collect();
-
-    // Column widths (conditionally include PR column)
-    let widths: Vec<Constraint> = if app.pr_provider.is_some() {
-        vec![
-            Constraint::Length(2),  // Cursor indicator
-            Constraint::Length(4),  // Checkbox
-            Constraint::Min(15),    // Branch name
-            Constraint::Length(15), // Last commit
-            Constraint::Length(15), // Status (icon + label)
-            Constraint::Length(10), // PR status
-        ]
-    } else {
-        vec![
-            Constraint::Length(2),  // Cursor indicator
-            Constraint::Length(4),  // Checkbox
-            Constraint::Min(15),    // Branch name
-            Constraint::Length(15), // Last commit
-            Constraint::Length(15), // Status (icon + label)
-        ]
-    };
+    let row_count = rows.len();
 
     let title = format!(
         " Branches ({} shown, {} selected) ",
         filtered_branches.len(),
         app.selected_count()
     );
-
-    // Render the outer block (border)
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(COLOR_MUTED))
-        .title(title)
-        .title_style(Style::default().fg(COLOR_ACCENT));
-    frame.render_widget(block, area);
+    frame.render_widget(list_block(title, details_hidden), area);
 
     // Render table without its own block (inside the outer block)
     let table = Table::new(rows, widths)
         .header(header)
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
+    let offset = render_list_table(
+        frame,
+        table,
+        row_count,
+        app.selected_index,
+        app.scroll_offset,
+        area,
+        table_area,
+    );
+    app.scroll_offset = offset;
 
-    // Use TableState with manual scroll offset for "edge-only" scrolling
-    let mut table_state = TableState::default()
-        .with_selected(Some(app.selected_index))
-        .with_offset(app.scroll_offset);
-    frame.render_stateful_widget(table, table_inner_area, &mut table_state);
-
-    // Render legend line (no border, just text)
-    let mut legend_spans = vec![
-        Span::styled("Legend: ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("✓ ", Style::default().fg(COLOR_SUCCESS)),
-        Span::styled("merged  ", Style::default().fg(COLOR_MUTED)),
-    ];
-
-    // pr-merged/pr-diverged can only occur when a PR provider supplied merge evidence
-    if app.pr_provider.is_some() {
-        legend_spans.push(Span::styled("↑ ", Style::default().fg(COLOR_ACCENT)));
-        legend_spans.push(Span::styled(
-            "pr-merged  ",
-            Style::default().fg(COLOR_MUTED),
-        ));
-        legend_spans.push(Span::styled("↕ ", Style::default().fg(COLOR_DIVERGED)));
-        legend_spans.push(Span::styled(
-            "pr-diverged  ",
-            Style::default().fg(COLOR_MUTED),
-        ));
-    }
-
-    legend_spans.extend([
-        Span::styled("↗ ", Style::default().fg(COLOR_SUCCESS)),
-        Span::styled("gone  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("! ", Style::default().fg(COLOR_WARNING)),
-        Span::styled("unmerged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("○ ", Style::default().fg(COLOR_LOCAL)),
-        Span::styled("local  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("⊘ ", Style::default().fg(COLOR_DANGER)),
-        Span::styled("protected  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("⑂ ", Style::default().fg(COLOR_DANGER)),
-        Span::styled("protected-wt  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
-        Span::styled("current", Style::default().fg(COLOR_MUTED)),
-    ]);
-
-    // Add PR legend items when PR integration is enabled
-    if app.pr_provider.is_some() {
-        legend_spans.push(Span::styled("  │  PR: ", Style::default().fg(COLOR_MUTED)));
-        legend_spans.push(Span::styled("🟢 ", Style::default().fg(COLOR_PR_MERGED)));
-        legend_spans.push(Span::styled("merged  ", Style::default().fg(COLOR_MUTED)));
-        legend_spans.push(Span::styled("🟡 ", Style::default().fg(COLOR_PR_OPEN)));
-        legend_spans.push(Span::styled("open  ", Style::default().fg(COLOR_MUTED)));
-        legend_spans.push(Span::styled("🔴 ", Style::default().fg(COLOR_PR_CLOSED)));
-        legend_spans.push(Span::styled("closed", Style::default().fg(COLOR_MUTED)));
-    }
-
-    let legend = Line::from(legend_spans);
-
-    let legend_widget = Paragraph::new(legend);
-    frame.render_widget(legend_widget, legend_area);
+    // Legend lines below the table (no border, just text)
+    frame.render_widget(Paragraph::new(legend), legend_area);
 }
 
 /// Render the details pane for the selected branch
-fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
+/// Returns the details scroll actually shown (clamped to the content)
+fn render_details_pane(frame: &mut Frame, app: &App, area: Rect, scroll: usize) -> usize {
     let mut lines = vec![];
 
     if let Some(branch) = app.selected_branch() {
@@ -1087,17 +1270,7 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect) {
         )]));
     }
 
-    let details = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_MUTED))
-                .title(" Details ")
-                .title_style(Style::default().fg(COLOR_ACCENT)),
-        )
-        .wrap(Wrap { trim: false });
-
-    frame.render_widget(details, area);
+    render_details_block(frame, lines, area, scroll)
 }
 
 /// Render the action log panel
@@ -1105,8 +1278,8 @@ fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
     let log_lines: Vec<Line> = app
         .action_log
         .iter()
-        .rev() // Show most recent first
-        .take(4)
+        .rev() // Show most recent first, as many as fit
+        .take(area.height.saturating_sub(2) as usize)
         .map(|entry| {
             if entry.success {
                 Line::from(vec![
@@ -1143,8 +1316,21 @@ fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(log, area);
 }
 
-/// Render the footer with key hints
-fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+/// Style of a mode toggle hint (`f force`, `d dry`, `x remove mode`):
+/// highlighted while the mode is on
+fn toggle_style(on: bool, color: Color) -> Style {
+    if on {
+        Style::default()
+            .fg(Color::Black)
+            .bg(color)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(color).add_modifier(Modifier::BOLD)
+    }
+}
+
+/// Footer key hints, one group per key, for the view and mode on screen
+fn footer_hint_groups(app: &App) -> Vec<Vec<Span<'static>>> {
     let list_is_empty = match app.view {
         ViewMode::Branches => app.branches.is_empty(),
         ViewMode::Worktrees => app
@@ -1152,242 +1338,168 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             .as_ref()
             .is_none_or(|wt| wt.worktrees.is_empty()),
     };
-    let key_hints = if list_is_empty {
-        Line::from(vec![
-            Span::styled(" ", Style::default()),
-            Span::styled(
-                "?",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "q / Esc Esc",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
-        ])
-    } else if app.view == ViewMode::Worktrees {
+    if list_is_empty {
+        return vec![
+            key_hint("?", "help", COLOR_ACCENT),
+            key_hint("q / Esc Esc", "quit", COLOR_ACCENT),
+        ];
+    }
+
+    let mut groups = if app.view == ViewMode::Worktrees {
         worktree_footer_hints(app)
     } else {
-        // Style for force mode - highlighted when active
-        let force_style = if app.force_mode {
-            Style::default()
-                .fg(Color::Black)
-                .bg(COLOR_DANGER)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-                .fg(COLOR_DANGER)
-                .add_modifier(Modifier::BOLD)
-        };
-
-        // Style for dry run mode - highlighted when active
-        let dry_style = if app.dry_run {
-            Style::default()
-                .fg(Color::Black)
-                .bg(COLOR_WARNING)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-                .fg(COLOR_WARNING)
-                .add_modifier(Modifier::BOLD)
-        };
-
-        Line::from(vec![
-            Span::styled(" ", Style::default()),
-            Span::styled(
-                "↑↓",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" nav  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "Space",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" sel  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "a",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" all  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "c",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" clr  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled("f force", force_style),
-            Span::styled("  ", Style::default()),
-            Span::styled("d dry", dry_style),
-            Span::styled("  ", Style::default()),
-            Span::styled(
-                "s",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" sort  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "Enter",
-                Style::default()
-                    .fg(COLOR_SELECTED)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" del  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "/",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" search  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "y",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" copy  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "w",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" worktrees  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "?",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" help  ", Style::default().fg(COLOR_MUTED)),
-            Span::styled(
-                "q",
-                Style::default()
-                    .fg(COLOR_ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
-        ])
+        vec![
+            key_hint("↑↓", "nav", COLOR_ACCENT),
+            key_hint("Space", "sel", COLOR_ACCENT),
+            key_hint("a", "all", COLOR_ACCENT),
+            key_hint("c", "clr", COLOR_ACCENT),
+            vec![Span::styled(
+                "f force",
+                toggle_style(app.force_mode, COLOR_DANGER),
+            )],
+            vec![Span::styled(
+                "d dry",
+                toggle_style(app.dry_run, COLOR_WARNING),
+            )],
+            key_hint("s", "sort", COLOR_ACCENT),
+            key_hint("Enter", "del", COLOR_SELECTED),
+            key_hint("/", "search", COLOR_ACCENT),
+            key_hint("y", "copy", COLOR_ACCENT),
+            key_hint("w", "worktrees", COLOR_ACCENT),
+        ]
     };
+    groups.push(key_hint("v", "layout", COLOR_ACCENT));
+    if app.pr_provider.is_some() {
+        groups.push(key_hint("o", "pr", COLOR_PR_MERGED));
+    }
+    groups.push(key_hint("?", "help", COLOR_ACCENT));
+    groups.push(key_hint("q", "quit", COLOR_ACCENT));
+    groups
+}
 
-    // Add PR shortcut if enabled
-    let key_hints = if app.pr_provider.is_some() && !list_is_empty {
-        let mut spans = key_hints.spans;
-        // Insert "o pr" before the quit
-        let quit_idx = spans.len() - 2; // Position before "q" and " quit"
-        spans.insert(
-            quit_idx,
-            Span::styled(
-                "o",
-                Style::default()
-                    .fg(COLOR_PR_MERGED)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        );
-        spans.insert(
-            quit_idx + 1,
-            Span::styled(" pr  ", Style::default().fg(COLOR_MUTED)),
-        );
-        Line::from(spans)
-    } else {
-        key_hints
-    };
+/// Footer content wrapped to `width` columns: the key hints, or the quit
+/// prompt / one-off message that replaces them. At most 3 lines (2 when
+/// compact); hints that do not fit end in `… ? help`.
+fn footer_lines(app: &App, width: u16, compact: bool) -> Vec<Line<'static>> {
+    let max_lines = if compact { 2 } else { 3 };
+    let warning = Style::default().fg(COLOR_WARNING);
+
+    // After a first Esc, the quit confirmation prompt replaces the hints
+    if app.esc_quit_armed_at.is_some() {
+        return vec![Line::from(vec![
+            Span::styled(" Press ", warning),
+            Span::styled("Esc", warning.add_modifier(Modifier::BOLD)),
+            Span::styled(" again to quit", warning),
+        ])];
+    }
 
     // A one-off message (clipboard result, missing PR) replaces the hints
-    let key_hints = match &app.flash {
-        Some(message) => Line::from(Span::styled(
-            format!(" {message}"),
-            Style::default().fg(COLOR_WARNING),
-        )),
-        None => key_hints,
-    };
+    if let Some(message) = &app.flash {
+        let lines: Vec<Line> = wrap_words(message, (width as usize).saturating_sub(1).max(1))
+            .into_iter()
+            .take(max_lines)
+            .map(|line| Line::from(Span::styled(format!(" {line}"), warning)))
+            .collect();
+        return if lines.is_empty() {
+            vec![Line::from("")]
+        } else {
+            lines
+        };
+    }
 
-    // After a first Esc, replace the hints with the quit confirmation prompt
-    let key_hints = if app.esc_quit_armed_at.is_some() {
-        Line::from(vec![
-            Span::styled(" Press ", Style::default().fg(COLOR_WARNING)),
-            Span::styled(
-                "Esc",
-                Style::default()
-                    .fg(COLOR_WARNING)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(" again to quit", Style::default().fg(COLOR_WARNING)),
-        ])
-    } else {
-        key_hints
-    };
-
-    let mut block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(COLOR_MUTED));
-    // On the bottom border, so they take no room from the key hints
-    if let Some(status) = app.refresh_status(std::time::Instant::now()) {
-        block = block.title_bottom(
-            Line::from(Span::styled(
-                format!(" {status} "),
+    let mut groups = footer_hint_groups(app);
+    // A compact footer has no bottom border to carry the refresh status and
+    // the update notice
+    if compact {
+        if let Some(status) = app.refresh_status(std::time::Instant::now()) {
+            groups.push(vec![Span::styled(
+                status,
                 Style::default().fg(COLOR_ACCENT),
-            ))
-            .left_aligned(),
-        );
-    }
-    if let Some(notice) = &app.update_notice {
-        block = block.title_bottom(
-            Line::from(Span::styled(
-                format!(" {notice} "),
+            )]);
+        }
+        if let Some(notice) = &app.update_notice {
+            groups.push(vec![Span::styled(
+                notice.clone(),
                 Style::default().fg(COLOR_SUCCESS),
-            ))
-            .right_aligned(),
-        );
+            )]);
+        }
     }
-    let footer = Paragraph::new(key_hints).block(block);
+    let more = vec![
+        Span::styled("… ", Style::default().fg(COLOR_MUTED)),
+        Span::styled(
+            "?",
+            Style::default()
+                .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" help", Style::default().fg(COLOR_MUTED)),
+    ];
+    responsive::flow_lines(groups, width, 1, Span::raw("  "), max_lines, more)
+}
 
+/// Render the footer with key hints
+fn render_footer(frame: &mut Frame, app: &App, area: Rect, compact: bool) {
+    let mut block = chrome_block(compact, None, COLOR_MUTED);
+    // On the bottom border, so they take no room from the key hints
+    if !compact {
+        if let Some(status) = app.refresh_status(std::time::Instant::now()) {
+            block = block.title_bottom(
+                Line::from(Span::styled(
+                    format!(" {status} "),
+                    Style::default().fg(COLOR_ACCENT),
+                ))
+                .left_aligned(),
+            );
+        }
+        if let Some(notice) = &app.update_notice {
+            block = block.title_bottom(
+                Line::from(Span::styled(
+                    format!(" {notice} "),
+                    Style::default().fg(COLOR_SUCCESS),
+                ))
+                .right_aligned(),
+            );
+        }
+    }
+    let width = block.inner(area).width;
+    let footer = Paragraph::new(footer_lines(app, width, compact)).block(block);
     frame.render_widget(footer, area);
 }
 
 /// Render the confirmation modal
-fn render_confirmation_modal(frame: &mut Frame, app: &App) {
-    if app.view == ViewMode::Worktrees {
-        let lines = worktree_confirmation_lines(app);
-        let needed_height = lines.len() + 2;
-        render_confirmation_box(frame, app, lines, needed_height);
-        return;
-    }
+fn render_confirmation_modal(frame: &mut Frame, app: &mut App) {
+    let (color, title) = if app.dry_run {
+        (COLOR_WARNING, " 🔍 Preview (Dry Run) ")
+    } else {
+        (COLOR_DANGER, " ⚠️  Confirm Deletion ")
+    };
+    let lines = if app.view == ViewMode::Worktrees {
+        worktree_confirmation_lines(app)
+    } else {
+        branch_confirmation_lines(app)
+    };
+    // The y / n hint stays below the list however far it is scrolled
+    let scroll = render_modal(
+        frame,
+        title,
+        color,
+        60,
+        lines,
+        Some(confirmation_hint_line()),
+        app.modal_scroll,
+        " ↑↓ scroll ",
+    );
+    app.modal_scroll = scroll.offset;
+    app.modal_viewport = scroll.viewport;
+}
 
-    // Build modal content first to calculate needed height
+/// Body of the confirmation modal in the branch view: every selected branch
+fn branch_confirmation_lines(app: &App) -> Vec<Line<'_>> {
     let selected_branches = app.get_selected_branches();
     let unmerged_count = selected_branches
         .iter()
         .filter(|b| b.status.requires_force())
         .count();
-    let gone_count = selected_branches
-        .iter()
-        .filter(|b| b.status == BranchStatus::GoneUpstream)
-        .count();
-
-    // Calculate how many lines we need:
-    // 1 empty + 1 title + 1 empty + min(3, branches) + (1 if more) + (2 if unmerged/gone warning) + 1 empty + 3 confirmation = ~12 base
-    let branch_lines = selected_branches.len().min(3);
-    let more_line = if selected_branches.len() > 3 { 1 } else { 0 };
-    let warning_lines = if unmerged_count > 0 || gone_count > 0 {
-        2
-    } else {
-        0
-    };
-    let needed_height = 3 + branch_lines + more_line + warning_lines + 5; // header + branches + warnings + footer with hints
 
     let mut lines = vec![Line::from("")];
 
@@ -1422,8 +1534,8 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
     }
     lines.push(Line::from(""));
 
-    // Show branch names (up to 3)
-    for branch in selected_branches.iter().take(3) {
+    // Every branch that will go; the modal scrolls when they do not fit
+    for branch in selected_branches.iter() {
         let prefix = "  • ";
         lines.push(Line::from(vec![
             Span::styled(prefix, Style::default().fg(COLOR_MUTED)),
@@ -1435,13 +1547,6 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
         ]));
     }
 
-    if selected_branches.len() > 3 {
-        lines.push(Line::from(vec![Span::styled(
-            format!("  ... and {} more", selected_branches.len() - 3),
-            Style::default().fg(COLOR_MUTED),
-        )]));
-    }
-
     // Warning for unmerged
     if unmerged_count > 0 {
         lines.push(Line::from(""));
@@ -1451,10 +1556,7 @@ fn render_confirmation_modal(frame: &mut Frame, app: &App) {
         )]));
     }
 
-    lines.push(Line::from(""));
-    lines.push(confirmation_hint_line());
-
-    render_confirmation_box(frame, app, lines, needed_height);
+    lines
 }
 
 /// The `y / Enter confirm    n / Esc cancel` line of the confirmation modal
@@ -1478,49 +1580,86 @@ fn confirmation_hint_line() -> Line<'static> {
     .alignment(Alignment::Center)
 }
 
-/// Draw the confirmation modal frame (centered, dry-run aware title) around `lines`
-fn render_confirmation_box(frame: &mut Frame, app: &App, lines: Vec<Line>, needed_height: usize) {
+/// Bottom-border hint of a help / about modal that does not fit
+const MODAL_SCROLL_HINT: &str = " ↑↓ scroll · other keys close ";
+
+/// Draw a centred modal at most `max_width` columns wide and as tall as its
+/// `lines` need (capped at the screen), scrolled down by `offset` rows.
+/// `footer` stays pinned below the scrolled lines; `scroll_hint` goes on the
+/// bottom border when the lines do not fit. Returns the scroll shown, which
+/// the caller stores back in `App::modal_scroll` / `App::modal_viewport`.
+#[allow(clippy::too_many_arguments)]
+fn render_modal(
+    frame: &mut Frame,
+    title: &str,
+    color: Color,
+    max_width: u16,
+    lines: Vec<Line>,
+    footer: Option<Line>,
+    offset: usize,
+    scroll_hint: &str,
+) -> Scroll {
     let area = frame.area();
-
-    // Calculate modal size - ensure it fits and has reasonable bounds
-    // (saturating, so a tiny terminal cannot underflow)
-    let modal_width = 60.min(area.width.saturating_sub(4));
-    let modal_height = (needed_height as u16)
-        .max(12)
-        .min(area.height.saturating_sub(4));
-
+    let width = max_width.min(area.width.saturating_sub(4));
+    let content_rows = Paragraph::new(lines.clone())
+        .wrap(Wrap { trim: false })
+        .line_count(width.saturating_sub(2));
+    // A blank line, then the footer
+    let footer_rows: u16 = if footer.is_some() { 2 } else { 0 };
+    let height = u16::try_from(content_rows)
+        .unwrap_or(u16::MAX)
+        .saturating_add(footer_rows + 2)
+        .min(area.height.saturating_sub(2));
     let modal_area = Rect {
-        x: area.width.saturating_sub(modal_width) / 2,
-        y: area.height.saturating_sub(modal_height) / 2,
-        width: modal_width,
-        height: modal_height,
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
     };
-
-    // Clear the area behind the modal
     frame.render_widget(Clear, modal_area);
 
-    let (modal_border_color, modal_title) = if app.dry_run {
-        (COLOR_WARNING, " 🔍 Preview (Dry Run) ")
-    } else {
-        (COLOR_DANGER, " ⚠️  Confirm Deletion ")
+    let border_style = Style::default().fg(color);
+    let title = Span::styled(title, border_style.add_modifier(Modifier::BOLD));
+    let viewport = height.saturating_sub(2 + footer_rows) as usize;
+
+    let mut outer = Block::bordered()
+        .border_style(border_style)
+        .title(title.clone());
+    if content_rows > viewport {
+        outer = outer.title_bottom(
+            Line::from(Span::styled(
+                scroll_hint.to_string(),
+                Style::default().fg(COLOR_MUTED),
+            ))
+            .right_aligned(),
+        );
+    }
+    frame.render_widget(outer, modal_area);
+
+    // The scrolled part: the modal without its bottom border and footer rows
+    let body_area = Rect {
+        height: height.saturating_sub(1 + footer_rows),
+        ..modal_area
     };
+    let body_block = Block::new()
+        .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
+        .border_style(border_style)
+        .title(title);
+    let scroll = render_scrolled(frame, body_block, lines, body_area, offset, None);
 
-    let modal = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(modal_border_color))
-                .title(modal_title)
-                .title_style(
-                    Style::default()
-                        .fg(modal_border_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-        )
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Left);
-
-    frame.render_widget(modal, modal_area);
+    if let Some(footer) = footer {
+        let footer_area = Rect {
+            x: modal_area.x + 1,
+            y: body_area.bottom(),
+            width: width.saturating_sub(2),
+            height: modal_area
+                .bottom()
+                .saturating_sub(1)
+                .saturating_sub(body_area.bottom()),
+        };
+        frame.render_widget(Paragraph::new(vec![Line::from(""), footer]), footer_area);
+    }
+    scroll
 }
 
 /// Get the style for a branch status
@@ -1553,23 +1692,8 @@ fn get_pr_state_color(state: &PrState) -> Color {
 }
 
 /// Render the help modal
-fn render_help_modal(frame: &mut Frame, view: ViewMode) {
-    let area = frame.area();
-
-    // Calculate modal size (larger for help content): 52 lines + border
-    let modal_width = 70.min(area.width - 4);
-    let modal_height = 54.min(area.height - 4);
-
-    let modal_area = Rect {
-        x: (area.width - modal_width) / 2,
-        y: (area.height - modal_height) / 2,
-        width: modal_width,
-        height: modal_height,
-    };
-
-    // Clear the area behind the modal
-    frame.render_widget(Clear, modal_area);
-
+fn render_help_modal(frame: &mut Frame, app: &mut App) {
+    let view = app.view;
     let lines = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -1918,6 +2042,57 @@ fn render_help_modal(frame: &mut Frame, view: ViewMode) {
             Style::default().fg(COLOR_MUTED),
         )]),
         Line::from(""),
+        help_heading("  Layout & scrolling"),
+        // This help's key column is one narrower than `help_row`'s
+        Line::from(vec![
+            Span::styled(
+                "    v             ",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Cycle layout: auto/side by side/stacked/list",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    J / K         ",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Scroll the details pane (also Shift+↓ / ↑)",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    Mouse wheel   ",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Scroll the pane under the pointer",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    ↑↓ PgUp PgDn  ",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Scroll this help; any other key closes",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(""),
         Line::from(vec![Span::styled(
             "  Other",
             Style::default()
@@ -2013,41 +2188,23 @@ fn render_help_modal(frame: &mut Frame, view: ViewMode) {
         lines
     };
 
-    let modal = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_ACCENT))
-                .title(" 📖 Help - Keyboard Shortcuts ")
-                .title_style(
-                    Style::default()
-                        .fg(COLOR_ACCENT)
-                        .add_modifier(Modifier::BOLD),
-                ),
-        )
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Left);
-
-    frame.render_widget(modal, modal_area);
+    let scroll = render_modal(
+        frame,
+        " 📖 Help - Keyboard Shortcuts ",
+        COLOR_ACCENT,
+        70,
+        lines,
+        None,
+        app.modal_scroll,
+        MODAL_SCROLL_HINT,
+    );
+    app.modal_scroll = scroll.offset;
+    app.modal_viewport = scroll.viewport;
 }
 
 /// Render the info modal
-fn render_info_modal(frame: &mut Frame, view: ViewMode) {
-    let area = frame.area();
-
-    // Calculate modal size
-    let modal_width = 65.min(area.width - 4);
-    let modal_height = if view == ViewMode::Worktrees { 26 } else { 24 }.min(area.height - 4);
-
-    let modal_area = Rect {
-        x: (area.width - modal_width) / 2,
-        y: (area.height - modal_height) / 2,
-        width: modal_width,
-        height: modal_height,
-    };
-
-    // Clear the area behind the modal
-    frame.render_widget(Clear, modal_area);
+fn render_info_modal(frame: &mut Frame, app: &mut App) {
+    let view = app.view;
 
     let lines = vec![
         Line::from(""),
@@ -2161,22 +2318,18 @@ fn render_info_modal(frame: &mut Frame, view: ViewMode) {
         lines
     };
 
-    let modal = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_ACCENT))
-                .title(" ℹ️  About ")
-                .title_style(
-                    Style::default()
-                        .fg(COLOR_ACCENT)
-                        .add_modifier(Modifier::BOLD),
-                ),
-        )
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Left);
-
-    frame.render_widget(modal, modal_area);
+    let scroll = render_modal(
+        frame,
+        " ℹ️  About ",
+        COLOR_ACCENT,
+        65,
+        lines,
+        None,
+        app.modal_scroll,
+        MODAL_SCROLL_HINT,
+    );
+    app.modal_scroll = scroll.offset;
+    app.modal_viewport = scroll.viewport;
 }
 
 // ---------------------------------------------------------------------------
@@ -2243,27 +2396,88 @@ fn wrap_words(text: &str, width: usize) -> Vec<String> {
     lines
 }
 
-/// Render the worktree list as a table
-fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
-    let inner_area = area.inner(ratatui::layout::Margin {
-        horizontal: 1,
-        vertical: 1,
-    });
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(inner_area);
-    let table_area = chunks[0];
-    let legend_area = chunks[1];
+/// Legend of the worktree table, wrapped to `width` (at most 2 lines)
+fn worktree_legend_lines(width: u16) -> Vec<Line<'static>> {
+    let groups = vec![
+        vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
+        legend_item("◆", "main", COLOR_ACCENT),
+        legend_item("◉", "current", COLOR_CURRENT),
+        legend_item("✗", "prunable", COLOR_DANGER),
+        legend_item("🔒", "locked", COLOR_MUTED),
+        legend_item("✎", "dirty", COLOR_WARNING),
+        legend_item("○", "detached", COLOR_LOCAL),
+        vec![Span::styled("│", Style::default().fg(COLOR_MUTED))],
+        vec![
+            Span::styled("M", Style::default().fg(COLOR_WARNING)),
+            Span::styled(" modified", Style::default().fg(COLOR_MUTED)),
+        ],
+        vec![
+            Span::styled("S", Style::default().fg(COLOR_WARNING)),
+            Span::styled(" staged", Style::default().fg(COLOR_MUTED)),
+        ],
+        vec![
+            Span::styled("N", Style::default().fg(COLOR_WARNING)),
+            Span::styled(" new", Style::default().fg(COLOR_MUTED)),
+        ],
+    ];
+    responsive::flow_lines(
+        groups,
+        width,
+        0,
+        Span::raw("  "),
+        2,
+        key_hint("…", "i about", COLOR_ACCENT),
+    )
+}
 
+/// Render the worktree list as a table
+fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
+    let legend = worktree_legend_lines(area.width.saturating_sub(2));
+    let (table_area, legend_area) = list_areas(area, &legend);
+    // Rows that fit, for page up / down
     app.visible_height = table_area.height as usize;
-    let app = &*app;
 
     let show_pr = app.pr_provider.is_some();
-    let mut header_labels = vec!["", "", "Name", "Branch", "State", "Changes", "Last Commit"];
-    if show_pr {
-        header_labels.push("PR");
+    // Name is sized to the longest worktree name (over all worktrees, so it
+    // does not jump when filters change), at most a third of the table;
+    // Branch takes all remaining space, since branch names are usually much
+    // longer than directory names
+    let name_width = app
+        .worktrees
+        .as_ref()
+        .map_or(0, |wt| worktree_name_width(&wt.worktrees))
+        .min(table_area.width / 3)
+        .max(4);
+    let cols = responsive::worktree_columns(table_area.width, name_width, show_pr);
+
+    let mut header_labels = vec!["", "", "Name", "Branch"];
+    let mut widths = vec![
+        Constraint::Length(2),          // Cursor
+        Constraint::Length(4),          // Checkbox / main / locked marker
+        Constraint::Length(name_width), // Name
+        Constraint::Fill(1),            // Branch
+    ];
+    if cols.state_label {
+        header_labels.push("State");
+        widths.push(Constraint::Length(14));
+    } else {
+        header_labels.push("St");
+        widths.push(Constraint::Length(responsive::ICON_COLUMN_WIDTH));
     }
+    if cols.changes {
+        header_labels.push("Changes");
+        widths.push(Constraint::Length(10));
+    }
+    if cols.last_commit {
+        header_labels.push("Last Commit");
+        widths.push(Constraint::Length(15));
+    }
+    if cols.pr {
+        header_labels.push("PR");
+        widths.push(Constraint::Length(10));
+    }
+    let branch_width = column_width(&widths, table_area.width, 3);
+
     let header = Row::new(header_labels.iter().map(|h| {
         Cell::from(*h).style(
             Style::default()
@@ -2329,18 +2543,29 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(COLOR_MUTED)
             };
 
+            // Name and branch are cut with `…` when too long (full values in details)
+            let state_text = if cols.state_label {
+                format!("{} {}", state.icon(), state.label())
+            } else {
+                state.icon().to_string()
+            };
             let mut cells = vec![
                 Cell::from(if is_cursor { "▶" } else { " " })
                     .style(Style::default().fg(COLOR_ACCENT)),
                 Cell::from(mark).style(mark_style),
-                Cell::from(wt.name()).style(name_style),
-                Cell::from(wt.branch_label()).style(Style::default().fg(COLOR_MUTED)),
-                Cell::from(format!("{} {}", state.icon(), state.label()))
-                    .style(Style::default().fg(get_worktree_state_color(&state))),
-                Cell::from(changes).style(changes_style),
-                Cell::from(last_commit).style(Style::default().fg(COLOR_MUTED)),
+                Cell::from(responsive::truncate_end(&wt.name(), name_width as usize))
+                    .style(name_style),
+                Cell::from(responsive::truncate_end(&wt.branch_label(), branch_width))
+                    .style(Style::default().fg(COLOR_MUTED)),
+                Cell::from(state_text).style(Style::default().fg(get_worktree_state_color(&state))),
             ];
-            if show_pr {
+            if cols.changes {
+                cells.push(Cell::from(changes).style(changes_style));
+            }
+            if cols.last_commit {
+                cells.push(Cell::from(last_commit).style(Style::default().fg(COLOR_MUTED)));
+            }
+            if cols.pr {
                 let (pr_text, pr_style) = match &wt.pr_info {
                     Some(pr) => (
                         format!("{} #{}", pr.state.icon(), pr.number),
@@ -2361,26 +2586,7 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
             }
         })
         .collect();
-
-    // Name is sized to the longest worktree name (over all worktrees, so it
-    // does not jump when filters change); Branch takes all remaining space,
-    // since branch names are usually much longer than directory names
-    let name_width = app
-        .worktrees
-        .as_ref()
-        .map_or(0, |wt| worktree_name_width(&wt.worktrees));
-    let mut widths = vec![
-        Constraint::Length(2),          // Cursor
-        Constraint::Length(4),          // Checkbox / main / locked marker
-        Constraint::Length(name_width), // Name
-        Constraint::Fill(1),            // Branch
-        Constraint::Length(14),         // State
-        Constraint::Length(10),         // Changes
-        Constraint::Length(15),         // Last commit
-    ];
-    if show_pr {
-        widths.push(Constraint::Length(10));
-    }
+    let row_count = rows.len();
 
     let loading = app
         .worktrees
@@ -2392,49 +2598,28 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect) {
         app.selected_count(),
         if loading { " - reading status…" } else { "" }
     );
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(COLOR_MUTED))
-        .title(title)
-        .title_style(Style::default().fg(COLOR_ACCENT));
-    frame.render_widget(block, area);
+    frame.render_widget(list_block(title, details_hidden), area);
 
     let table = Table::new(rows, widths)
         .header(header)
         .row_highlight_style(Style::default().add_modifier(Modifier::BOLD));
-    let mut table_state = TableState::default()
-        .with_selected(Some(app.selected_index))
-        .with_offset(app.scroll_offset);
-    frame.render_stateful_widget(table, table_area, &mut table_state);
+    let offset = render_list_table(
+        frame,
+        table,
+        row_count,
+        app.selected_index,
+        app.scroll_offset,
+        area,
+        table_area,
+    );
+    app.scroll_offset = offset;
 
-    let legend = Line::from(vec![
-        Span::styled("Legend: ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("◆ ", Style::default().fg(COLOR_ACCENT)),
-        Span::styled("main  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("◉ ", Style::default().fg(COLOR_CURRENT)),
-        Span::styled("current  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("✗ ", Style::default().fg(COLOR_DANGER)),
-        Span::styled("prunable  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("🔒 ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("locked  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("✎ ", Style::default().fg(COLOR_WARNING)),
-        Span::styled("dirty  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("○ ", Style::default().fg(COLOR_LOCAL)),
-        Span::styled("detached  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("│ ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("M", Style::default().fg(COLOR_WARNING)),
-        Span::styled(" modified  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("S", Style::default().fg(COLOR_WARNING)),
-        Span::styled(" staged  ", Style::default().fg(COLOR_MUTED)),
-        Span::styled("N", Style::default().fg(COLOR_WARNING)),
-        Span::styled(" new", Style::default().fg(COLOR_MUTED)),
-    ]);
     frame.render_widget(Paragraph::new(legend), legend_area);
 }
 
 /// Render the details pane for the worktree under the cursor
-fn render_worktree_details(frame: &mut Frame, app: &App, area: Rect) {
+/// Returns the details scroll actually shown (clamped to the content)
+fn render_worktree_details(frame: &mut Frame, app: &App, area: Rect, scroll: usize) -> usize {
     let label = |text: &'static str| Span::styled(text, Style::default().fg(COLOR_MUTED));
     let heading = |text: &'static str| {
         Line::from(Span::styled(
@@ -2454,8 +2639,7 @@ fn render_worktree_details(frame: &mut Frame, app: &App, area: Rect) {
                 .fg(COLOR_MUTED)
                 .add_modifier(Modifier::ITALIC),
         )));
-        render_details_block(frame, lines, area);
-        return;
+        return render_details_block(frame, lines, area, scroll);
     };
 
     let state = wt.state();
@@ -2700,89 +2884,99 @@ fn render_worktree_details(frame: &mut Frame, app: &App, area: Rect) {
         label(" to copy the path"),
     ]));
 
-    render_details_block(frame, lines, area);
+    render_details_block(frame, lines, area, scroll)
 }
 
-/// Draw the bordered `Details` pane
-fn render_details_block(frame: &mut Frame, lines: Vec<Line>, area: Rect) {
-    let details = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(COLOR_MUTED))
-                .title(" Details ")
-                .title_style(Style::default().fg(COLOR_ACCENT)),
-        )
-        .wrap(Wrap { trim: false });
-    frame.render_widget(details, area);
-}
-
-/// Footer key hints of the worktree view
-fn worktree_footer_hints(app: &App) -> Line<'static> {
-    let key = |k: &'static str| {
+/// Draw the bordered `Details` pane, scrolled down by `scroll` rows.
+/// Returns the scroll actually shown.
+fn render_details_block(frame: &mut Frame, lines: Vec<Line>, area: Rect, scroll: usize) -> usize {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(COLOR_MUTED))
+        .title(" Details ")
+        .title_style(Style::default().fg(COLOR_ACCENT));
+    let hint = Line::from(vec![
+        Span::raw(" "),
         Span::styled(
-            k,
+            "J/K",
             Style::default()
                 .fg(COLOR_ACCENT)
                 .add_modifier(Modifier::BOLD),
-        )
-    };
-    let text = |t: &'static str| Span::styled(t, Style::default().fg(COLOR_MUTED));
-    let toggle_style = |on: bool, color: Color| {
-        if on {
-            Style::default()
-                .fg(Color::Black)
-                .bg(color)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(color).add_modifier(Modifier::BOLD)
-        }
-    };
+        ),
+        Span::styled(" scroll ", Style::default().fg(COLOR_MUTED)),
+    ]);
+    render_scrolled(frame, block, lines, area, scroll, Some(hint)).offset
+}
 
-    let mut spans = vec![
-        Span::styled(" ", Style::default()),
-        key("↑↓"),
-        text(" nav  "),
-    ];
+/// Draw `lines` wrapped inside `block`, scrolled down by `offset` rows
+/// (clamped so the view does not run past the end). When they do not all
+/// fit, draws a scrollbar on the block's right border and `hint` on its
+/// bottom border. Returns the scroll shown.
+fn render_scrolled(
+    frame: &mut Frame,
+    block: Block,
+    lines: Vec<Line>,
+    area: Rect,
+    offset: usize,
+    hint: Option<Line>,
+) -> Scroll {
+    let inner = block.inner(area);
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+    let total = paragraph.line_count(inner.width);
+    let scroll = Scroll::clamped(offset, inner.height as usize, total);
+
+    let block = match hint {
+        Some(hint) if scroll.overflows() => block.title_bottom(hint.right_aligned()),
+        _ => block,
+    };
+    frame.render_widget(block, area);
+    frame.render_widget(
+        paragraph.scroll((scroll.offset.min(u16::MAX as usize) as u16, 0)),
+        inner,
+    );
+    if scroll.overflows() {
+        render_scrollbar(
+            frame,
+            area.inner(Margin {
+                horizontal: 0,
+                vertical: 1,
+            }),
+            scroll,
+        );
+    }
+    scroll
+}
+
+/// Footer key hints of the worktree view, one group per key (the shared
+/// `v` / `o` / `?` / `q` hints are added by `footer_hint_groups`)
+fn worktree_footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
+    let mut groups = vec![key_hint("↑↓", "nav", COLOR_ACCENT)];
     if app.worktree_remove_mode {
-        spans.extend([
-            key("Space"),
-            text(" sel  "),
-            key("a"),
-            text(" stale  "),
-            key("c"),
-            text(" clr  "),
-            Span::styled("f force", toggle_style(app.force_mode, COLOR_DANGER)),
-            text("  "),
-            Span::styled("d dry", toggle_style(app.dry_run, COLOR_WARNING)),
-            text("  "),
-            Span::styled(
-                "Enter",
-                Style::default()
-                    .fg(COLOR_SELECTED)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            text(" remove  "),
+        groups.extend([
+            key_hint("Space", "sel", COLOR_ACCENT),
+            key_hint("a", "stale", COLOR_ACCENT),
+            key_hint("c", "clr", COLOR_ACCENT),
+            vec![Span::styled(
+                "f force",
+                toggle_style(app.force_mode, COLOR_DANGER),
+            )],
+            vec![Span::styled(
+                "d dry",
+                toggle_style(app.dry_run, COLOR_WARNING),
+            )],
+            key_hint("Enter", "remove", COLOR_SELECTED),
         ]);
     }
-    spans.extend([
-        Span::styled(
+    groups.extend([
+        vec![Span::styled(
             "x remove mode",
             toggle_style(app.worktree_remove_mode, COLOR_DANGER),
-        ),
-        text("  "),
-        key("y"),
-        text(" copy path  "),
-        key("/"),
-        text(" search  "),
-        key("w"),
-        text(" branches  "),
-        key("?"),
-        text(" help  "),
-        key("q"),
-        text(" quit"),
+        )],
+        key_hint("y", "copy path", COLOR_ACCENT),
+        key_hint("/", "search", COLOR_ACCENT),
+        key_hint("w", "branches", COLOR_ACCENT),
     ]);
-    Line::from(spans)
+    groups
 }
 
 /// Body of the confirmation modal in the worktree view
@@ -2830,7 +3024,7 @@ fn worktree_confirmation_lines(app: &App) -> Vec<Line<'static>> {
     }
     lines.push(Line::from(""));
 
-    for (wt, action) in selected.iter().take(4) {
+    for (wt, action) in selected.iter() {
         let how = match action {
             RemovalAction::Remove => "remove",
             RemovalAction::ForceRemove => "remove --force",
@@ -2849,13 +3043,6 @@ fn worktree_confirmation_lines(app: &App) -> Vec<Line<'static>> {
             ),
         ]));
     }
-    if selected.len() > 4 {
-        lines.push(Line::from(Span::styled(
-            format!("  ... and {} more", selected.len() - 4),
-            Style::default().fg(COLOR_MUTED),
-        )));
-    }
-
     let forced = selected
         .iter()
         .filter(|(_, a)| *a == RemovalAction::ForceRemove)
@@ -2895,8 +3082,6 @@ fn worktree_confirmation_lines(app: &App) -> Vec<Line<'static>> {
         Span::styled(" also delete branches: ", Style::default().fg(COLOR_MUTED)),
         Span::styled(state, style),
     ]));
-    lines.push(Line::from(""));
-    lines.push(confirmation_hint_line());
     lines
 }
 
@@ -2991,6 +3176,28 @@ fn worktree_help_lines() -> Vec<Line<'static>> {
             COLOR_PR_MERGED,
         ),
         Line::from(""),
+        help_heading("  Layout & scrolling"),
+        help_row(
+            "v",
+            "Cycle layout: auto/side by side/stacked/list",
+            COLOR_SUCCESS,
+        ),
+        help_row(
+            "J / K",
+            "Scroll the details pane (also Shift+↓ / ↑)",
+            COLOR_SUCCESS,
+        ),
+        help_row(
+            "Mouse wheel",
+            "Scroll the pane under the pointer",
+            COLOR_SUCCESS,
+        ),
+        help_row(
+            "↑↓ PgUp PgDn",
+            "Scroll this help; any other key closes",
+            COLOR_SUCCESS,
+        ),
+        Line::from(""),
         help_heading("  Other"),
         help_row("w", "Switch back to the branch view", COLOR_SUCCESS),
         help_row("r", "Reload worktrees and branches", COLOR_SUCCESS),
@@ -3069,7 +3276,7 @@ mod tests {
     fn footer_text(app: &App) -> String {
         let mut terminal = Terminal::new(TestBackend::new(120, 3)).unwrap();
         terminal
-            .draw(|frame| render_footer(frame, app, frame.area()))
+            .draw(|frame| render_footer(frame, app, frame.area(), false))
             .unwrap();
         terminal
             .backend()
@@ -3092,7 +3299,9 @@ mod tests {
     fn details_text(app: &App) -> String {
         let mut terminal = Terminal::new(TestBackend::new(250, 30)).unwrap();
         terminal
-            .draw(|frame| render_details_pane(frame, app, frame.area()))
+            .draw(|frame| {
+                render_details_pane(frame, app, frame.area(), 0);
+            })
             .unwrap();
         let buffer = terminal.backend().buffer();
         (0..buffer.area.height)
@@ -3329,5 +3538,319 @@ mod tests {
         app.show_help = false;
         app.show_info = true;
         assert!(screen_text(&mut app).contains("Worktree States"));
+    }
+
+    // --- Responsive layout (docs/specs/RESPONSIVE_LAYOUT.md) -----------------
+
+    /// Render the whole UI at `width`×`height`, one string per screen row
+    fn screen_rows(app: &mut App, width: u16, height: u16) -> Vec<String> {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| render(frame, app)).unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect()
+    }
+
+    fn screen_at(app: &mut App, width: u16, height: u16) -> String {
+        screen_rows(app, width, height).join("\n")
+    }
+
+    fn named_branch(name: &str, status: BranchStatus) -> BranchInfo {
+        BranchInfo {
+            name: name.to_string(),
+            worktree: None,
+            worktree_shadowed_status: None,
+            status,
+            ..worktree_branch("/unused")
+        }
+    }
+
+    /// An app with `n` merged branches named `branch-000`, `branch-001`, ...
+    fn many_branches_app(n: usize) -> App {
+        let branches = (0..n)
+            .map(|i| named_branch(&format!("branch-{i:03}"), BranchStatus::SafeMerged))
+            .collect();
+        App::new(branches, "/repo".into(), "main".into(), String::new())
+    }
+
+    const SIZES: [(u16, u16); 10] = [
+        (1, 1),
+        (10, 5),
+        (39, 9),
+        (40, 10),
+        (60, 20),
+        (80, 24),
+        (80, 40),
+        (100, 30),
+        (120, 40),
+        (200, 60),
+    ];
+
+    #[test]
+    fn every_screen_renders_at_every_size_without_panicking() {
+        for pr in [false, true] {
+            for (width, height) in SIZES {
+                let mut apps = vec![many_branches_app(50), worktree_app()];
+                for app in &mut apps {
+                    if pr {
+                        app.pr_provider = Some(crate::pr::PrProviderKind::GitHub);
+                    }
+                    app.action_log.push(crate::app::ActionLogEntry {
+                        branch_name: "branch-000".into(),
+                        success: true,
+                        message: "deleted".into(),
+                    });
+                    app.show_filter = true;
+                    app.search_query = "bra".into();
+                    screen_at(app, width, height);
+
+                    app.select_all_safe();
+                    app.show_confirmation = true;
+                    screen_at(app, width, height);
+                    app.show_confirmation = false;
+
+                    app.show_help = true;
+                    app.modal_scroll = usize::MAX;
+                    screen_at(app, width, height);
+                    app.show_help = false;
+
+                    app.show_info = true;
+                    screen_at(app, width, height);
+                    app.show_info = false;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn too_small_terminal_shows_a_message_instead_of_the_layout() {
+        let mut app = many_branches_app(3);
+        let text = screen_at(&mut app, 39, 12);
+        assert!(text.contains("Terminal too small"));
+        assert!(text.contains("39×12, need 40×10"));
+        assert!(!text.contains("branch-000"));
+    }
+
+    #[test]
+    fn footer_hints_wrap_instead_of_being_cut_off() {
+        let mut app = many_branches_app(3);
+        // One line would need ~140 columns; at 80 they wrap onto more lines
+        let text = screen_at(&mut app, 80, 30);
+        for hint in [
+            "↑↓ nav",
+            "Enter del",
+            "w worktrees",
+            "v layout",
+            "? help",
+            "q quit",
+        ] {
+            assert!(text.contains(hint), "missing {hint:?}");
+        }
+    }
+
+    #[test]
+    fn footer_points_to_help_when_hints_do_not_fit() {
+        let mut app = many_branches_app(3);
+        // Compact (borderless) footer: at most 2 lines at 40 columns
+        let text = screen_at(&mut app, 40, 12);
+        assert!(text.contains("… ? help"));
+    }
+
+    #[test]
+    fn cursor_row_stays_on_screen_after_the_terminal_shrinks() {
+        let mut app = many_branches_app(100);
+        screen_at(&mut app, 120, 60);
+        for _ in 0..80 {
+            app.select_next();
+        }
+        assert!(screen_at(&mut app, 120, 60).contains("branch-080"));
+
+        let text = screen_at(&mut app, 80, 15);
+        assert!(text.contains("branch-080"), "{text}");
+        // The stored offset follows what is on screen
+        assert!(app.scroll_offset > 0);
+        assert!(app.scroll_offset <= 80);
+    }
+
+    #[test]
+    fn growing_terminal_fills_the_new_rows() {
+        let mut app = many_branches_app(30);
+        screen_at(&mut app, 120, 20);
+        app.go_to_bottom();
+        screen_at(&mut app, 120, 20);
+        assert!(app.scroll_offset > 0);
+
+        // Tall enough for every branch: nothing stays scrolled out of view
+        let text = screen_at(&mut app, 120, 60);
+        assert_eq!(app.scroll_offset, 0);
+        assert!(text.contains("branch-000") && text.contains("branch-029"));
+    }
+
+    #[test]
+    fn list_shows_a_scrollbar_only_when_it_overflows() {
+        let mut app = many_branches_app(100);
+        assert!(screen_at(&mut app, 120, 30).contains('█'));
+
+        let mut app = many_branches_app(3);
+        assert!(!screen_at(&mut app, 120, 30).contains('█'));
+    }
+
+    #[test]
+    fn auto_layout_follows_the_terminal_size() {
+        let mut app = many_branches_app(5);
+
+        // Wide: details to the right of the list, on the same rows
+        let rows = screen_rows(&mut app, 140, 40);
+        let row = rows.iter().position(|r| r.contains(" Branches (")).unwrap();
+        assert!(rows[row].contains(" Details "));
+
+        // Narrow and tall: details below the list
+        let rows = screen_rows(&mut app, 80, 40);
+        let list_row = rows.iter().position(|r| r.contains(" Branches (")).unwrap();
+        let details_row = rows.iter().position(|r| r.contains(" Details ")).unwrap();
+        assert!(details_row > list_row);
+
+        // Narrow and short: list only, with a pointer to `v`
+        let text = screen_at(&mut app, 80, 16);
+        assert!(!text.contains(" Details "));
+        assert!(text.contains("details hidden"));
+    }
+
+    #[test]
+    fn forced_layout_mode_overrides_auto() {
+        let mut app = many_branches_app(5);
+        app.layout_mode = LayoutMode::ListOnly;
+        let text = screen_at(&mut app, 200, 60);
+        assert!(!text.contains(" Details "));
+        assert!(text.contains("▥ list only"));
+
+        app.layout_mode = LayoutMode::Stacked;
+        let rows = screen_rows(&mut app, 200, 60);
+        let list_row = rows.iter().position(|r| r.contains(" Branches (")).unwrap();
+        let details_row = rows.iter().position(|r| r.contains(" Details ")).unwrap();
+        assert!(details_row > list_row);
+    }
+
+    #[test]
+    fn narrow_table_drops_columns_and_marks_cut_names() {
+        let mut app = App::new(
+            vec![named_branch(
+                "feature/a-very-long-branch-name-that-cannot-fit",
+                BranchStatus::SafeMerged,
+            )],
+            "/repo".into(),
+            "main".into(),
+            String::new(),
+        );
+        app.layout_mode = LayoutMode::ListOnly;
+        let text = screen_at(&mut app, 50, 20);
+        assert!(!text.contains("Last Commit"));
+        assert!(text.contains("feature/a-very-long-bra…"), "{text}");
+        assert!(text.contains('…'));
+    }
+
+    #[test]
+    fn help_modal_scrolls_to_its_last_line() {
+        let mut app = many_branches_app(3);
+        app.show_help = true;
+        let text = screen_at(&mut app, 80, 24);
+        assert!(!text.contains("Quit application"));
+        assert!(text.contains("↑↓ scroll"));
+
+        app.modal_scroll = usize::MAX;
+        let text = screen_at(&mut app, 80, 24);
+        assert!(text.contains("Quit application"));
+        // Clamped to the last page
+        assert!(app.modal_scroll < 100);
+    }
+
+    #[test]
+    fn confirmation_lists_every_selected_branch_and_keeps_the_hint() {
+        let mut app = many_branches_app(30);
+        app.select_all_safe();
+        app.show_confirmation = true;
+
+        let text = screen_at(&mut app, 120, 60);
+        assert!(text.contains("branch-000") && text.contains("branch-029"));
+        assert!(!text.contains("more"));
+
+        // Too short for all 30: scrolls, and the y / n hint stays visible
+        let text = screen_at(&mut app, 120, 24);
+        assert!(text.contains("y / Enter"));
+        assert!(text.contains("↑↓ scroll"));
+        app.modal_scroll = usize::MAX;
+        let text = screen_at(&mut app, 120, 24);
+        assert!(text.contains("branch-029"));
+        assert!(text.contains("y / Enter"));
+    }
+
+    #[test]
+    fn details_scroll_is_clamped_and_resets_on_another_item() {
+        let mut app = worktree_app();
+        app.details_scroll = 1000;
+        app.details_anchor = Some((app.view, app.selected_index));
+        // Stacked at 80×30: the details pane is too short for its content
+        screen_at(&mut app, 80, 30);
+        assert!(app.details_scroll > 0 && app.details_scroll < 1000);
+
+        app.select_next();
+        screen_at(&mut app, 80, 30);
+        assert_eq!(app.details_scroll, 0);
+    }
+
+    #[test]
+    fn worktree_view_fits_a_narrow_terminal() {
+        let mut app = worktree_app();
+        let text = screen_at(&mut app, 60, 30);
+        assert!(text.contains("fix-login"));
+        assert!(!text.contains("Last Commit"));
+        assert!(text.contains("x remove mode"));
+    }
+
+    #[test]
+    fn long_repo_path_is_shortened_in_the_middle() {
+        let mut app = many_branches_app(1);
+        app.repo_path = format!("/home/user/{}/omni-scripts", "deep/".repeat(20));
+        let text = screen_at(&mut app, 60, 30);
+        assert!(text.contains("/home/"), "{text}");
+        assert!(text.contains("main"));
+        assert!(text.contains("omni-scripts"));
+    }
+
+    #[test]
+    fn mouse_wheel_scrolls_the_pane_under_the_pointer() {
+        let mut app = worktree_app();
+        // Stacked at 80×30: details below the list, too short for its content
+        screen_at(&mut app, 80, 30);
+        let details = app.details_area.expect("details shown");
+        let list = app.list_area;
+
+        // Over the details pane: scrolls the details, cursor stays
+        app.scroll_at(details.x + 2, details.y + 2, true);
+        screen_at(&mut app, 80, 30);
+        assert!(app.details_scroll > 0);
+        assert_eq!(app.selected_index, 0);
+
+        // Over the list: moves the cursor (details start at the top again)
+        app.scroll_at(list.x + 2, list.y + 2, true);
+        screen_at(&mut app, 80, 30);
+        assert_eq!(app.selected_index, 1);
+        assert_eq!(app.details_scroll, 0);
+
+        // Elsewhere (header): nothing happens
+        app.scroll_at(1, 0, true);
+        assert_eq!(app.selected_index, 1);
+        assert_eq!(app.details_scroll, 0);
+
+        // An open modal takes the wheel wherever the pointer is
+        app.show_help = true;
+        app.scroll_at(list.x + 2, list.y + 2, true);
+        assert_eq!(app.modal_scroll, 3);
+        assert_eq!(app.selected_index, 1);
     }
 }

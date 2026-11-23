@@ -351,6 +351,8 @@ interactive interface.
 | `y`                | Copy the branch name to the clipboard            |
 | `r`                | Reload the branch list                           |
 | `R`                | Fetch the remote, reload, re-fetch PR data       |
+| `v`                | Cycle the pane layout (auto/side/stacked/list)   |
+| `J` / `K`          | Scroll the details pane                          |
 | `?`                | Show help                                        |
 | `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 

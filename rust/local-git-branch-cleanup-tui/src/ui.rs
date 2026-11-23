@@ -96,13 +96,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let arrangement = responsive::arrange(app.layout_mode, content);
     let (list_area, details_area) = responsive::split_content(arrangement, content);
     let details_hidden = details_area.is_none();
-    app.list_area = list_area;
     app.details_area = details_area;
 
     if app.view == ViewMode::Worktrees {
-        render_worktree_list(frame, app, list_area, details_hidden);
+        render_worktree_list(frame, app, list_area, details_hidden, compact);
     } else {
-        render_branch_list(frame, app, list_area, details_hidden);
+        render_branch_list(frame, app, list_area, details_hidden, compact);
     }
     if let Some(details_area) = details_area {
         let scroll = app.details_scroll_for_cursor();
@@ -706,17 +705,67 @@ fn list_block(title: String, details_hidden: bool) -> Block<'static> {
     block
 }
 
-/// Inside a list pane's border: the table on top, `legend` below it
-fn list_areas(area: Rect, legend: &[Line]) -> (Rect, Rect) {
-    let inner = area.inner(Margin {
+/// Rows a list pane keeps before the legend gives up space: its borders,
+/// the table header and 2 rows
+const LIST_PANE_MIN_HEIGHT: u16 = 5;
+
+/// Draw the legend `groups` in their own box at the bottom of the list
+/// column `area` and return what is left for the list pane. The legend
+/// wraps onto at most 2 lines and ends in `… i about` when they are not
+/// enough; it gets fewer lines, then none, before the list pane gets less
+/// than `LIST_PANE_MIN_HEIGHT` rows. Compact: no border, a `Legend:` prefix
+/// in place of the title.
+fn render_legend(
+    frame: &mut Frame,
+    area: Rect,
+    mut groups: Vec<Vec<Span<'static>>>,
+    compact: bool,
+) -> Rect {
+    let border = if compact { 0 } else { 2 };
+    let max_lines = area
+        .height
+        .saturating_sub(LIST_PANE_MIN_HEIGHT + border)
+        .min(2) as usize;
+    if max_lines == 0 {
+        return area;
+    }
+    if compact {
+        groups.insert(
+            0,
+            vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
+        );
+    }
+    let lines = responsive::flow_lines(
+        groups,
+        area.width.saturating_sub(border),
+        0,
+        Span::raw("  "),
+        max_lines,
+        key_hint("…", "i about", COLOR_ACCENT),
+    );
+    let [list, legend] = Layout::vertical([
+        Constraint::Min(0),
+        Constraint::Length(lines.len() as u16 + border),
+    ])
+    .areas(area);
+    let block = chrome_block(
+        compact,
+        Some(Line::from(Span::styled(
+            " Legend ",
+            Style::default().fg(COLOR_ACCENT),
+        ))),
+        COLOR_MUTED,
+    );
+    frame.render_widget(Paragraph::new(lines).block(block), legend);
+    list
+}
+
+/// The table area inside a list pane's border
+fn list_table_area(area: Rect) -> Rect {
+    area.inner(Margin {
         horizontal: 1,
         vertical: 1,
-    });
-    // The legend never takes the table's last rows (header + 2 rows)
-    let legend_rows = (legend.len() as u16).min(inner.height.saturating_sub(3));
-    let [table, legend] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(legend_rows)]).areas(inner);
-    (table, legend)
+    })
 }
 
 /// Draw a list `table` of `row_count` rows in `table_area`, the cursor on
@@ -768,12 +817,9 @@ fn column_width(widths: &[Constraint], width: u16, index: usize) -> usize {
         .map_or(0, |r| r.width as usize)
 }
 
-/// Legend of the branch table, wrapped to `width` (at most 2 lines)
-fn branch_legend_lines(app: &App, width: u16) -> Vec<Line<'static>> {
-    let mut groups = vec![
-        vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
-        legend_item("✓", "merged", COLOR_SUCCESS),
-    ];
+/// Legend items of the branch table, one group per item
+fn branch_legend_groups(app: &App) -> Vec<Vec<Span<'static>>> {
+    let mut groups = vec![legend_item("✓", "merged", COLOR_SUCCESS)];
     // pr-merged/pr-diverged can only occur when a PR provider supplied merge evidence
     if app.pr_provider.is_some() {
         groups.push(legend_item("↑", "pr-merged", COLOR_ACCENT));
@@ -797,20 +843,20 @@ fn branch_legend_lines(app: &App, width: u16) -> Vec<Line<'static>> {
         groups.push(legend_item("🟡", "open", COLOR_PR_OPEN));
         groups.push(legend_item("🔴", "closed", COLOR_PR_CLOSED));
     }
-    responsive::flow_lines(
-        groups,
-        width,
-        0,
-        Span::raw("  "),
-        2,
-        key_hint("…", "i about", COLOR_ACCENT),
-    )
+    groups
 }
 
 /// Render the branch list as a table
-fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
-    let legend = branch_legend_lines(app, area.width.saturating_sub(2));
-    let (table_area, legend_area) = list_areas(area, &legend);
+fn render_branch_list(
+    frame: &mut Frame,
+    app: &mut App,
+    area: Rect,
+    details_hidden: bool,
+    compact: bool,
+) {
+    let area = render_legend(frame, area, branch_legend_groups(app), compact);
+    app.list_area = area;
+    let table_area = list_table_area(area);
 
     // Rows that fit, for page up / down
     app.visible_height = table_area.height as usize;
@@ -971,9 +1017,6 @@ fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidd
         table_area,
     );
     app.scroll_offset = offset;
-
-    // Legend lines below the table (no border, just text)
-    frame.render_widget(Paragraph::new(legend), legend_area);
 }
 
 /// Render the details pane for the selected branch
@@ -2396,10 +2439,9 @@ fn wrap_words(text: &str, width: usize) -> Vec<String> {
     lines
 }
 
-/// Legend of the worktree table, wrapped to `width` (at most 2 lines)
-fn worktree_legend_lines(width: u16) -> Vec<Line<'static>> {
-    let groups = vec![
-        vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
+/// Legend items of the worktree table, one group per item
+fn worktree_legend_groups() -> Vec<Vec<Span<'static>>> {
+    vec![
         legend_item("◆", "main", COLOR_ACCENT),
         legend_item("◉", "current", COLOR_CURRENT),
         legend_item("✗", "prunable", COLOR_DANGER),
@@ -2419,21 +2461,20 @@ fn worktree_legend_lines(width: u16) -> Vec<Line<'static>> {
             Span::styled("N", Style::default().fg(COLOR_WARNING)),
             Span::styled(" new", Style::default().fg(COLOR_MUTED)),
         ],
-    ];
-    responsive::flow_lines(
-        groups,
-        width,
-        0,
-        Span::raw("  "),
-        2,
-        key_hint("…", "i about", COLOR_ACCENT),
-    )
+    ]
 }
 
 /// Render the worktree list as a table
-fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
-    let legend = worktree_legend_lines(area.width.saturating_sub(2));
-    let (table_area, legend_area) = list_areas(area, &legend);
+fn render_worktree_list(
+    frame: &mut Frame,
+    app: &mut App,
+    area: Rect,
+    details_hidden: bool,
+    compact: bool,
+) {
+    let area = render_legend(frame, area, worktree_legend_groups(), compact);
+    app.list_area = area;
+    let table_area = list_table_area(area);
     // Rows that fit, for page up / down
     app.visible_height = table_area.height as usize;
 
@@ -2613,8 +2654,6 @@ fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect, details_hi
         table_area,
     );
     app.scroll_offset = offset;
-
-    frame.render_widget(Paragraph::new(legend), legend_area);
 }
 
 /// Render the details pane for the worktree under the cursor
@@ -3852,5 +3891,41 @@ mod tests {
         app.scroll_at(list.x + 2, list.y + 2, true);
         assert_eq!(app.modal_scroll, 3);
         assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn legend_has_its_own_box_below_the_list() {
+        let mut app = many_branches_app(3);
+        let rows = screen_rows(&mut app, 140, 40);
+        let legend_row = rows.iter().position(|r| r.contains(" Legend ")).unwrap();
+        // Its top border sits right below the list pane's bottom border
+        assert!(rows[legend_row].starts_with('┌'));
+        assert!(rows[legend_row - 1].starts_with('└'));
+        assert!(rows[legend_row + 1].contains("✓ merged"));
+        assert!(!rows.iter().any(|r| r.contains("Legend:")));
+
+        // Compact (borderless) chrome: a plain line with a prefix instead
+        let text = screen_at(&mut app, 80, 24);
+        assert!(text.contains("Legend:"));
+        assert!(!text.contains(" Legend "));
+    }
+
+    #[test]
+    fn legend_gives_way_before_the_list_does() {
+        // List pane keeps 5 rows; a boxed legend needs 2 border rows + 1 line
+        let list_height = |height: u16, compact: bool| {
+            let mut terminal = Terminal::new(TestBackend::new(60, height)).unwrap();
+            let mut list = Rect::default();
+            terminal
+                .draw(|frame| {
+                    list = render_legend(frame, frame.area(), worktree_legend_groups(), compact)
+                })
+                .unwrap();
+            list.height
+        };
+        assert_eq!(list_height(7, false), 7); // no room: no legend
+        assert_eq!(list_height(8, false), 5); // box with 1 line
+        assert_eq!(list_height(20, false), 16); // box with 2 lines
+        assert_eq!(list_height(6, true), 5); // compact: 1 line, no border
     }
 }

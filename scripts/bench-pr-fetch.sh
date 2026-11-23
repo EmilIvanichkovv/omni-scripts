@@ -8,7 +8,7 @@
 #   ./bench-pr-fetch.sh ~/code/repos/metacraft-labs/blocksense/monorepo
 #
 # What it does:
-#   1. Builds a release binary of local-git-branch-cleanup-tui
+#   1. Builds a release binary of git-manager
 #   2. Clears the PR cache
 #   3. Times a sequential (pre-Phase-2) cold run       [--sequential]
 #   4. Clears the cache again
@@ -46,12 +46,11 @@ REPO_PATH="$(realpath "$REPO_PATH")"
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_DIR="$(realpath "$SCRIPT_DIR/../../..")"   # rust/ parent
-RUST_DIR="$WORKSPACE_DIR/rust"
-BIN="$RUST_DIR/target/release/local-git-branch-cleanup-tui"
+WORKSPACE_DIR="$(realpath "$SCRIPT_DIR/..")"
+BIN="$WORKSPACE_DIR/target/release/git-manager"
 
 header "Building release binary"
-(cd "$RUST_DIR" && cargo build --release -p local-git-branch-cleanup-tui)
+(cd "$WORKSPACE_DIR" && cargo build --release -p git-manager)
 echo "Binary: $BIN"
 
 # ---------------------------------------------------------------------------

@@ -976,6 +976,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
+name = "git-manager"
+version = "0.10.0"
+dependencies = [
+ "assert_cmd",
+ "async-trait",
+ "axoasset",
+ "axoupdater",
+ "chrono",
+ "clap",
+ "color-eyre",
+ "crossterm",
+ "dirs",
+ "predicates",
+ "ratatui",
+ "reqwest",
+ "rusqlite",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+ "wiremock",
+]
+
+[[package]]
 name = "h2"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1514,32 +1540,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
-name = "local-git-branch-cleanup-tui"
-version = "0.9.0"
-dependencies = [
- "assert_cmd",
- "async-trait",
- "axoasset",
- "axoupdater",
- "chrono",
- "clap",
- "color-eyre",
- "crossterm",
- "dirs",
- "predicates",
- "ratatui",
- "reqwest",
- "rusqlite",
- "rustls",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "url",
- "wiremock",
-]
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1753,10 +1753,6 @@ checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "omni-lib"
-version = "0.1.0"
 
 [[package]]
 name = "once_cell"

@@ -1,8 +1,15 @@
+[package]
+name = "git-manager"
+version = "0.10.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Terminal application for managing local Git branches and worktrees"
+repository = "https://github.com/EmilIvanichkovv/omni-scripts"
+homepage = "https://github.com/EmilIvanichkovv/omni-scripts"
+readme = "README.md"
+
 [workspace]
-members = [
-    "omni-lib",
-    "local-git-branch-cleanup-tui",
-]
 resolver = "2"
 
 [workspace.package]
@@ -42,8 +49,29 @@ assert_cmd = "2.0"
 predicates = "3.1"
 wiremock = "0.6"
 
-# Internal crates
-omni-lib = { path = "omni-lib" }
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+color-eyre.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
+rusqlite.workspace = true
+dirs.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+axoupdater.workspace = true
+axoasset.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+assert_cmd.workspace = true
+predicates.workspace = true
+wiremock.workspace = true
 
 # The profile that 'dist' will build with
 [profile.dist]

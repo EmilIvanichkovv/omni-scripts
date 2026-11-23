@@ -1,17 +1,16 @@
 ---
 description:
-  Run a QA session for local-git-branch-cleanup-tui — record reported bugs/features in
-  ISSUES_AND_FEATURES.md and as GitHub issues, then fix them one by one
+  Run a QA session for git-manager — record reported bugs/features in ISSUES_AND_FEATURES.md and as
+  GitHub issues, then fix them one by one
 argument-hint: [optional context about what is being tested]
 ---
 
-# QA Session — local-git-branch-cleanup-tui
+# QA Session — git-manager
 
 You are running a QA session with the user. The user reports bugs and feature requests one at a
 time; you record them, and only after the list is complete do you start fixing.
 
-Tracking document: `rust/local-git-branch-cleanup-tui/docs/ISSUES_AND_FEATURES.md` Project root:
-`rust/local-git-branch-cleanup-tui/`
+Tracking document: `docs/ISSUES_AND_FEATURES.md` Project root: `./`
 
 Every tracker entry is mirrored as a GitHub issue in the repo `gh` resolves from the working
 directory (`gh repo view --json nameWithOwner,url`). The tracker stays the source of truth; the
@@ -124,7 +123,7 @@ PR description too, so the issues still close if the PR is squash-merged with an
   ---
 
   Tracked as TUI-N in
-  [`ISSUES_AND_FEATURES.md`](https://github.com/<owner>/<repo>/blob/main/rust/local-git-branch-cleanup-tui/docs/ISSUES_AND_FEATURES.md).
+  [`ISSUES_AND_FEATURES.md`](https://github.com/<owner>/<repo>/blob/main/docs/ISSUES_AND_FEATURES.md).
   ```
 
 - Write the body to a file in the scratchpad directory and pass it with `--body-file`, never inline
@@ -139,9 +138,8 @@ PR description too, so the issues still close if the PR is squash-merged with an
 
 ## Build & commit mechanics
 
-- `cargo` is not on PATH. Run from the repo root:
-  `nix develop --command bash -c "cd rust && cargo <cmd>"`
-- Verification suite (all from `rust/`): `cargo fmt --all -- --check`,
+- `cargo` is not on PATH. Run from the repo root: `nix develop --command bash -c "cargo <cmd>"`
+- Verification suite (all from the repository root): `cargo fmt --all -- --check`,
   `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
   `cargo test --workspace --all-features`, `cargo build --workspace --release`
 - Commit via `nix develop --command git commit ...` so hook tools resolve.

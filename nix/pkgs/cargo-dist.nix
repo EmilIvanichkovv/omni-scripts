@@ -1,4 +1,4 @@
-# dist pinned to the version recorded in rust/dist-workspace.toml. nixpkgs in flake.lock lags
+# dist pinned to the version recorded in dist-workspace.toml. nixpkgs in flake.lock lags
 # behind, and the generated release workflow must be regenerated with the exact same version, so
 # this uses the upstream static musl binary instead of the nixpkgs build.
 {

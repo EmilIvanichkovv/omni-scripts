@@ -3,9 +3,9 @@ name: Security audit
 on:
   push:
     branches: [main]
-    paths: [rust/Cargo.lock, rust/**/Cargo.toml]
+    paths: [Cargo.lock, Cargo.toml]
   pull_request:
-    paths: [rust/Cargo.lock, rust/**/Cargo.toml]
+    paths: [Cargo.lock, Cargo.toml]
   # New advisories appear without any change in this repo.
   schedule:
     - cron: "0 6 * * 1"
@@ -31,4 +31,4 @@ jobs:
 
       # Fails on vulnerabilities; unsound/unmaintained/yanked advisories are reported as warnings.
       - name: Audit Rust dependencies
-        run: nix develop --command bash -c "cd rust && cargo audit"
+        run: nix develop --command cargo audit

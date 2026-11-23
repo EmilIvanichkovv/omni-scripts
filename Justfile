@@ -8,19 +8,19 @@ format-and-lint:
 
 # Build Rust project
 build:
-    cd rust && cargo build
+    cargo build
 
 # Run Rust tests
 test-rust:
-    cd rust && cargo test
+    cargo test
 
 # Check Rust dependencies against the RustSec advisory database
 audit:
-    cd rust && cargo audit
+    cargo audit
 
 # Quick validation (format check only, no modifications)
 check:
-    cd rust && cargo fmt --all -- --check
+    cargo fmt --all -- --check
     prettier --check --prose-wrap always --print-width 100 "**/*.md"
 
 # Inspect the PR cache database with sqlite3
@@ -40,9 +40,9 @@ cache-clear:
     sqlite3 "${XDG_CACHE_HOME:-$HOME/.cache}/omni-scripts/pr-cache.db" "DELETE FROM cached_prs;"
     @echo "Cache cleared."
 
-# --- Releases (rust/local-git-branch-cleanup-tui/docs/specs/RELEASE_DISTRIBUTION.md) ---
+# --- Releases (docs/specs/RELEASE_DISTRIBUTION.md) ---
 
-app := "local-git-branch-cleanup-tui"
+app := "git-manager"
 
 # Show the next release version, its changelog entry and what dist would build (no side effects)
 release-plan bump="auto":

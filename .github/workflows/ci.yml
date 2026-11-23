@@ -39,8 +39,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            rust/target
-          key: cargo-lint-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust/Cargo.lock') }}
+            target
+          key: cargo-lint-${{ runner.os }}-${{ hashFiles('flake.lock', 'Cargo.lock') }}
           restore-keys: cargo-lint-${{ runner.os }}-
 
       # Runs cargo fmt, clippy -D warnings, prettier, markdownlint and the yaml/toml/whitespace
@@ -105,12 +105,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            rust/target
-          key: cargo-test-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust/Cargo.lock') }}
+            target
+          key: cargo-test-${{ runner.os }}-${{ hashFiles('flake.lock', 'Cargo.lock') }}
           restore-keys: cargo-test-${{ runner.os }}-
 
       - name: Rust tests
-        run: nix develop --command bash -c "cd rust && cargo test --workspace --all-features"
+        run: nix develop --command cargo test --workspace --all-features
 
       - name: Bash tests (bats)
         run: nix develop --command bats --recursive bash
@@ -134,7 +134,7 @@ jobs:
       # Not `nix flake check`: its only check is the pre-commit run, which the lint job already
       # does with an incremental cargo cache instead of a cold sandbox build.
       - name: Build packages
-        run: nix build --print-build-logs .#local-git-branch-cleanup .#local-git-branch-cleanup-tui
+        run: nix build --print-build-logs .#local-git-branch-cleanup .#git-manager .#local-git-branch-cleanup-tui
 
   # The jobs above run on x86_64 Linux through Nix. Release binaries also target macOS, Windows and
   # Linux ARM, where the Nix dev shell is not available, so the tests run there with rustup and
@@ -150,7 +150,6 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: rust
     steps:
       - uses: actions/checkout@v7
 
@@ -159,7 +158,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust
+          workspaces: .
 
       - name: Rust tests
-        run: cargo test -p local-git-branch-cleanup-tui --all-features
+        run: cargo test -p git-manager --all-features

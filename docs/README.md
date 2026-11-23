@@ -1,6 +1,6 @@
 # Documentation
 
-Welcome to the `local-git-branch-cleanup-tui` documentation.
+Welcome to the `git-manager` documentation.
 
 ## 📖 Guides
 
@@ -14,6 +14,7 @@ User-facing documentation for using the tool:
 
 Technical documentation for developers and contributors:
 
+- **[Git Manager Migration](GIT_MANAGER_MIGRATION.md)** — Rename, layout and release transition
 - **[Architecture](specs/ARCHITECTURE.md)** — System design and module responsibilities
 - **[Roadmap](specs/ROADMAP.md)** — Project milestones and development history
 - **[Search Feature](specs/SEARCH_FEATURE.md)** — Branch search functionality specification
@@ -22,6 +23,9 @@ Technical documentation for developers and contributors:
 - **[Release & Distribution](specs/RELEASE_DISTRIBUTION.md)** — Cross-platform binaries, one-line
   installers, release on every merge
 - **[Self-Update](specs/SELF_UPDATE.md)** — `update` command and update-available notice
+
+Specifications describe the source snapshots they were written for and may use historical names and
+paths. The migration specification and root README describe the current layout.
 
 ## 🧪 Testing
 

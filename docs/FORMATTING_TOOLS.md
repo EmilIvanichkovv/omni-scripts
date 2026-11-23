@@ -10,7 +10,7 @@ provided via Nix devShell for reproducibility.
 nix develop
 
 # Format and lint everything
-just fix
+just format-and-lint
 ```
 
 ## Tools
@@ -24,20 +24,18 @@ just fix
 
 ## Justfile Commands
 
-| Command      | Description                          |
-| ------------ | ------------------------------------ |
-| `just fix`   | Format + lint all code (CI-like)     |
-| `just fmt`   | Format all code                      |
-| `just lint`  | Run all linters                      |
-| `just build` | Build Rust projects                  |
-| `just test`  | Run tests                            |
-| `just check` | Quick validation (format check only) |
+| Command                | Description                          |
+| ---------------------- | ------------------------------------ |
+| `just format-and-lint` | Format + lint all code (CI-like)     |
+| `just build`           | Build Git Manager                    |
+| `just test-rust`       | Run Rust tests                       |
+| `just check`           | Quick validation (format check only) |
 
 ## Design Decisions
 
 | Question             | Decision                                           |
 | -------------------- | -------------------------------------------------- |
-| **Scope**            | Entire `omni-scripts` repository                   |
+| **Scope**            | Entire repository                                  |
 | **Markdown linting** | Include `markdownlint` in addition to `prettier`   |
 | **Nix integration**  | Hooks defined in `flake.nix` using `git-hooks.nix` |
 | **Strictness**       | Pre-commit hooks block commits on failure          |
@@ -62,4 +60,4 @@ On every commit, the following checks run automatically:
 | `.prettierrc`        | Prettier settings        |
 | `.prettierignore`    | Files to skip formatting |
 | `.markdownlint.json` | Markdownlint rules       |
-| `rust/rustfmt.toml`  | Rust formatting settings |
+| `rustfmt.toml`       | Rust formatting settings |

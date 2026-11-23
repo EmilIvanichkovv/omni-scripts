@@ -155,7 +155,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let header_text = vec![Line::from(vec![
         Span::styled("🧹 ", Style::default()),
         Span::styled(
-            "Local Git Branch Cleanup",
+            "Git Manager",
             Style::default()
                 .fg(COLOR_ACCENT)
                 .add_modifier(Modifier::BOLD),
@@ -2052,7 +2052,7 @@ fn render_info_modal(frame: &mut Frame, view: ViewMode) {
     let lines = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
-            "  Local Git Branch Cleanup TUI",
+            "  Git Manager",
             Style::default()
                 .fg(COLOR_ACCENT)
                 .add_modifier(Modifier::BOLD),

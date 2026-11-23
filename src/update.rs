@@ -19,8 +19,8 @@ const RELEASES_URL: &str = "https://github.com/EmilIvanichkovv/omni-scripts/rele
 const TOKEN_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_GITHUB_TOKEN";
 /// axoupdater's overrides of the GitHub host. The feed follows the GHE one; tests use it to reach a
 /// local mock.
-const GHE_BASE_URL_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GHE_BASE_URL";
-const GITHUB_BASE_URL_ENV: &str = "LOCAL_GIT_BRANCH_CLEANUP_TUI_INSTALLER_GITHUB_BASE_URL";
+const GHE_BASE_URL_ENV: &str = "GIT_MANAGER_INSTALLER_GHE_BASE_URL";
+const GITHUB_BASE_URL_ENV: &str = "GIT_MANAGER_INSTALLER_GITHUB_BASE_URL";
 
 /// Exit code of `update --check` when a newer release exists.
 pub const EXIT_UPDATE_AVAILABLE: i32 = 10;
@@ -449,7 +449,7 @@ pub async fn run(check_only: bool) -> i32 {
 mod tests {
     use super::*;
 
-    const EXE: &str = "/home/user/.local/bin/local-git-branch-cleanup-tui";
+    const EXE: &str = "/home/user/.local/bin/git-manager";
 
     #[test]
     fn receipt_for_this_binary_is_the_installer_channel() {
@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn receipt_for_another_directory_is_another_installer_copy() {
         let prefix = Path::new("/home/user/.local/bin");
-        let exe = Path::new("/opt/tools/local-git-branch-cleanup-tui");
+        let exe = Path::new("/opt/tools/git-manager");
         assert_eq!(
             classify(exe, Some((prefix, false)), None),
             InstallChannel::OtherInstallerCopy {
@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn nix_store_binary_is_nix_even_with_an_installer_copy() {
-        let exe = Path::new("/nix/store/abc-local-git-branch-cleanup-tui/bin/x");
+        let exe = Path::new("/nix/store/abc-git-manager/bin/x");
         let prefix = Path::new("/home/user/.local/bin");
         assert_eq!(classify(exe, None, None), InstallChannel::Nix);
         assert_eq!(
@@ -486,7 +486,7 @@ mod tests {
     #[test]
     fn cargo_bin_binary_is_cargo() {
         let cargo_bin = Path::new("/home/user/.cargo/bin");
-        let exe = cargo_bin.join("local-git-branch-cleanup-tui");
+        let exe = cargo_bin.join("git-manager");
         assert_eq!(classify(&exe, None, Some(cargo_bin)), InstallChannel::Cargo);
     }
 
@@ -514,17 +514,20 @@ mod tests {
     <link rel="alternate" type="text/html" href="https://github.com/o/r/releases/tag/other-tool-v9.0.0"/>
   </entry>
   <entry>
-    <id>tag:github.com,2008:Repository/1/local-git-branch-cleanup-tui-v0.5.0-rc.1</id>
+    <id>tag:github.com,2008:Repository/1/local-git-branch-cleanup-tui-v8.0.0</id>
   </entry>
   <entry>
-    <id>tag:github.com,2008:Repository/1/local-git-branch-cleanup-tui-v0.4.0</id>
-    <content type="html">&lt;a href=&quot;https://github.com/o/r/releases/tag/local-git-branch-cleanup-tui-v8.0.0&quot;&gt;</content>
+    <id>tag:github.com,2008:Repository/1/git-manager-v0.5.0-rc.1</id>
   </entry>
   <entry>
-    <id>tag:github.com,2008:Repository/1/local-git-branch-cleanup-tui-v0.10.0</id>
+    <id>tag:github.com,2008:Repository/1/git-manager-v0.4.0</id>
+    <content type="html">&lt;a href=&quot;https://github.com/o/r/releases/tag/git-manager-v8.0.0&quot;&gt;</content>
   </entry>
   <entry>
-    <id>tag:github.com,2008:Repository/1/local-git-branch-cleanup-tui-v0.3.0</id>
+    <id>tag:github.com,2008:Repository/1/git-manager-v0.10.0</id>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/git-manager-v0.3.0</id>
   </entry>
 </feed>"#;
 
@@ -532,7 +535,7 @@ mod tests {
     fn feed_gives_the_highest_stable_release_of_this_app() {
         let (tag, version) = newest_release_in_feed(FEED).unwrap();
         // Not other-tool's 9.0.0, the 0.5.0 release candidate, or a link in the release notes.
-        assert_eq!(tag, "local-git-branch-cleanup-tui-v0.10.0");
+        assert_eq!(tag, "git-manager-v0.10.0");
         assert_eq!(version, Version::new(0, 10, 0));
     }
 

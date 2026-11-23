@@ -76,11 +76,11 @@ it is clear why the layout does not follow the window.
 
 ### Compact chrome
 
-Below 30 rows the header, search box, filter tabs and footer drop their borders and titles and take
-one row each instead of three. The search box shows `🔍` in front of the query in place of its
-title. The update notice, normally on the footer's bottom border, becomes the last footer item. The
-action log keeps its border (its title holds the success/failure counts) and shows only the newest
-entry.
+Below 30 rows the header, search box, filter tabs, legend and footer drop their borders and titles
+and take one row each instead of three; the legend shows a `Legend:` prefix in place of its title.
+The search box shows `🔍` in front of the query in place of its title. The update notice, normally
+on the footer's bottom border, becomes the last footer item. The action log keeps its border (its
+title holds the success/failure counts) and shows only the newest entry.
 
 ### Text that does not fit
 
@@ -92,6 +92,13 @@ entry.
 - **Repo path**: shortened in the middle (`/home/…/omni-scripts`) to fit one line.
 - **Table cells**: branch, worktree and branch-label cells are cut with a trailing `…`; the details
   pane always shows the full value.
+
+### Legend
+
+The legend has its own bordered box (`Legend`) at the bottom of the list column, so in the side by
+side arrangement the details pane keeps the full height. It gives up space before the list does: it
+shrinks to one line, then disappears (its items are in `i` about), before the list pane gets fewer
+than 5 rows (borders, table header and 2 rows).
 
 ### Responsive table columns
 

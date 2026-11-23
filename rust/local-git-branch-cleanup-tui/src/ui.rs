@@ -2427,25 +2427,43 @@ fn worktree_state_explanation(state: &WorktreeState) -> &'static str {
     }
 }
 
-/// Split `text` into lines of at most `width` characters at word boundaries
+/// Split `text` into lines of at most `width` display columns at word
+/// boundaries. A word wider than a line (a long path) is split across lines.
 fn wrap_words(text: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
     let mut lines = Vec::new();
     let mut current = String::new();
-    for word in text.split_whitespace() {
+    for word in text.split_whitespace().flat_map(|w| split_wide(w, width)) {
         if !current.is_empty()
-            && responsive::str_width(&current) + 1 + responsive::str_width(word) > width
+            && responsive::str_width(&current) + 1 + responsive::str_width(&word) > width
         {
             lines.push(std::mem::take(&mut current));
         }
         if !current.is_empty() {
             current.push(' ');
         }
-        current.push_str(word);
+        current.push_str(&word);
     }
     if !current.is_empty() {
         lines.push(current);
     }
     lines
+}
+
+/// `word` in pieces of at most `width` display columns
+fn split_wide(word: &str, width: usize) -> Vec<String> {
+    let mut pieces = vec![String::new()];
+    let mut used = 0;
+    for c in word.chars() {
+        let w = responsive::str_width(c.encode_utf8(&mut [0; 4]));
+        if used + w > width && used > 0 {
+            pieces.push(String::new());
+            used = 0;
+        }
+        pieces.last_mut().expect("never empty").push(c);
+        used += w;
+    }
+    pieces
 }
 
 /// Legend items of the worktree table, one group per item
@@ -4002,5 +4020,22 @@ mod tests {
         let word = "功".repeat(10);
         let lines = wrap_words(&format!("{word} {word}"), 30);
         assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn wheel_does_not_scroll_a_hidden_modal_while_too_small() {
+        let mut app = many_branches_app(3);
+        app.show_help = true;
+        screen_at(&mut app, 30, 8);
+        app.scroll_at(5, 5, true);
+        assert_eq!(app.modal_scroll, 0);
+    }
+
+    #[test]
+    fn words_wider_than_the_line_are_split_not_cut() {
+        let path = "/home/user/a-very-long-path/that-does-not-fit";
+        let lines = wrap_words(&format!("copied {path}"), 20);
+        assert!(lines.iter().all(|l| responsive::str_width(l) <= 20));
+        assert_eq!(lines.concat().replace(' ', ""), format!("copied{path}"));
     }
 }

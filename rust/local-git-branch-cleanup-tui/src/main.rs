@@ -18,8 +18,8 @@ use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use crossterm::{
     event::{
-        self, DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture,
-        Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
+        self, DisableFocusChange, DisableMouseCapture, EnableFocusChange, Event, KeyCode,
+        KeyEventKind, KeyModifiers, MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -420,31 +420,20 @@ fn run_tui_mode(
         app.toggle_view();
     }
 
-    // Restore the terminal if anything panics, so mouse capture and raw
-    // mode do not outlive the TUI
-    let previous_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        let _ = disable_raw_mode();
-        let _ = execute!(
-            io::stdout(),
-            DisableFocusChange,
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        );
-        previous_hook(info);
-    }));
+    install_tui_panic_hook();
 
-    // Set up terminal
+    // Set up terminal; the guard restores it however this function ends
     enable_raw_mode()?;
+    let _terminal_guard = TerminalGuard::new();
     let mut stdout = io::stdout();
     // Focus events let live refresh check for changes when the user comes
-    // back. Mouse capture is for wheel scrolling; Shift+drag still selects
-    // text in most terminals.
+    // back. The mouse is for wheel scrolling; Shift+drag still selects text
+    // in most terminals.
     execute!(
         stdout,
         EnterAlternateScreen,
         EnableFocusChange,
-        EnableMouseCapture
+        EnableWheelCapture
     )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -477,7 +466,13 @@ fn run_tui_mode(
                 }
             }
             if let Event::Key(key) = event {
-                if key.kind == KeyEventKind::Press {
+                if key.kind == KeyEventKind::Press && app.too_small {
+                    // Only the "too small" message is on screen; a key meant
+                    // for a hidden modal or search must not act blind
+                    if matches!(key.code, KeyCode::Char('q') | KeyCode::Char('Q')) {
+                        app.should_quit = true;
+                    }
+                } else if key.kind == KeyEventKind::Press {
                     // Any key other than Esc cancels a pending Esc quit
                     if key.code != KeyCode::Esc {
                         app.esc_quit_armed_at = None;
@@ -485,9 +480,10 @@ fn run_tui_mode(
                     // Any key dismisses a footer message
                     app.flash = None;
 
-                    // Help / about: scroll keys scroll, any other key closes
+                    // Help / about: scroll keys scroll when there is more
+                    // to see, any other key closes
                     if app.show_help || app.show_info {
-                        if !handle_modal_scroll_key(&mut app, key) {
+                        if !app.modal_overflows || !handle_modal_scroll_key(&mut app, key) {
                             app.close_info_modals();
                         }
                     } else if app.show_confirmation {
@@ -777,17 +773,77 @@ fn run_tui_mode(
         }
     }
 
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        DisableFocusChange,
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
     Ok(())
+}
+
+/// Mouse reporting for buttons and the wheel only (SGR encoding).
+/// crossterm's `EnableMouseCapture` also turns on any-motion tracking, which
+/// sends an event, and so a redraw, for every pointer move.
+struct EnableWheelCapture;
+
+impl crossterm::Command for EnableWheelCapture {
+    fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
+        // 1000: button press/release (the wheel is buttons 4/5); 1006: SGR
+        f.write_str("\x1b[?1000h\x1b[?1006h")
+    }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        crossterm::Command::execute_winapi(&crossterm::event::EnableMouseCapture)
+    }
+}
+
+/// Whether the TUI owns the terminal (raw mode, alternate screen, mouse)
+static TUI_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// The thread running the TUI; only its panics end the TUI
+static TUI_THREAD: std::sync::OnceLock<std::thread::ThreadId> = std::sync::OnceLock::new();
+
+/// Give the terminal back: raw mode off, main screen, no mouse or focus
+/// reporting, cursor shown. Safe to call more than once.
+fn restore_terminal() {
+    if TUI_ACTIVE.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        let _ = disable_raw_mode();
+        let _ = execute!(
+            io::stdout(),
+            DisableMouseCapture,
+            DisableFocusChange,
+            LeaveAlternateScreen,
+            crossterm::cursor::Show
+        );
+    }
+}
+
+/// Restores the terminal when dropped, so an early `?` return leaves the
+/// shell usable too
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn new() -> Self {
+        TUI_ACTIVE.store(true, std::sync::atomic::Ordering::SeqCst);
+        TerminalGuard
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        restore_terminal();
+    }
+}
+
+/// Restore the terminal before a panic on the TUI thread is reported.
+/// Background threads (refresh, worktree status, update check) can panic
+/// without ending the TUI, so their panics leave the terminal alone.
+fn install_tui_panic_hook() {
+    if TUI_THREAD.set(std::thread::current().id()).is_err() {
+        return; // already installed
+    }
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        if TUI_THREAD.get() == Some(&std::thread::current().id()) {
+            restore_terminal();
+        }
+        previous_hook(info);
+    }));
 }
 
 /// Scroll keys inside a help, about or confirmation modal. Returns whether
@@ -810,6 +866,13 @@ fn handle_modal_scroll_key(app: &mut App, key: event::KeyEvent) -> bool {
 /// details pane (`J` / `K`, Shift+↓ / Shift+↑), the same in both views.
 /// Returns whether `key` was one of them.
 fn handle_layout_key(app: &mut App, key: event::KeyEvent) -> bool {
+    // Ctrl+V, Alt+J and the like are not these keys
+    if key
+        .modifiers
+        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+    {
+        return false;
+    }
     let shift = key.modifiers.contains(KeyModifiers::SHIFT);
     match key.code {
         KeyCode::Char('v') => app.cycle_layout_mode(),

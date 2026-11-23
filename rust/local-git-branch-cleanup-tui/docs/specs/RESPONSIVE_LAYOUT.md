@@ -51,10 +51,12 @@ Ratatui (0.30, already a dependency) has what we need; no new crates are require
   handling `Event::Resize` separately.
 - **`Block` without borders** still reserves a row for its title, so a compact (borderless) variant
   of a panel must drop the title, not just the borders.
-- **Mouse wheel** support needs `EnableMouseCapture`, which takes over the terminal's own text
-  selection. Most terminals (xterm, GNOME Terminal, kitty, Alacritty, Windows Terminal) still select
-  with `Shift`+drag while an application captures the mouse, iTerm2 with `Option`+drag, and `y`
-  copies the branch name or worktree path, so the trade-off is acceptable.
+- **Mouse wheel** support needs mouse reporting, which takes over the terminal's own text selection.
+  crossterm's `EnableMouseCapture` also turns on any-motion tracking (mode 1003), which sends an
+  event, and so a redraw, for every pointer move; only button reporting (1000) with SGR encoding
+  (1006) is needed for the wheel. Most terminals (xterm, GNOME Terminal, kitty, Alacritty, Windows
+  Terminal) still select with `Shift`+drag while an application captures the mouse, iTerm2 with
+  `Option`+drag, and `y` copies the branch name or worktree path, so the trade-off is acceptable.
 
 ## Design
 
@@ -86,9 +88,9 @@ title holds the success/failure counts) and shows only the newest entry.
 
 - **Flow wrapping**: the header, footer hints, filter tabs and legend are built as groups of spans
   (one group = one key hint, one tab, one legend item). Groups are packed onto lines greedily and
-  never split. Each panel has a line cap (header 2, filter tabs 2, legend 2, footer 3). When the
-  groups do not fit within the cap, the last line ends with a marker pointing to the full list:
-  `… ? help` in the footer, `… i about` in the legend.
+  never split. Each panel has a line cap (header 3, filter tabs 4, legend 2, footer 3 or 2 when
+  compact). When the groups do not fit within the cap, the last line ends with a marker pointing to
+  the full list: `… ? help` in the footer, `… i about` in the legend.
 - **Repo path**: shortened in the middle (`/home/…/omni-scripts`) to fit one line.
 - **Table cells**: branch, worktree and branch-label cells are cut with a trailing `…`; the details
   pane always shows the full value.
@@ -124,9 +126,18 @@ The details pane shows every dropped value.
 **Mouse wheel** scrolls the pane under the pointer. The renderer stores the list and details rects
 in `App` every frame, and `App::scroll_at(column, row, down)` routes the event: an open modal takes
 every wheel event (3 rows per notch), over the details pane it scrolls the details (3 rows), over
-the list it moves the cursor one row, anywhere else it does nothing. Clicks and drags are ignored. A
-panic hook disables mouse capture and raw mode so a crash does not leave the shell receiving mouse
-escape codes.
+the list it moves the cursor one row (and ends search mode, like `↓`), anywhere else it does
+nothing. Clicks and drags are ignored.
+
+The terminal is restored (raw mode off, main screen, mouse and focus reporting off) by a guard that
+runs however the TUI loop ends, including an early error return, and by a panic hook for panics on
+the TUI thread. Panics on background threads (refresh, worktree status) leave the terminal alone,
+since the TUI keeps running.
+
+Help and about close on a scroll key when everything fits, as they did before they could scroll. The
+details scroll is tied to the item under the cursor (branch name or worktree path), not the row, so
+a search, filter, sort or reload that puts another item on the row starts it at the top. `J` / `K`
+do nothing while the details pane is hidden.
 
 Scroll positions are clamped during render, so shrinking the terminal never leaves a pane scrolled
 past its end.
@@ -134,8 +145,10 @@ past its end.
 ### Minimum size
 
 Below 40×10 the TUI draws a single centred message (`Terminal too small: 32×8, need 40×10`) instead
-of the layout. Keys keep working, so `q` still quits. All modal and dropdown size arithmetic uses
-saturating operations, so no size can panic.
+of the layout. Only `q` works meanwhile (it quits); other keys are ignored, since an open modal or
+the search box is not visible and a key meant for it must not act blind (for example `y` in a hidden
+delete confirmation). All modal and dropdown size arithmetic uses saturating operations, so no size
+can panic.
 
 ### Resize
 

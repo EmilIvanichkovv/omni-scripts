@@ -5,6 +5,7 @@ mod git;
 mod pr;
 mod refresh;
 mod remote;
+mod responsive;
 mod tls;
 mod ui;
 mod update;
@@ -17,7 +18,8 @@ use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use crossterm::{
     event::{
-        self, DisableFocusChange, EnableFocusChange, Event, KeyCode, KeyEventKind, KeyModifiers,
+        self, DisableFocusChange, DisableMouseCapture, EnableFocusChange, EnableMouseCapture,
+        Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
     },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -418,16 +420,41 @@ fn run_tui_mode(
         app.toggle_view();
     }
 
+    // Restore the terminal if anything panics, so mouse capture and raw
+    // mode do not outlive the TUI
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(
+            io::stdout(),
+            DisableFocusChange,
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        );
+        previous_hook(info);
+    }));
+
     // Set up terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    // Focus events let live refresh check for changes when the user comes back
-    execute!(stdout, EnterAlternateScreen, EnableFocusChange)?;
+    // Focus events let live refresh check for changes when the user comes
+    // back. Mouse capture is for wheel scrolling; Shift+drag still selects
+    // text in most terminals.
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableFocusChange,
+        EnableMouseCapture
+    )?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     // Main loop
     loop {
+        // A modal opens at its top
+        if !app.modal_open() {
+            app.modal_scroll = 0;
+        }
         app.expire_esc_quit(std::time::Instant::now());
         app.update_notice = update_notice.message();
         app.poll_worktree_status();
@@ -442,6 +469,13 @@ fn run_tui_mode(
             if matches!(event, Event::FocusGained) {
                 app.refresher.check_soon();
             }
+            if let Event::Mouse(mouse) = &event {
+                match mouse.kind {
+                    MouseEventKind::ScrollDown => app.scroll_at(mouse.column, mouse.row, true),
+                    MouseEventKind::ScrollUp => app.scroll_at(mouse.column, mouse.row, false),
+                    _ => {}
+                }
+            }
             if let Event::Key(key) = event {
                 if key.kind == KeyEventKind::Press {
                     // Any key other than Esc cancels a pending Esc quit
@@ -451,13 +485,11 @@ fn run_tui_mode(
                     // Any key dismisses a footer message
                     app.flash = None;
 
-                    // Handle help modal
-                    if app.show_help {
-                        // Any key closes help modal
-                        app.show_help = false;
-                    } else if app.show_info {
-                        // Any key closes info modal
-                        app.show_info = false;
+                    // Help / about: scroll keys scroll, any other key closes
+                    if app.show_help || app.show_info {
+                        if !handle_modal_scroll_key(&mut app, key) {
+                            app.close_info_modals();
+                        }
                     } else if app.show_confirmation {
                         // Handle confirmation modal
                         match key.code {
@@ -507,7 +539,9 @@ fn run_tui_mode(
                                 // Cancel deletion
                                 app.show_confirmation = false;
                             }
-                            _ => {}
+                            _ => {
+                                handle_modal_scroll_key(&mut app, key);
+                            }
                         }
                     } else if app.search_active {
                         // Handle search mode input
@@ -585,6 +619,8 @@ fn run_tui_mode(
                             }
                             _ => {}
                         }
+                    } else if handle_layout_key(&mut app, key) {
+                        // Pane arrangement and details scrolling, same in both views
                     } else if app.view == app::ViewMode::Worktrees {
                         handle_worktree_view_key(&mut app, key);
                     } else {
@@ -746,11 +782,44 @@ fn run_tui_mode(
     execute!(
         terminal.backend_mut(),
         DisableFocusChange,
-        LeaveAlternateScreen
+        LeaveAlternateScreen,
+        DisableMouseCapture
     )?;
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+/// Scroll keys inside a help, about or confirmation modal. Returns whether
+/// `key` was one of them.
+fn handle_modal_scroll_key(app: &mut App, key: event::KeyEvent) -> bool {
+    match key.code {
+        KeyCode::Up | KeyCode::Char('k') => app.scroll_modal(-1),
+        KeyCode::Down | KeyCode::Char('j') => app.scroll_modal(1),
+        KeyCode::PageUp => app.scroll_modal_pages(-1),
+        KeyCode::PageDown => app.scroll_modal_pages(1),
+        KeyCode::Home | KeyCode::Char('g') => app.modal_scroll = 0,
+        // Clamped to the last page while rendering
+        KeyCode::End | KeyCode::Char('G') => app.modal_scroll = usize::MAX,
+        _ => return false,
+    }
+    true
+}
+
+/// Normal-mode keys for the pane arrangement (`v`) and for scrolling the
+/// details pane (`J` / `K`, Shift+↓ / Shift+↑), the same in both views.
+/// Returns whether `key` was one of them.
+fn handle_layout_key(app: &mut App, key: event::KeyEvent) -> bool {
+    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+    match key.code {
+        KeyCode::Char('v') => app.cycle_layout_mode(),
+        KeyCode::Char('J') => app.scroll_details(1),
+        KeyCode::Char('K') => app.scroll_details(-1),
+        KeyCode::Down if shift => app.scroll_details(1),
+        KeyCode::Up if shift => app.scroll_details(-1),
+        _ => return false,
+    }
+    true
 }
 
 /// Normal-mode keys of the worktree view. Navigation, search, help/info,

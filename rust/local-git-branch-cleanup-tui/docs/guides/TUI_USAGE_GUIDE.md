@@ -13,7 +13,7 @@ The TUI is divided into several sections:
 │ Filter Tabs: [Safe Merged] [Upstream Gone] [Unmerged] [All]             │
 ├───────────────────────────────────────────┬─────────────────────────────┤
 │                                           │                             │
-│            Branch List (70%)              │    Details Pane (30%)       │
+│            Branch List                    │    Details Pane             │
 │   (PR column with --github/--bitbucket)   │    (includes PR info)       │
 │                                           │                             │
 ├───────────────────────────────────────────┴─────────────────────────────┤
@@ -22,6 +22,36 @@ The TUI is divided into several sections:
 │ Footer: Status legend and keyboard shortcuts                            │
 └──────────────────────────────── Update available: X.Y.Z (when there is) ┘
 ```
+
+### Terminal Size
+
+The layout adapts to the terminal size and is redrawn as soon as the window is resized:
+
+- **100 columns or wider**: the details pane sits to the right of the list.
+- **Narrower but at least 18 rows of list space**: the details pane moves below the list.
+- **Smaller still**: only the list is shown; its bottom border reads `details hidden: v layout`.
+- **Fewer than 30 rows**: the header, search box, filter tabs and footer lose their borders to leave
+  more rows for the list.
+- **Below 40×10**: a "Terminal too small" message replaces the layout (`q` still quits).
+
+Press `v` to override the automatic choice: auto → side by side → stacked → list only → auto. A
+forced arrangement shows in the header (`▥ stacked`) and falls back to list only when the window is
+too small for it.
+
+Nothing is cut off silently:
+
+- Footer hints, the header, the filter tabs and the legend wrap onto extra lines. When even that is
+  not enough, they end in `… ? help` or `… i about`, where the full list is.
+- Long branch and worktree names end in `…` in the table; the details pane shows them in full.
+- Narrow tables drop the Last Commit column first, then PR, then (worktrees) Changes, and finally
+  show the status as an icon only.
+- A scrollbar appears on the list, the details pane and the help / about / confirmation modals
+  whenever their content is longer than the space they have.
+
+The mouse wheel scrolls whatever is under the pointer: over the details pane it scrolls the details
+(3 rows per notch), over the list it moves the cursor, and while help, about or a confirmation is
+open it scrolls that. Because the TUI captures the mouse for this, select text with `Shift`+drag
+(most terminals, including Windows Terminal; `Option`+drag in iTerm2).
 
 ---
 
@@ -39,6 +69,9 @@ The TUI is divided into several sections:
 | `Ctrl+D`          | Go to last item                                |
 | `Page Up`         | Move up by one page                            |
 | `Page Down`       | Move down by one page                          |
+| `J` / `K`         | Scroll the details pane down / up              |
+| `Shift+↓` / `↑`   | Scroll the details pane down / up              |
+| `v`               | Cycle the pane layout (see Terminal Size)      |
 | `q` / `Esc` `Esc` | Quit application (press `Esc` twice within 1s) |
 
 ### Filtering Branches
@@ -439,7 +472,8 @@ local data when the fetch fails.
 
 ## Details Pane
 
-The right panel (30% of screen) shows detailed information about the highlighted branch:
+The details pane (to the right of the list, or below it on a narrow terminal) shows detailed
+information about the highlighted branch:
 
 - **Branch name** — Full branch name
 - **Status** — Explanation (e.g., "Merged into main")
@@ -449,7 +483,9 @@ The right panel (30% of screen) shows detailed information about the highlighted
 - **Ahead/Behind** — Commit differences with upstream
 - **Last Commit** — SHA, author, and message
 
-The details pane updates as you navigate through the branch list.
+The details pane updates as you navigate through the branch list. When its content is longer than
+the pane, a scrollbar and a `J/K scroll` hint appear on its border; `J` / `K` (or `Shift+↓` /
+`Shift+↑`) scroll it, and it starts at the top again for the next branch.
 
 ---
 
@@ -463,12 +499,14 @@ category:
 - **Selection** — Space, a (all), c (clear), and which statuses are not selectable (protected,
   protected-wt, current)
 - **Actions** — Enter (delete), f (force), d (dry run)
+- **Layout & scrolling** — v (layout), J / K (scroll details), mouse wheel (pane under the pointer)
 - **Other** — w (worktree view), i (info), ? (help), q (quit)
 
 In the worktree view the help modal lists that view's keys instead (filters, `y` copy path, `b` in
 the confirmation, `w` back to branches).
 
-Press any key to close the help modal.
+When the help is taller than the terminal, `↑`/`↓`, `j`/`k`, `Page Up`/`Page Down`, `Home`/`End` and
+`g`/`G` scroll it; any other key closes it.
 
 ---
 
@@ -483,7 +521,7 @@ Press `i` at any time to display information about the tool:
 
 In the worktree view it explains the worktree states and the Changes column instead.
 
-Press any key to close the info modal.
+It scrolls like the help modal; any other key closes it.
 
 ---
 

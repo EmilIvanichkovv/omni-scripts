@@ -4,7 +4,9 @@ use crate::cache::PrCache;
 use crate::git::{self, BranchInfo, BranchStatus};
 use crate::pr::PrProviderKind;
 use crate::refresh::{JobResult, RefreshKind, Refresher};
+use crate::responsive::LayoutMode;
 use crate::worktree_view::{WorktreeFilter, WorktreeInfo, WorktreeView};
+use ratatui::layout::{Position, Rect};
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -230,7 +232,25 @@ pub struct App {
     /// Branches deleted while a full sync held the PR cache; their entries
     /// are dropped when the cache comes back
     stale_pr_entries: Vec<String>,
+    /// Pane arrangement chosen with `v`
+    pub layout_mode: LayoutMode,
+    /// Rows the details pane is scrolled down by (clamped while rendering)
+    pub details_scroll: usize,
+    /// Item the details scroll belongs to; another item starts at the top
+    pub details_anchor: Option<(ViewMode, usize)>,
+    /// Rows the open help / about / confirmation modal is scrolled down by
+    /// (clamped while rendering)
+    pub modal_scroll: usize,
+    /// Rows of content the open modal shows at once (set during render)
+    pub modal_viewport: usize,
+    /// Where the list was drawn last frame, for routing the mouse wheel
+    pub list_area: Rect,
+    /// Where the details pane was drawn last frame (`None` when hidden)
+    pub details_area: Option<Rect>,
 }
+
+/// Rows one mouse-wheel notch scrolls the details pane or a modal by
+pub const WHEEL_ROWS: isize = 3;
 
 /// Footer hint shown when a removal key is pressed while removal is off
 pub const REMOVAL_OFF_HINT: &str = "Removal is off (press x to turn it on)";
@@ -284,7 +304,77 @@ impl App {
             last_fetch_error: None,
             last_pr_failures: 0,
             stale_pr_entries: Vec::new(),
+            layout_mode: LayoutMode::default(),
+            details_scroll: 0,
+            details_anchor: None,
+            modal_scroll: 0,
+            modal_viewport: 0,
+            list_area: Rect::default(),
+            details_area: None,
         }
+    }
+
+    /// Switch to the next pane arrangement (`v`)
+    pub fn cycle_layout_mode(&mut self) {
+        self.layout_mode = self.layout_mode.next();
+    }
+
+    /// Scroll the details pane by `delta` rows (positive = down)
+    pub fn scroll_details(&mut self, delta: isize) {
+        self.details_scroll = self.details_scroll.saturating_add_signed(delta);
+    }
+
+    /// The details scroll for the item under the cursor: kept while the
+    /// cursor stays on the item it was scrolled for, reset otherwise
+    pub fn details_scroll_for_cursor(&mut self) -> usize {
+        let anchor = Some((self.view, self.selected_index));
+        if self.details_anchor != anchor {
+            self.details_anchor = anchor;
+            self.details_scroll = 0;
+        }
+        self.details_scroll
+    }
+
+    /// Mouse wheel at screen cell (`column`, `row`): scrolls whatever is
+    /// under the pointer. An open modal takes every wheel event; over the
+    /// details pane it scrolls the details; over the list it moves the cursor.
+    pub fn scroll_at(&mut self, column: u16, row: u16, down: bool) {
+        let pos = Position::new(column, row);
+        let rows = if down { WHEEL_ROWS } else { -WHEEL_ROWS };
+        if self.modal_open() {
+            self.scroll_modal(rows);
+        } else if self.details_area.is_some_and(|area| area.contains(pos)) {
+            self.scroll_details(rows);
+        } else if self.list_area.contains(pos) {
+            if down {
+                self.select_next();
+            } else {
+                self.select_prev();
+            }
+        }
+    }
+
+    /// Whether a modal that scrolls (help, about, confirmation) is open
+    pub fn modal_open(&self) -> bool {
+        self.show_help || self.show_info || self.show_confirmation
+    }
+
+    /// Scroll the open modal by `delta` rows (positive = down)
+    pub fn scroll_modal(&mut self, delta: isize) {
+        self.modal_scroll = self.modal_scroll.saturating_add_signed(delta);
+    }
+
+    /// Scroll the open modal by `pages` screenfuls (positive = down)
+    pub fn scroll_modal_pages(&mut self, pages: isize) {
+        let page = self.modal_viewport.saturating_sub(1).max(1) as isize;
+        self.scroll_modal(page * pages);
+    }
+
+    /// Close whichever of help / about is open and forget its scroll
+    pub fn close_info_modals(&mut self) {
+        self.show_help = false;
+        self.show_info = false;
+        self.modal_scroll = 0;
     }
 
     pub fn quit(&mut self) {

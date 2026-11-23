@@ -325,7 +325,9 @@ states are `InvalidResponse` errors, never cached.
 **Responsibilities:**
 
 - Render the TUI using Ratatui framework
-- Layout management (header, filters, list, details, log, footer)
+- Layout management (header, filters, list, details, log, footer), recomputed from the terminal size
+  every frame; size decisions (pane arrangement, wrapping, column dropping) live in `responsive.rs`
+  (see [Responsive Layout](RESPONSIVE_LAYOUT.md))
 - Visual styling (colors, borders, highlights)
 - Modal dialogs (confirmation, help)
 

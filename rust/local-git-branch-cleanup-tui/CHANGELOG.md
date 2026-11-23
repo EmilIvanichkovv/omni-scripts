@@ -3,6 +3,12 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.9.1 - 23-11-2026
+
+### Bug fixes
+
+- **deps:** Bump url to 2.5.9 for RUSTSEC-2026-0592
+
 ## 0.9.0 - 20-11-2026
 
 ### Features

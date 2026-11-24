@@ -118,6 +118,11 @@ struct Args {
     )]
     auto_sync_interval: u64,
 
+    /// Do not run git fetch --prune on the primary remote when the TUI
+    /// starts (R and the automatic sync still fetch)
+    #[arg(long)]
+    no_fetch_on_start: bool,
+
     /// Start in the worktree view (press `w` to switch views); with --cli,
     /// print the worktree table and exit
     #[arg(long, short = 'w')]
@@ -290,6 +295,7 @@ async fn main() -> Result<()> {
             sync_interval: (!args.no_auto_sync)
                 .then(|| std::time::Duration::from_secs(args.auto_sync_interval * 60)),
             fingerprint: refs_fingerprint,
+            fetch_on_start: !args.no_fetch_on_start,
         },
         update_notice,
     )
@@ -305,6 +311,9 @@ struct LiveRefresh {
     sync_interval: Option<std::time::Duration>,
     /// Refs fingerprint read just before the branches at startup
     fingerprint: Option<String>,
+    /// Fetch the remote in the background once the TUI is up (off with
+    /// --no-fetch-on-start)
+    fetch_on_start: bool,
 }
 
 /// Resolve Bitbucket configuration (CLI > env > derived-from-origin), require
@@ -412,6 +421,12 @@ fn run_tui_mode(
         app.pr_provider = Some(session.kind);
         app.pr_cache = session.cache;
         app.refresher.provider = Some(session.provider);
+    }
+    // The branches were read from the refs the last fetch left: bring the
+    // remote-tracking refs up to date (and drop deleted ones) in the
+    // background. PR data was just loaded, so this does not re-fetch it.
+    if live_refresh.fetch_on_start {
+        app.request_refresh(refresh::RefreshKind::Fetch);
     }
 
     // Fail before the terminal is taken over when the worktree list is unreadable

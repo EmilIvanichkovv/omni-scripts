@@ -30,6 +30,9 @@ pub enum RefreshKind {
     Check,
     /// Local git state only (`r`)
     Local,
+    /// Fetch the remote and reload, keeping the PR data the app has
+    /// (startup; `--no-fetch-on-start` skips it)
+    Fetch,
     /// Fetch the remote, reload, and re-fetch PR data (`R`)
     Full,
 }
@@ -63,8 +66,8 @@ pub enum JobResult {
         branches: Vec<BranchInfo>,
         /// Refs fingerprint read just before the branches
         fingerprint: Option<String>,
-        /// A full sync: `git fetch` ran (when there is a remote), so
-        /// `fetch_error` says whether it worked
+        /// A full sync or the startup fetch: `git fetch` ran (when there
+        /// is a remote), so `fetch_error` says whether it worked
         full_sync: bool,
         /// `git fetch` failed; the reload still ran on local data
         fetch_error: Option<String>,
@@ -142,7 +145,8 @@ fn run_local(job: &Job) -> JobResult {
     }
 }
 
-/// Full sync on the calling thread: fetch, reload, re-fetch PRs
+/// Full sync on the calling thread: fetch, reload, and re-fetch PRs when
+/// the job carries a PR job (`Full` with a provider; never `Fetch`)
 fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
     let generation = job.generation;
     let progress = |stage: String| {
@@ -209,7 +213,7 @@ fn run_full(job: Job, tx: &Sender<JobResult>) -> JobResult {
 fn spawn_job(job: Job, tx: Sender<JobResult>) {
     thread::spawn(move || {
         let result = match job.kind {
-            RefreshKind::Full => run_full(job, &tx),
+            RefreshKind::Fetch | RefreshKind::Full => run_full(job, &tx),
             RefreshKind::Check | RefreshKind::Local => run_local(&job),
         };
         let _ = tx.send(result);
@@ -221,7 +225,7 @@ pub struct Refresher {
     generation: u64,
     /// Generation and kind of the reload that is running
     in_flight: Option<(u64, RefreshKind)>,
-    /// Latest progress message of the running full sync
+    /// Latest progress message of the running full sync or fetch
     stage: Option<String>,
     /// Reload to start when the running one finishes
     queued: Option<RefreshKind>,
@@ -277,7 +281,9 @@ impl Refresher {
 
     /// Run a full sync every `interval` from `now` on
     /// (`--auto-sync-interval`; None with `--no-auto-sync`). The first one
-    /// waits a whole interval: startup has just read everything.
+    /// waits a whole interval: startup has just read everything, and the
+    /// startup fetch (`RefreshKind::Fetch`) brings the remote refs up to
+    /// date without restarting this clock.
     pub fn set_sync_interval(&mut self, interval: Option<Duration>, now: Instant) {
         self.sync_interval = interval;
         self.last_sync = Some(now);
@@ -351,7 +357,7 @@ impl Refresher {
             trunk: trunk.to_string(),
             known_fingerprint: match kind {
                 RefreshKind::Check => self.fingerprint.clone(),
-                RefreshKind::Local | RefreshKind::Full => None,
+                RefreshKind::Local | RefreshKind::Fetch | RefreshKind::Full => None,
             },
             automatic,
             pr,
@@ -686,6 +692,66 @@ mod tests {
         assert_eq!(jobs.borrow().len(), 1);
         assert_eq!(jobs.borrow()[0].0.kind, RefreshKind::Full);
         assert!(jobs.borrow()[0].0.automatic);
+    }
+
+    #[test]
+    fn the_startup_fetch_keeps_the_sync_clock_and_the_pr_cache() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let _guard = runtime.enter();
+        let (mut refresher, jobs) = recording();
+        refresher.provider = Some(Arc::new(crate::pr::github::GitHubProvider::new()));
+        let start = Instant::now();
+        let minute = Duration::from_secs(60);
+        refresher.set_sync_interval(Some(minute), start);
+
+        let mut cache = Some(
+            PrCache::open_with_conn(
+                rusqlite::Connection::open_in_memory().unwrap(),
+                "test/repo",
+                Duration::from_secs(60),
+            )
+            .unwrap(),
+        );
+        refresher.start(
+            RefreshKind::Fetch,
+            "main",
+            start + Duration::from_secs(1),
+            &mut cache,
+            false,
+        );
+        assert!(jobs.borrow()[0].0.pr.is_none(), "no PR re-fetch");
+        assert!(cache.is_some(), "the PR cache stays with the app");
+        assert_eq!(jobs.borrow()[0].0.known_fingerprint, None);
+
+        // The first automatic sync is still one interval after startup
+        finish(&jobs, 0);
+        assert!(poll_at(&mut refresher, false, start + Duration::from_secs(59)).is_some());
+        assert_eq!(
+            jobs.borrow().len(),
+            1,
+            "the fetch did not restart the clock"
+        );
+        poll_at(&mut refresher, false, start + minute);
+        assert_eq!(jobs.borrow().len(), 2);
+        assert_eq!(jobs.borrow()[1].0.kind, RefreshKind::Full);
+        assert!(
+            jobs.borrow()[1].0.pr.is_some(),
+            "a full sync re-fetches PRs"
+        );
+    }
+
+    #[test]
+    fn r_during_the_startup_fetch_queues_a_full_sync() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Fetch, "main");
+        assert_eq!(refresher.running(), Some(RefreshKind::Fetch));
+        request(&mut refresher, RefreshKind::Full, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 0);
+        poll(&mut refresher, false);
+        assert_eq!(jobs.borrow()[1].0.kind, RefreshKind::Full);
     }
 
     #[test]

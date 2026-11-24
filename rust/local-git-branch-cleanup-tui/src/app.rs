@@ -1178,8 +1178,9 @@ impl App {
                     Instant::now(),
                     chrono::Local::now().format("%H:%M:%S").to_string(),
                 ));
-                // Only a full sync fetched; `r` and automatic checks say
-                // nothing about whether the remote is reachable now
+                // Only a full sync or the startup fetch ran `git fetch`; `r`
+                // and automatic checks say nothing about whether the remote
+                // is reachable now
                 if full_sync {
                     let fetch_failed = fetch_error.is_some();
                     self.report_fetch_error(fetch_error, automatic);
@@ -1226,7 +1227,7 @@ impl App {
         // Automatic checks run every few seconds; only show reloads asked for
         match self.refresher.running() {
             Some(RefreshKind::Local) => return Some("⟳ reloading…".to_string()),
-            Some(RefreshKind::Full) => {
+            Some(RefreshKind::Fetch | RefreshKind::Full) => {
                 return Some(format!(
                     "⟳ {}",
                     self.refresher.stage().unwrap_or("syncing…")

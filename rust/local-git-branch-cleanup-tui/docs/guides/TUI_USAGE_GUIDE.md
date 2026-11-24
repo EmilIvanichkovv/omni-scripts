@@ -443,6 +443,11 @@ The branch list follows the repository while the TUI is open.
   something changed in another terminal (a branch created, deleted, committed to, merged or checked
   out), it re-reads the branches in the background. Switching back to the terminal window checks at
   once in terminals that report focus. `--no-auto-refresh` turns this off.
+- **On startup:** `git fetch --prune` runs on the primary remote in the background while the list is
+  already usable (the footer shows `⟳ fetching origin…`), then the branch list reloads, so branches
+  deleted on the remote show as `gone` and ahead/behind counts are current. PR data is not
+  re-fetched: it was just loaded. A fetch error is shown in the footer. `--no-fetch-on-start` turns
+  it off, for offline use or slow remotes.
 - **`r`:** reload the branch list now.
 - **`R`:** full sync: `git fetch --prune` on the primary remote, reload, and with `--github` /
   `--bitbucket` re-fetch PR data for every branch (skipping the cache, then updating it).

@@ -317,3 +317,10 @@ Built on `feat/live-refresh` (issue #71). Where the implementation differs from 
   remote that needs credentials would otherwise flash `Fetch failed` every 5 minutes, an automatic
   sync does not repeat the error already shown; `R` always shows it. Verified in tmux: with a
   1-minute interval, a branch deleted on the remote turned `gone` after 61 s without a key press.
+- **Fetch on startup** (TUI-25): startup reads the remote-tracking refs the last fetch left, and the
+  first automatic sync is an interval away, so a branch deleted on the remote was not `gone` until
+  `R`. `RefreshKind::Fetch` (between `Local` and `Full`) runs `git fetch --prune` and reloads like
+  `Full`, but without the PR re-fetch (startup has just loaded PR data, from the cache or the API)
+  and without restarting the sync clock. `run_tui_mode()` requests it once, before the first frame;
+  `--no-fetch-on-start` skips it. A key pressed meanwhile queues behind it (`R` still re-fetches
+  PRs).

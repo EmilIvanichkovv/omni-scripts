@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 24-11-2026 20:06
+**Last Updated:** 24-11-2026 20:12
 
 ---
 
@@ -30,41 +30,7 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #25: Fetch and prune the remote when the TUI starts
-
-- **Status:** 🔴 Open
-- **Reported:** 24-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#80](https://github.com/EmilIvanichkovv/omni-scripts/issues/80)
-- **Description:**
-  - The TUI opens on whatever remote-tracking refs the last `git fetch` left behind. Branches whose
-    remote was deleted since then are not shown as `gone`, and ahead/behind counts are stale
-  - `git fetch --prune` only runs as part of a full sync (`R`, or the automatic sync), and
-    `Refresher::set_sync_interval()` deliberately makes the first automatic sync wait a whole
-    interval (5 minutes by default) because "startup has just read everything". Startup reads only
-    local refs, so until the user presses `R` or the first interval passes, the list can be wrong
-- **Expected Behavior:**
-  - As soon as the TUI opens, `git fetch --prune` runs on the primary remote in the background
-    (`git::fetch_remote()`, same timeout and non-interactive setup as `R`), then the branch list
-    reloads; the list is usable immediately and the footer shows the fetch progress as for `R`
-  - The startup fetch does not re-fetch PR data: startup has just loaded it (from the cache or the
-    API), and a fetch does not change which PR belongs to a branch
-  - A fetch error is shown in the footer like an automatic sync's, without blocking the TUI
-  - A flag (e.g. `--no-fetch-on-start`) turns it off, for offline use or slow remotes
-- **Proposed Fix:**
-  - `refresh.rs`: add a `RefreshKind::Fetch` (fetch + reload, no PR re-fetch), run by a
-    `run_fetch()` that shares the fetch/reload part of `run_full()`; its `JobResult::Reloaded`
-    carries `fetch_error` with `prs_refetched: false`, so `App::apply_refresh_result()` keeps the PR
-    info (`replace_branches_with(.., true)`) and reports the fetch error as an automatic one
-  - `main.rs`: new `--no-fetch-on-start` flag; `run_tui_mode()` requests a `RefreshKind::Fetch`
-    right after setting up the refresher, unless the flag is set. A key press (`r`/`R`) during the
-    startup fetch queues behind it as today
-  - Leave the auto-sync clock alone: the next full sync still runs one interval after startup, and
-    is what refreshes PR data
-  - Docs: README flags, usage guide (live refresh section), TESTING; `--cli` mode is out of scope
-    (it prints once and exits; a blocking fetch there could be a separate flag)
-
----
+_No open UI/UX issues._
 
 ---
 
@@ -81,6 +47,48 @@ _No open minor/cosmetic issues._
 ---
 
 ## Resolved Issues
+
+### Issue #25: Fetch and prune the remote when the TUI starts
+
+- **Status:** 🟢 Resolved
+- **Reported:** 24-11-2026
+- **Resolved:** 24-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#80](https://github.com/EmilIvanichkovv/omni-scripts/issues/80)
+- **Description:**
+  - The TUI opened on whatever remote-tracking refs the last `git fetch` left behind. Branches whose
+    remote was deleted since then were not shown as `gone`, and ahead/behind counts were stale
+  - `git fetch --prune` only ran as part of a full sync (`R`, or the automatic sync), and
+    `Refresher::set_sync_interval()` deliberately made the first automatic sync wait a whole
+    interval (5 minutes by default) because "startup has just read everything". Startup read only
+    local refs, so until the user pressed `R` or the first interval passed, the list could be wrong
+- **Expected Behavior:**
+  - As soon as the TUI opens, `git fetch --prune` runs on the primary remote in the background
+    (`git::fetch_remote()`, same timeout and non-interactive setup as `R`), then the branch list
+    reloads; the list is usable immediately and the footer shows the fetch progress as for `R`
+  - The startup fetch does not re-fetch PR data: startup has just loaded it (from the cache or the
+    API), and a fetch does not change which PR belongs to a branch
+  - A fetch error is shown in the footer without blocking the TUI
+  - A flag (`--no-fetch-on-start`) turns it off, for offline use or slow remotes
+- **Fix:**
+  - `refresh.rs`: new `RefreshKind::Fetch` (between `Local` and `Full`), run by `run_full()` without
+    a PR job: `Refresher::start()` only builds the PR job (and takes the PR cache) for `Full`, so
+    the result has `prs_refetched: false` and `App::apply_refresh_result()` keeps the PR info. Only
+    `Full` restarts the automatic sync clock, so the first sync is still one interval after startup.
+    The footer shows the fetch stages (`⟳ fetching origin…`) as for `R`, and a fetch error flashes
+    `Fetch failed`
+  - `main.rs`: new `--no-fetch-on-start` flag; `run_tui_mode()` requests a `RefreshKind::Fetch`
+    right after setting up the refresher unless it is set. `r`/`R` pressed meanwhile queue behind it
+    (`R` still re-fetches PRs). `--cli` mode is unchanged
+  - Tests: the startup fetch carries no PR job, leaves the PR cache with the app and does not move
+    the sync clock; `R` during the startup fetch queues a full sync. Verified in tmux: a branch
+    deleted on the remote before startup turned `gone` right away, and stayed `unmerged` with
+    `--no-fetch-on-start`
+  - Docs: README (features, flags), usage guide (live refresh), ARCHITECTURE and LIVE_REFRESH specs,
+    TESTING (concurrent changes)
+- **Commit:** `feat(tui): Fetch and prune the remote when the TUI starts`
+
+---
 
 ### Issue #24: Keep the selection when toggling force mode
 
@@ -1005,3 +1013,4 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 17:22 | #23   | Resolved: Worktree view read-only until `x` turns removal on           |
 | 19-11-2026 | 17:24 | #24   | Resolved: `f` keeps the selection, dropping only force-only rows       |
 | 24-11-2026 | 20:06 | #25   | Reported: Fetch and prune the remote when the TUI starts               |
+| 24-11-2026 | 20:12 | #25   | Resolved: `git fetch --prune` in the background on startup             |

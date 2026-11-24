@@ -51,7 +51,9 @@ _Coming soon: Video demonstration of the TUI in action_
 - **Live Refresh** - Branches created, deleted, committed to or checked out in another terminal show
   up within 10 s (`--auto-refresh-interval`) or as soon as you switch back to the TUI; `r` reloads
   on demand and `R` also fetches the remote and re-fetches PR data, which also happens every 5
-  minutes (`--auto-sync-interval`, `--no-auto-sync`)
+  minutes (`--auto-sync-interval`, `--no-auto-sync`). On startup the TUI runs `git fetch --prune` in
+  the background, so branches deleted on the remote show as `gone` without pressing `R`
+  (`--no-fetch-on-start`)
 - **Worktree View** - `--worktrees` / `-w` (or `w` in the TUI) lists every `git worktree` with its
   branch, state (current, prunable, locked, dirty, detached, or the branch's status), uncommitted
   changes, last commit and PR; removes stale ones with `git worktree remove` / `git worktree prune`
@@ -249,6 +251,9 @@ Options:
       --no-auto-sync                 Do not run R's full sync (fetch, reload, PR
                                      re-fetch) on a timer (R still syncs)
       --auto-sync-interval <MINUTES> Minutes between automatic full syncs [default: 5]
+      --no-fetch-on-start            Do not run git fetch --prune on the primary remote
+                                     when the TUI starts (R and the automatic sync
+                                     still fetch)
   -w, --worktrees                    Start in the worktree view; with --cli, print the
                                      worktree table and exit
   -h, --help                         Print help

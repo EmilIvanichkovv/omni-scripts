@@ -300,6 +300,11 @@ directory was deleted (prunable).
 - [ ] Someone else deletes a branch while TUI open - handles gracefully on refresh
 - [ ] New commits made while TUI open - shows correct info on refresh
 - [ ] Remote branch deleted while TUI open - detects on refresh
+- [ ] Remote branch deleted before the TUI starts (no fetch since): the branch turns `gone` a moment
+      after startup without pressing `R`; the footer shows `⟳ fetching origin…` meanwhile
+- [ ] With `--github`, the startup fetch does not re-fetch PR data (no `fetching PRs…` stage)
+- [ ] `--no-fetch-on-start`: the branch stays as it was until `R` or the first automatic sync
+- [ ] Unreachable remote at startup: the TUI is usable at once and the footer shows `Fetch failed`
 
 #### 5.4 Error Scenarios
 

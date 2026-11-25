@@ -246,6 +246,50 @@ fn bullets(lines: &mut Vec<Line<'static>>, title: &str, items: &[String]) {
     }
 }
 
+/// `start → … → working  REPO`: every branch the session was on, in order, with the working
+/// (last) one in normal text and the earlier ones muted. Repos only when they differ.
+fn branch_move(app: &App, s: &Session) -> Vec<Span<'static>> {
+    let mut branches: Vec<String> = s.branches.clone();
+    for l in &s.links {
+        if !branches.contains(&l.branch) {
+            branches.push(l.branch.clone());
+        }
+    }
+    if branches.is_empty() {
+        return vec![Span::styled("(no branch) · unlinked", theme::muted())];
+    }
+    let last = branches.len() - 1;
+    let mut spans = Vec::new();
+    for (i, b) in branches.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(" → ", theme::muted()));
+        }
+        let style = if i == last {
+            theme::bold()
+        } else {
+            theme::muted()
+        };
+        spans.push(Span::styled(clean(b), style));
+    }
+    let mut repos: Vec<String> = Vec::new();
+    for l in &s.links {
+        let r = app
+            .repo_name(&l.repo_id)
+            .unwrap_or_else(|| l.repo_id.clone());
+        if !repos.contains(&r) {
+            repos.push(r);
+        }
+    }
+    if repos.is_empty() {
+        spans.push(Span::styled("  · unlinked", theme::muted()));
+    } else {
+        spans.push(Span::styled(
+            format!("  {}", clean(&repos.join(", "))),
+            theme::accent(),
+        ));
+    }
+    spans
+}
 pub fn details(app: &App) -> Vec<Line<'static>> {
     if let Some(ListRow::Group(g)) = app.selected_row(Tab::Sessions) {
         return group_details(app, &g);
@@ -403,24 +447,7 @@ pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
         when.push(Span::styled(" · ended", theme::muted()));
     }
     lines.push(field("When", when));
-    if s.links.is_empty() {
-        lines.push(field(
-            "Branch",
-            vec![Span::styled("(no branch) · unlinked", theme::muted())],
-        ));
-    }
-    for l in &s.links {
-        let repo = app
-            .repo_name(&l.repo_id)
-            .unwrap_or_else(|| l.repo_id.clone());
-        lines.push(field(
-            "Branch",
-            vec![
-                Span::raw(clean(&l.branch)),
-                Span::styled(format!("  {}", clean(&repo)), theme::accent()),
-            ],
-        ));
-    }
+    lines.push(field("Branch", branch_move(app, s)));
     if let Some(cwd) = &s.cwd {
         lines.push(field(
             "Cwd",
@@ -493,6 +520,82 @@ pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sessions::SessionLink;
+    use ratatui::style::Modifier;
+
+    fn text(spans: &[Span]) -> String {
+        spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    /// A session that started on `pre-release` and switched to a feature branch.
+    fn moved_session(app: &mut App) -> Session {
+        let mut s = app
+            .sessions
+            .iter()
+            .find(|s| s.id == "s-live")
+            .unwrap()
+            .clone();
+        let repo_id = s.links[0].repo_id.clone();
+        s.branches = vec!["pre-release".into(), "feature/strategies-engine".into()];
+        s.links = vec![
+            SessionLink {
+                repo_id: repo_id.clone(),
+                branch: "pre-release".into(),
+            },
+            SessionLink {
+                repo_id,
+                branch: "feature/strategies-engine".into(),
+            },
+        ];
+        s
+    }
+
+    #[test]
+    fn list_shows_the_working_branch_and_details_the_move() {
+        let mut app = crate::ui::sample::app();
+        let s = moved_session(&mut app);
+        assert_eq!(
+            app.session_branch(&s).as_deref(),
+            Some("feature/strategies-engine")
+        );
+        assert_eq!(
+            crate::app::working_link(&s).unwrap().branch,
+            "feature/strategies-engine"
+        );
+        let spans = branch_move(&app, &s);
+        let line = text(&spans);
+        assert!(
+            line.starts_with("pre-release → feature/strategies-engine  "),
+            "{line}"
+        );
+        // The working branch is bold, the earlier one muted.
+        let working = spans
+            .iter()
+            .find(|sp| sp.content == "feature/strategies-engine")
+            .unwrap();
+        assert!(working.style.add_modifier.contains(Modifier::BOLD));
+        let start = spans.iter().find(|sp| sp.content == "pre-release").unwrap();
+        assert_eq!(start.style, theme::muted());
+        // One Branch row in the details, not one per branch.
+        let details = session_details(&app, &s);
+        let rows = details
+            .iter()
+            .filter(|l| text(&l.spans).starts_with("Branch"))
+            .count();
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
+    fn single_branch_and_unlinked_sessions() {
+        let mut app = crate::ui::sample::app();
+        let mut s = moved_session(&mut app);
+        s.branches = vec!["feature/strategies-engine".into()];
+        s.links.remove(0);
+        assert!(!text(&branch_move(&app, &s)).contains('→'));
+        s.branches.clear();
+        s.links.clear();
+        assert_eq!(text(&branch_move(&app, &s)), "(no branch) · unlinked");
+    }
 
     #[test]
     fn day_labels_read_like_a_timeline() {

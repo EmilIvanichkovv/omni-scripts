@@ -43,7 +43,7 @@ use crate::config::Config;
 use crate::lgbc::responsive::{Arrangement, LayoutMode};
 use crate::model::{CiState, Repo, WorkItem, WorkState, Worktree};
 use crate::refresh::{AppEvent, Command, PrStatus};
-use crate::sessions::Session;
+use crate::sessions::{Session, SessionLink};
 use crate::summary::{Entry, Summary, Target};
 use crate::todos::rules::{Suggestion, SuggestionPayload, SuggestionStatus};
 use crate::todos::{Priority, Todo, TodoOp, TodoPatch, TodoStatus};
@@ -643,6 +643,18 @@ pub fn fuzzy_score(needle: &str, hay: &str) -> Option<usize> {
     best
 }
 
+/// Last branch seen in the session's transcript: the branch it was working on when it ended.
+pub fn working_branch(s: &Session) -> Option<&str> {
+    s.branches.last().map(String::as_str)
+}
+
+/// Link of the working branch; else the last link (sessions without recorded branches).
+pub fn working_link(s: &Session) -> Option<&SessionLink> {
+    working_branch(s)
+        .and_then(|b| s.links.iter().rev().find(|l| l.branch == b))
+        .or_else(|| s.links.last())
+}
+
 impl App {
     pub fn new(config: &Config, initial_tab: Tab) -> Self {
         let epoch = FixedOffset::east_opt(0)
@@ -1121,14 +1133,15 @@ impl App {
     }
 
     pub fn session_repo_name(&self, s: &Session) -> Option<String> {
-        s.links.first().and_then(|l| self.repo_name(&l.repo_id))
+        working_link(s).and_then(|l| self.repo_name(&l.repo_id))
     }
 
+    /// The branch the session ended up working on: the last branch seen in its transcript
+    /// (a session can start on one branch and switch to another).
     pub fn session_branch(&self, s: &Session) -> Option<String> {
-        s.links
-            .first()
-            .map(|l| l.branch.clone())
-            .or_else(|| s.branches.first().cloned())
+        working_branch(s)
+            .map(str::to_string)
+            .or_else(|| s.links.last().map(|l| l.branch.clone()))
     }
 
     /// Worktree path a session can be resumed in: the worktree of a linked branch, else the
@@ -1396,7 +1409,7 @@ impl App {
                 self.item_for_link(link)
             }
             Target::Session { id } => {
-                let link = self.find_session(id)?.links.first()?;
+                let link = working_link(self.find_session(id)?)?;
                 self.work_item(&link.repo_id, &link.branch)
             }
             Target::Inbox | Target::None => None,
@@ -2231,7 +2244,7 @@ impl App {
         let Some(s) = self.selected_session() else {
             return Vec::new();
         };
-        let Some(link) = s.links.first().cloned() else {
+        let Some(link) = working_link(s).cloned() else {
             self.set_status("this session is not linked to a branch");
             return Vec::new();
         };

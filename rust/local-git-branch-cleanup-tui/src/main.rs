@@ -2,6 +2,7 @@ mod app;
 mod cache;
 mod clipboard;
 mod git;
+mod logging;
 mod pr;
 mod refresh;
 mod remote;
@@ -127,6 +128,12 @@ struct Args {
     /// print the worktree table and exit
     #[arg(long, short = 'w')]
     worktrees: bool,
+
+    /// How much to write to the log file (in
+    /// $XDG_STATE_HOME/local-git-branch-cleanup-tui/logs, ~/.local/state on
+    /// Linux); `off` writes none
+    #[arg(long, value_enum, default_value_t = logging::Level::Info)]
+    log_level: logging::Level,
 }
 
 #[derive(Subcommand, Debug)]
@@ -146,6 +153,21 @@ async fn main() -> Result<()> {
     tls::install_crypto_provider();
 
     let args = Args::parse();
+    logging::init(args.log_level);
+    // No token or other secret is in these flags
+    logging::info(format!(
+        "Starting v{} in {} (tui: {}, worktrees: {}, github: {}, bitbucket: {}, dry run: {}, force: {})",
+        env!("CARGO_PKG_VERSION"),
+        std::env::current_dir()
+            .map(|dir| dir.display().to_string())
+            .unwrap_or_default(),
+        !args.cli,
+        args.worktrees,
+        args.github,
+        args.bitbucket,
+        args.dry_run,
+        args.force,
+    ));
 
     // Works from any directory, so it runs before the git repository check.
     if let Some(Command::Update { check }) = args.command {
@@ -156,6 +178,7 @@ async fn main() -> Result<()> {
     let repo_path = match git::verify_repo() {
         Ok(path) => path,
         Err(e) => {
+            logging::error(format!("Not a git repository: {e}"));
             eprintln!("❌ Error: {}", e);
             std::process::exit(1);
         }
@@ -174,6 +197,7 @@ async fn main() -> Result<()> {
     let mut branches = match git::get_branches_with_classification(args.trunk.as_deref()) {
         Ok(branches) => branches,
         Err(e) => {
+            logging::error(format!("Error scanning branches: {e:#}"));
             eprintln!("❌ Error scanning branches: {}", e);
             std::process::exit(1);
         }
@@ -186,6 +210,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 // A missing gh CLI is non-fatal: warn, disable PR integration,
                 // and continue with local-only behavior (backward compatible).
+                logging::warn(format!("GitHub PR integration disabled: {e:#}"));
                 eprintln!("⚠️  {}", e);
                 None
             }
@@ -197,6 +222,7 @@ async fn main() -> Result<()> {
         match build_bitbucket_provider(&args).await {
             Ok(provider) => Some(provider),
             Err(e) => {
+                logging::error(format!("Bitbucket PR integration failed: {e:#}"));
                 eprintln!("❌ {}", e);
                 std::process::exit(1);
             }
@@ -233,6 +259,7 @@ async fn main() -> Result<()> {
                     .await
                 }
                 Err(e) => {
+                    logging::warn(format!("PR cache unavailable: {e:#}"));
                     eprintln!("⚠️  PR cache unavailable ({}), fetching live data.", e);
                     pr::fetch_pr_info_for_branches(provider, &mut branches, None, args.sequential)
                         .await
@@ -365,6 +392,19 @@ async fn build_bitbucket_provider(
 /// they will be retried on the next run.
 fn print_fetch_summary(report: &pr::FetchReport, elapsed: std::time::Duration) {
     let fetched = report.fetched_with_pr + report.fetched_without_pr;
+    logging::info(format!(
+        "PR fetch: {} from cache, {} fetched, {} failed in {:.2}s",
+        report.cache_hits,
+        fetched,
+        report.failed,
+        elapsed.as_secs_f64()
+    ));
+    for err in &report.errors {
+        logging::warn(format!(
+            "PR lookup failed for {}: {}",
+            err.branch, err.error
+        ));
+    }
     eprintln!(
         "   {} from cache, {} fetched, {} failed",
         report.cache_hits, fetched, report.failed
@@ -877,6 +917,10 @@ fn install_tui_panic_hook() {
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let tui_thread = TUI_THREAD.get() == Some(&std::thread::current().id());
+        logging::error(format!(
+            "thread '{}' panicked: {info}",
+            std::thread::current().name().unwrap_or("<unnamed>")
+        ));
         if tui_thread {
             restore_terminal();
         } else if TUI_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) {

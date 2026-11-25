@@ -2,6 +2,7 @@
 
 use crate::cache::PrCache;
 use crate::git::{self, BranchInfo, BranchStatus};
+use crate::logging;
 use crate::pr::PrProviderKind;
 use crate::refresh::{JobResult, RefreshKind, Refresher};
 use crate::responsive::LayoutMode;
@@ -365,7 +366,15 @@ impl App {
 
     /// Add `entries` to the action log and scroll it back to the newest
     pub fn log_actions(&mut self, entries: impl IntoIterator<Item = ActionLogEntry>) {
-        self.action_log.extend(entries);
+        for entry in entries {
+            let line = format!("{}: {}", entry.branch_name, entry.message);
+            if entry.success {
+                logging::info(line);
+            } else {
+                logging::error(line);
+            }
+            self.action_log.push(entry);
+        }
         self.action_log_scroll = 0;
     }
 
@@ -444,10 +453,9 @@ impl App {
 
     /// Queue an error for the error popup
     pub fn show_error(&mut self, title: impl Into<String>, message: impl Into<String>) {
-        let _ = self.error_tx.send(ErrorPopup {
-            title: title.into(),
-            message: message.into(),
-        });
+        let (title, message) = (title.into(), message.into());
+        logging::error(format!("{title}: {message}"));
+        let _ = self.error_tx.send(ErrorPopup { title, message });
     }
 
     /// Show the next queued error when no error popup is open
@@ -1242,6 +1250,10 @@ impl App {
                     self.carry_pr_info(&mut branches, |name| pr_failed.iter().any(|f| f == name));
                 }
                 self.replace_branches_with(branches, !prs_refetched);
+                logging::debug(format!(
+                    "Branch list reloaded: {} branches (full sync: {full_sync})",
+                    self.branches.len()
+                ));
                 self.reload_worktrees_if_loaded();
                 self.last_reload = Some((
                     Instant::now(),
@@ -1261,6 +1273,7 @@ impl App {
                 }
             }
             JobResult::Failed { error, .. } => {
+                logging::error(format!("Reload failed: {error}"));
                 self.flash = Some(format!("Reload failed: {}", error));
             }
             // poll() keeps progress and unchanged checks to itself
@@ -1274,6 +1287,7 @@ impl App {
     fn report_fetch_error(&mut self, error: Option<String>, automatic: bool) {
         match error {
             Some(error) => {
+                logging::warn(format!("Fetch failed: {error}"));
                 if !automatic || self.last_fetch_error.as_ref() != Some(&error) {
                     self.flash = Some(format!("Fetch failed: {}", error));
                 }
@@ -1287,6 +1301,9 @@ impl App {
     /// `report_fetch_error`: an automatic sync does not repeat the count
     /// already shown
     fn report_pr_failures(&mut self, failures: usize, automatic: bool) {
+        if failures > 0 {
+            logging::warn(format!("PR lookup failed for {failures} branches"));
+        }
         if failures > 0 && (!automatic || failures != self.last_pr_failures) {
             self.flash = Some(format!("PR lookup failed for {} branches", failures));
         }
@@ -1427,9 +1444,11 @@ impl App {
             return false;
         };
         const TITLE: &str = "Cannot open the pull request";
+        logging::debug(format!("Opening {url}"));
         let tx = self.error_tx.clone();
         let link = url.clone();
         let result = git::open_url_in_browser(&url, move |message| {
+            logging::error(format!("{TITLE}: {message}\nURL: {link}"));
             let _ = tx.send(ErrorPopup {
                 title: TITLE.to_string(),
                 message: format!("{message}\n\nURL: {link}"),

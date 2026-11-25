@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 25-11-2026 18:16
+**Last Updated:** 25-11-2026 18:21
 
 ---
 
@@ -42,16 +42,23 @@ _No open performance issues._
 
 ## Minor/Cosmetic Issues
 
+_No open minor/cosmetic issues._
+
+---
+
+## Resolved Issues
+
 ### Issue #30: Write a log file for diagnosing errors
 
-- **Status:** 🔴 Open
+- **Status:** 🟢 Resolved
 - **Reported:** 25-11-2026
+- **Resolved:** 25-11-2026
 - **Category:** Minor/Cosmetic / Enhancement
 - **GitHub:** [#89](https://github.com/EmilIvanichkovv/omni-scripts/issues/89)
 - **Description:**
-  - The TUI keeps no log. Errors are shown once in the footer `flash`, the action log panel or
-    (before the TUI starts) `eprintln!` in `main.rs`, and are gone after the session, so there is
-    nothing to examine after something goes wrong (failed deletes, PR fetch errors, cache problems,
+  - The TUI kept no log. Errors were shown once in the footer `flash`, the action log panel or
+    (before the TUI starts) `eprintln!` in `main.rs`, and were gone after the session, so there was
+    nothing to examine after something went wrong (failed deletes, PR fetch errors, cache problems,
     a failing browser opener).
 - **Expected Behavior:**
   - Each run appends to a log file in a fixed, documented folder: `$XDG_STATE_HOME` (or
@@ -62,20 +69,27 @@ _No open performance issues._
     var).
   - Old files are rotated (e.g. daily, keep the last 7) so the folder does not grow forever.
   - The info modal (`i`) and the error popup (TUI-29) show the log file path.
-- **Proposed Fix:**
-  - Add `tracing`, `tracing-subscriber` and `tracing-appender` (daily rolling, non-blocking writer)
-    and initialise them in `main` before the terminal is set up; keep the worker guard alive until
-    exit. Never log to stdout/stderr while the TUI owns the screen.
-  - Resolve the folder like `cache::cache_root` does: an absolute `$XDG_STATE_HOME` first, then
-    `dirs::state_dir()`, falling back to `dirs::data_local_dir()` (macOS/Windows have no state dir).
-    If the folder cannot be created, run without a log instead of failing.
-  - Log at the existing error sites: `flash` messages, failed `ActionLogEntry`s, PR provider and
-    cache errors, refresh/fetch failures, the panic hook, and the opener failure from TUI-29.
-  - Document the location and level setting in the README and usage guide.
+- **Fix:**
+  - New `logging.rs`: a small file logger instead of `tracing` + `tracing-subscriber` +
+    `tracing-appender`, which would have added three crates for one file (the workspace watches
+    binary size); it uses the existing `chrono` and `dirs`. A run appends to `YYYY-MM-DD.log` in
+    `log_dir()` (absolute `$XDG_STATE_HOME`, else `dirs::state_dir()`, else
+    `dirs::data_local_dir()`, plus `local-git-branch-cleanup-tui/logs`); files 7 or more days old
+    are deleted at start. Lines are `<timestamp> <LEVEL> [pid] message` with continuation lines
+    indented. It never writes to stdout/stderr and does nothing if the folder cannot be created.
+  - `--log-level off|error|warn|info|debug` (default `info`) sets what is written.
+  - Logged: the start line (version, folder, mode flags; no tokens), pre-TUI errors in `main`, PR
+    fetch summary and each failed lookup, every action log entry (`App::log_actions`: errors for
+    failures, info for successes), every error popup (`App::show_error`, opener failures from the
+    background thread), fetch / reload / PR lookup failures, and panics on any thread. `debug` adds
+    reloads and opened URLs.
+  - The about popup (`i`, both views) and the error popup show the log file path.
+  - Tests for the line format, level filtering and appending, and pruning; checked by hand that the
+    release binary creates the file and logs a startup error. Documented in the README (options and
+    log location), the usage guide (about popup, Troubleshooting) and `TESTING.md`.
+- **Commit:** `feat(tui): Write a daily log file for diagnosing errors`
 
 ---
-
-## Resolved Issues
 
 ### Issue #29: Show errors from external commands in a popup instead of over the screen
 
@@ -1213,3 +1227,4 @@ _No open performance issues._
 | 25-11-2026 | 18:08 | #27   | Resolved: Legend is a full-width box above the footer                  |
 | 25-11-2026 | 18:11 | #28   | Resolved: Header shows the active filter (`▽ SAFE MERGED`)             |
 | 25-11-2026 | 18:16 | #29   | Resolved: Opener errors go to a popup, not over the screen             |
+| 25-11-2026 | 18:21 | #30   | Resolved: Daily log file with `--log-level`                            |

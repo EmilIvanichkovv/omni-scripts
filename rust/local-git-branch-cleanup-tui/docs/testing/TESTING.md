@@ -164,6 +164,15 @@ Compare behavior with the original bash script:
 - [ ] Any key closes help modal
 - [ ] Help modal centered and readable
 
+#### 3.8a Log File
+
+- [ ] After a run, `~/.local/state/local-git-branch-cleanup-tui/logs/<today>.log` (or
+      `$XDG_STATE_HOME/...`) has a `Starting v...` line; a failed deletion or a failing `o` adds an
+      `ERROR` line with the details
+- [ ] `i` and the error popup show the log file path
+- [ ] `--log-level off` creates no file; `--log-level debug` adds `Branch list reloaded` lines
+- [ ] Log files older than 7 days are deleted on start
+
 #### 3.9 Exit
 
 - [ ] `q` - quit application

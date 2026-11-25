@@ -3,6 +3,16 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.11.0 - 25-11-2026
+
+### Features
+
+- **tui:** Fetch and prune the remote when the TUI starts
+
+### Bug fixes
+
+- **tui:** Report a startup fetch error when r is pressed during it
+
 ## 0.10.0 - 25-11-2026
 
 ### Features

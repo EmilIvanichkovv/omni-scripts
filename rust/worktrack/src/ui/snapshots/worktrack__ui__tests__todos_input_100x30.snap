@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Todos  Group: repo ───────────────────────────────────────────────────────────────────── 4 todos ┐
-│▌Active 4▐│ Todo 3 │ Doing 1 │ Done 1 │ Dropped 1 │ All 6                                         │
-│ ▾ API/auth                                                                                       │
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                         │
+│ ▾ API/auth                                                                                     1 │
 │   [ ]    Review SSO rollout plan                       auth:feature/PROJ-118-sso                 │
-│ ▾ API/upload-svc                                                                                 │
-│   [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         │
-│ ▾ (no link)                                                                                      │
+│ ▾ API/upload-svc                                                                               1 │
+│▌  [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         │
+│ ▾ (no link)                                                                                    2 │
 │   [ ] B  Write migration doc                                                                     │
 │   [ ]    Call Ivan about staging access                                                          │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
 │ new todo › Call the bank                                                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Todo ────────────────────────────────────────────────────────────────────────────────────────────┐
-│Finish upload retry logic                                                                         ▲
-│Status  [~] doing · priority A                                                                    █
-│Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                    █
-│Jira    PROJ-123                                                                                  █
-│Source  manual                                                                                    █
-│Created Fri 2026-11-20                                                                            █
-│                                                                                                  ║
-│Notes                                                                                             ▼
-└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+│Finish upload retry logic                                                                         │
+│Status   [~] doing · priority A                                                                   │
+│Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
+│Jira     PROJ-123                                                                                 │
+│Source   manual                                                                                   │
+│Created  Fri 2026-11-20                                                                           │
+│                                                                                                  │
+│Notes                                                                                             │
+│  Backoff with jitter.                                                                            │
+│  Check the integration test.                                                                     │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- enter save  esc cancel
+ enter save · esc cancel

@@ -6,7 +6,9 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, field, fit, fmt_when, render_rows, section, short_link, BarItem};
+use super::widgets::{
+    clean, field, fit, fmt_when, header_row, push_section, render_rows, short_link, BarItem,
+};
 use crate::app::{App, BarHit, TodoFilter, TodoRow};
 use crate::todos::{Todo, TodoStatus};
 
@@ -110,9 +112,11 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
             frame,
             rows_area,
             if app.todos.is_empty() {
-                "no todos yet (a adds one, O opens the file)"
+                "No todos yet. Press a to add one, or O to open the todo file."
+            } else if !app.search[1].trim().is_empty() {
+                "No todo matches the search. Esc clears it."
             } else {
-                "nothing matches this filter (h/l switch filters)"
+                "Nothing matches this filter. h/l switch filters."
             },
         );
         return;
@@ -122,18 +126,26 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines = Vec::new();
     let mut cursor_row = None;
     let mut todo_idx = 0;
-    for row in app.todo_rows() {
+    let rows = app.todo_rows();
+    for (n, row) in rows.iter().enumerate() {
         match row {
-            TodoRow::Header(name) => lines.push(Line::from(Span::styled(
-                format!(" ▾ {}", clean(&name)),
-                theme::bold(),
-            ))),
+            TodoRow::Header(name) => {
+                let count = rows[n + 1..]
+                    .iter()
+                    .take_while(|r| matches!(r, TodoRow::Todo(_)))
+                    .count();
+                lines.push(header_row(
+                    &format!("▾ {}", clean(name)),
+                    &count.to_string(),
+                    width,
+                ));
+            }
             TodoRow::Todo(i) => {
                 if todo_idx == app.cursor[1] {
                     cursor_row = Some(lines.len());
                 }
                 todo_idx += 1;
-                lines.push(todo_line(app, &app.todos[i], width, indent));
+                lines.push(todo_line(app, &app.todos[*i], width, indent));
             }
         }
     }
@@ -221,8 +233,7 @@ pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
             )],
         ));
     }
-    lines.push(Line::from(""));
-    lines.push(section("Notes"));
+    push_section(&mut lines, "Notes");
     let notes = crate::sanitize::clean(&t.notes);
     if notes.trim().is_empty() {
         lines.push(Line::from(Span::styled("  none (E edits)", theme::muted())));

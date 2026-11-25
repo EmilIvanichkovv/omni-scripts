@@ -31,10 +31,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, InputPurpose, Overlay, StatusKind, Tab};
+use crate::app::{App, InputPurpose, Overlay, StatusKind, Tab, WorkRow};
 use crate::lgbc::responsive::{self, str_width, truncate_end, Arrangement, LayoutMode};
 use crate::refresh::PrStatus;
-use widgets::{clean, fmt_age, hint_line, key_hint, pane_block, BarItem};
+use widgets::{clean, fmt_age, hint_line_pinned, key_hint, pane_block, BarItem};
 
 /// Auto layout: side by side from this terminal width (spec 9.1).
 const SIDE_BY_SIDE_WIDTH: u16 = 120;
@@ -77,7 +77,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         fb.details_area.set(Some(content));
         draw_details(frame, app, content);
     } else {
-        let (list, details) = split(arrangement, content);
+        let (list, details) = split(arrangement, content, list_rows_wanted(app));
         fb.list_area.set(list);
         fb.details_area.set(details);
         match app.tab {
@@ -118,16 +118,16 @@ fn strip_colors(frame: &mut Frame) {
 }
 
 fn draw_details(frame: &mut Frame, app: &App, area: Rect) {
+    let inner_w = area.width.saturating_sub(2);
     let (lines, title) = match app.tab {
-        Tab::Work => (
-            work::details(app, area.width.saturating_sub(2)),
-            " Details ",
-        ),
+        Tab::Work => (work::details(app, inner_w), " Details "),
         Tab::Todos => (todos::details(app), " Todo "),
         Tab::Sessions => (sessions::details(app), " Session "),
         Tab::Inbox => (inbox::details(app), " Suggestion "),
-        Tab::Summary => summary::details(app, area.width.saturating_sub(2)),
+        Tab::Summary => summary::details(app, inner_w),
     };
+    // One column of air on the right of the text, the scrollbar sits on the border.
+    let lines = widgets::tidy_details(lines, inner_w.saturating_sub(1) as usize);
     let mut block = pane_block(Line::from(Span::styled(title, theme::accent())));
     if app.details_open {
         block = block.title(
@@ -167,8 +167,25 @@ pub fn choose_arrangement(mode: LayoutMode, area: Rect, content: Rect) -> Arrang
     }
 }
 
-/// List 60 %, details 40 %.
-fn split(arrangement: Arrangement, content: Rect) -> (Rect, Option<Rect>) {
+/// Rows the list pane of the current tab needs to show everything (borders included).
+fn list_rows_wanted(app: &App) -> u16 {
+    let rows = match app.tab {
+        Tab::Work => app.work_rows().len(),
+        Tab::Todos => app.todo_rows().len() + 1,
+        Tab::Sessions => sessions::line_count(app),
+        Tab::Summary => summary::line_count(app) + 1,
+        Tab::Inbox => app.pending_suggestions().len(),
+    };
+    let searching = !app.search[app.tab.index()].is_empty()
+        || matches!(&app.input, Some(a) if a.purpose == InputPurpose::Search);
+    let extra = usize::from(searching) + usize::from(app.input.is_some());
+    // Empty lists show a message of up to three rows.
+    u16::try_from(rows.max(3) + extra + 2).unwrap_or(u16::MAX)
+}
+
+/// Stacked: at most 60 % for the list, less when its rows need less (so a short list does
+/// not leave a block of empty rows), at least 40 %. Side by side: list 60 %, details 40 %.
+fn split(arrangement: Arrangement, content: Rect, list_wanted: u16) -> (Rect, Option<Rect>) {
     match arrangement {
         Arrangement::SideBySide => {
             let [l, d] =
@@ -177,8 +194,11 @@ fn split(arrangement: Arrangement, content: Rect) -> (Rect, Option<Rect>) {
             (l, Some(d))
         }
         Arrangement::Stacked => {
-            let [l, d] = Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)])
-                .areas(content);
+            let max = content.height * 3 / 5;
+            let min = (content.height * 2 / 5).min(max);
+            let list_h = list_wanted.clamp(min, max);
+            let [l, d] =
+                Layout::vertical([Constraint::Length(list_h), Constraint::Min(0)]).areas(content);
             (l, Some(d))
         }
         Arrangement::ListOnly => (content, None),
@@ -262,13 +282,20 @@ pub(crate) fn list_pane(
     inner
 }
 
-/// Empty-list message centered-ish in `area`.
+/// Empty-list message: one friendly sentence saying what to do, under one blank row when
+/// there is room.
 pub(crate) fn render_empty(frame: &mut Frame, area: Rect, text: &str) {
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(format!(" {text}"), theme::muted())))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
+    let mut lines = Vec::new();
+    if area.height > 2 {
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(Span::styled(text.to_string(), theme::soft())));
+    let inner = Rect {
+        x: area.x.saturating_add(2).min(area.right()),
+        width: area.width.saturating_sub(3),
+        ..area
+    };
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), inner);
 }
 
 fn render_too_small(frame: &mut Frame, area: Rect) {
@@ -304,7 +331,8 @@ fn render_too_small(frame: &mut Frame, area: Rect) {
 fn pr_status_text(app: &App) -> (String, Style) {
     match &app.pr_status {
         None => ("PR …".into(), theme::muted()),
-        Some(PrStatus::Ok) => ("PR ✓".into(), Style::new().fg(theme::OK)),
+        // Colour only when something is wrong.
+        Some(PrStatus::Ok) => ("PR ✓".into(), Style::new()),
         Some(PrStatus::NoToken) => ("PR: no token".into(), Style::new().fg(theme::WARN)),
         Some(PrStatus::Offline) => ("PR: offline".into(), Style::new().fg(theme::WARN)),
         Some(PrStatus::Error { message, .. }) => (
@@ -345,7 +373,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let sep = Span::styled(" · ", theme::muted());
     let mut spans = vec![
         Span::styled(" worktrack", theme::heading()),
-        Span::styled(" ── ", theme::muted()),
+        Span::styled("  ", theme::muted()),
         Span::raw(format!("{repos} repos")),
         sep.clone(),
         Span::raw(format!("{items} items")),
@@ -373,8 +401,19 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     }
     let fill = (area.width as usize).saturating_sub(used + right_w);
     kept.push(Span::raw(" ".repeat(fill)));
-    kept.push(Span::styled(right, Style::new().fg(theme::WARN)));
+    kept.push(Span::styled(right, theme::accent()));
     frame.render_widget(Paragraph::new(Line::from(kept)), area);
+}
+
+/// ` label ` of the tab bar: the active one accent, bold and underlined (no block, so
+/// `NO_COLOR` still shows it through bold + underline), the others soft.
+fn tab_label(label: String, active: bool) -> [Span<'static>; 3] {
+    let style = if active {
+        theme::active_label()
+    } else {
+        theme::soft()
+    };
+    [Span::raw(" "), Span::styled(label, style), Span::raw(" ")]
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
@@ -392,14 +431,7 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
             Tab::Todos if app.todo_error.is_some() => label.push_str("·!"),
             _ => {}
         }
-        let style = if tab == app.tab {
-            Style::new()
-                .fg(theme::ACCENT)
-                .add_modifier(Modifier::BOLD | Modifier::REVERSED)
-        } else {
-            theme::muted()
-        };
-        spans.push(Span::styled(format!(" {label} "), style));
+        spans.extend(tab_label(label, tab == app.tab));
         spans.push(Span::raw(" "));
     }
     let line = Line::from(spans);
@@ -414,14 +446,7 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
             if tab == Tab::Sessions && app.any_session_live() {
                 label.push('●');
             }
-            let style = if tab == app.tab {
-                Style::new()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD | Modifier::REVERSED)
-            } else {
-                theme::muted()
-            };
-            spans.push(Span::styled(format!(" {label} "), style));
+            spans.extend(tab_label(label, tab == app.tab));
         }
         Line::from(spans)
     } else {
@@ -453,53 +478,51 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             ]),
             _ => {}
         }
-        g.push(key_hint("?", "help"));
         return g;
     }
     let list_only = app.feedback.arrangement.get() == Some(Arrangement::ListOnly);
-    let mut g = match app.tab {
-        Tab::Work => vec![
-            key_hint("j/k", "move"),
-            key_hint("enter", "open"),
-            key_hint("o", "PR"),
-            key_hint("t", "todo"),
-            key_hint("c", "resume"),
-            key_hint("y/Y", "copy"),
-            key_hint("f", "filter"),
-            key_hint("/", "search"),
-            key_hint("A", "abandon"),
-            key_hint("X", "remove"),
-        ],
+    // The most useful keys of the view; `?` (pinned by the footer) lists the rest.
+    match app.tab {
+        Tab::Work => {
+            let enter = match app.selected_work_row() {
+                _ if list_only => Some("details"),
+                Some(WorkRow::Group { collapsed, .. }) => {
+                    Some(if collapsed { "expand" } else { "collapse" })
+                }
+                _ => None,
+            };
+            let mut g: Vec<_> = enter.map(|e| key_hint("enter", e)).into_iter().collect();
+            g.extend([
+                key_hint("o", "PR"),
+                key_hint("c", "resume"),
+                key_hint("t", "todo"),
+                key_hint("f", "filter"),
+                key_hint("/", "search"),
+            ]);
+            g
+        }
         Tab::Todos => vec![
             key_hint("a", "add"),
-            key_hint("e", "edit"),
             key_hint("space", "done"),
             key_hint("s", "status"),
-            key_hint("p", "prio"),
+            key_hint("e", "edit"),
             key_hint("L", "link"),
-            key_hint("+/-", "move"),
-            key_hint("d", "delete"),
             key_hint("h/l", "filter"),
-            key_hint("G", "group"),
-            key_hint("E/O", "editor"),
         ],
         Tab::Sessions => vec![
-            key_hint("j/k", "move"),
             key_hint("c", "resume"),
+            key_hint("enter", if list_only { "details" } else { "work item" }),
             key_hint("s", "resummarize"),
-            key_hint("enter", "work item"),
             key_hint("/", "search"),
         ],
         Tab::Summary => vec![
-            key_hint("←/→", "section"),
-            key_hint("j/k", "move"),
+            key_hint("h/l", "section"),
             // List only: Enter opens the details, Enter there jumps.
             key_hint("enter", if list_only { "details" } else { "open" }),
             key_hint("o", "PR"),
             key_hint("space", "done"),
             key_hint("y", "copy"),
-            key_hint("w", "write"),
-            key_hint("[ ]", "shift"),
+            key_hint("[ ]", "window"),
         ],
         Tab::Inbox => vec![
             key_hint("enter", "accept"),
@@ -507,12 +530,8 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             key_hint("e", "edit"),
             key_hint("k/b", "keep/abandon"),
             key_hint("A/X", "all"),
-            key_hint("↑↓", "move"),
         ],
-    };
-    g.push(key_hint("?", "help"));
-    g.push(key_hint("q", "quit"));
-    g
+    }
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
@@ -536,7 +555,16 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         );
     }
     frame.render_widget(
-        Paragraph::new(hint_line(footer_hints(app), hints_row.width)),
+        Paragraph::new(hint_line_pinned(
+            footer_hints(app),
+            // While typing, `?` and `q` are text.
+            if app.input.is_some() {
+                Vec::new()
+            } else {
+                vec![key_hint("?", "help"), key_hint("q", "quit")]
+            },
+            hints_row.width,
+        )),
         hints_row,
     );
 }

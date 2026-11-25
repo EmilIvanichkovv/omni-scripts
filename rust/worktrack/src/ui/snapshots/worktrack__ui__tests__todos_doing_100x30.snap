@@ -2,17 +2,11 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Todos  Group: none ───────────────────────────────────────────────────────────────────── 1 todos ┐
-│ Active 4 │ Todo 3 │▌Doing 1▐│ Done 1 │ Dropped 1 │ All 6                                         │
-│ [~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                         │
+│▌[~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
@@ -21,14 +15,20 @@ expression: text
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Todo ────────────────────────────────────────────────────────────────────────────────────────────┐
-│Finish upload retry logic                                                                         ▲
-│Status  [~] doing · priority A                                                                    █
-│Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                    █
-│Jira    PROJ-123                                                                                  █
-│Source  manual                                                                                    █
-│Created Fri 2026-11-20                                                                            █
-│                                                                                                  ║
-│Notes                                                                                             ▼
-└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+│Finish upload retry logic                                                                         │
+│Status   [~] doing · priority A                                                                   │
+│Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
+│Jira     PROJ-123                                                                                 │
+│Source   manual                                                                                   │
+│Created  Fri 2026-11-20                                                                           │
+│                                                                                                  │
+│Notes                                                                                             │
+│  Backoff with jitter.                                                                            │
+│  Check the integration test.                                                                     │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- a add  e edit  space done  s status  p prio  L link  +/- move  d delete  h/l filter  G group …
+ a add · space done · s status · e edit · L link · h/l filter · ? help · q quit

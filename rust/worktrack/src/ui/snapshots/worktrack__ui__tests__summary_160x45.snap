@@ -2,27 +2,27 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
-│ Done 1 │▌In progress 6▐│ Todo 3 │ Blockers 5 │ Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│▶ ✎ API/upload-svc feature/PROJ-123-retry                                                     ││State   ✎ PR needs work (since 13:20)                         │
-│    PR #44 needs work · ci failed · 2 tasks · dirty · ahead 1                                 ││Repo    API/upload-svc                                        │
-│    Session: Add backoff to uploads                                                           ││Path    ~/work/upload-svc-wt/retry                            │
-│    Doing: (A) Finish upload retry logic                                                      ││Flags   dirty · ahead 1 · ci failed · 2 open tasks · session  │
-│  ◐ API/upload-svc feature/PROJ-130-chunking                                                  ││live                                                          │
-│    PR #47 open · ci running · behind 3                                                       ││PR #44  Add retry with backoff to uploads                     │
-│  ○ API/upload-svc chore/bump-deps                                                            ││        ivan ✗ needs work · maria ○ unapproved                │
-│    local only · dirty · ahead 2                                                              ││        4 comments                                            │
-│  ✓ API/auth feature/PROJ-118-sso                                                             ││Commits 3 ahead of trunk · last 2m                            │
-│    PR #39 approved · ci ok                                                                   ││                                                              │
-│    Session: Fixed the SAML redirect loop; login works against staging IdP.                   ││Todos (1)                                                     │
-│  ◆ (no branch)                                                                               ││  [~] (A) Finish upload retry logic                           │
-│    Explain webpack config                                                                    ││                                                              │
-│    Session: Explain webpack config                                                           ││Sessions (1)                                                  │
-│  ↑ API/upload-svc spike/s3-multipart                                                         ││  13:59 Add backoff to uploads                                │
-│    pushed, no PR · stale                                                                     ││                                                              │
-│    Session: Try multipart API                                                                ││                                                              │
+┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
+│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
+│ ~/work/upload-svc-wt/retry                                                                 1 ││State    ✎ PR needs work (since 13:20)                        │
+│▌  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed · 2 tasks · dirty · ahead 1        ││Repo     API/upload-svc                                       │
+│       Session: Add backoff to uploads                                                        ││Path     ~/work/upload-svc-wt/retry                           │
+│       Doing: (A) Finish upload retry logic                                                   ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│ ~/work/upload-svc                                                                          3 ││         session live                                         │
+│   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                           ││PR #44   Add retry with backoff to uploads                    │
+│   ○ chore/bump-deps  local only · dirty · ahead 2                                            ││         ivan ✗ needs work · maria ○ unapproved               │
+│   ↑ spike/s3-multipart  pushed, no PR · stale                                                ││         4 comments                                           │
+│       Session: Try multipart API                                                             ││Commits  3 ahead of trunk · last 2m                           │
+│ ~/work/auth-wt/sso                                                                         1 ││                                                              │
+│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                            ││Todos (1)                                                     │
+│       Session: Fixed the SAML redirect loop; login works against staging IdP.                ││  [~] (A) Finish upload retry logic                           │
+│ /tmp/scratch                                                                               1 ││                                                              │
+│   ◆ Explain webpack config  (no branch)                                                      ││Sessions (1)                                                  │
+│                                                                                              ││  13:59  Add backoff to uploads                               │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
 
- ←/→ section  j/k move  enter open  o PR  space done  y copy  w write  [ ] shift  ? help  q quit
+ h/l section · enter open · o PR · space done · y copy · [ ] window · ? help · q quit

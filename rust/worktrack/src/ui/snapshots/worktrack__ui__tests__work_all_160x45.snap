@@ -2,18 +2,18 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Filter: All ▾  Sort: activity ────────────────────────────────────────────────────── 9 items ┐┌ Details ─────────────────────────────────────────────────────┐
-│ ▾ API/upload-svc                                                                           4 ││API/upload-svc                                                │
-│   ✎ feature/PROJ-123-retry                           PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2  ││Items   4 shown                                               │
-│   ◐ feature/PROJ-130-chunking                        PR #47  …ci     ↓3 ∅          1h T0 S1  ││Path    ~/work/upload-svc                                     │
-│   ○ chore/bump-deps                                  —               * ↑2          3h T1 S0  ││Trunk   main                                                  │
-│   ↑ spike/s3-multipart                               —               ∅ z          16d T0 S1  ││Remote  https://bitbucket.example.com                         │
+│▌▾ API/upload-svc                                                                           4 ││API/upload-svc                                                │
+│   ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││Items    4 shown                                              │
+│   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Path     ~/work/upload-svc                                    │
+│   ○ chore/bump-deps                                 —               * ↑2          3h T1 S0   ││Trunk    main                                                 │
+│   ↑ spike/s3-multipart                              —               ∅ z          16d T0 S1   ││Remote   https://bitbucket.example.com                        │
 │ ▾ API/auth                                                                                 3 ││                                                              │
-│   ✔ bugfix/flaky                                     PR #41          ⌫            20h T1 S0  ││enter collapses this group                                    │
-│   ✓ feature/PROJ-118-sso                             PR #39  ✓ci                   1d T1 S2  ││                                                              │
-│   ✕ feature/PROJ-101-legacy                          PR #31                        4d T0 S0  ││                                                              │
+│   ✔ bugfix/flaky                                    PR #41          ⌫            20h T1 S0   ││Enter collapses this group.                                   │
+│   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││                                                              │
+│   ✕ feature/PROJ-101-legacy                         PR #31                        4d T0 S0   ││                                                              │
 │ ▸ WEB/portal                                                                               2 ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
 
- j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove  ? help  q quit
+ enter collapse · o PR · c resume · t todo · f filter · / search · ? help · q quit

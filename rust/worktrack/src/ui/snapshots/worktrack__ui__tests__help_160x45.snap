@@ -2,16 +2,16 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 S┌ Keys ────────────────────────────────────────────────────────────────────┐
 ┌ Filter: Unfinished ▾  Sort: activity ───│Global                                                                    ▲─────────────────────────────────────────┐
-│ ▾ API/upload-svc                        │  1–5  Tab  Shift-Tab   switch tab                                        █                                         │
+│▌▾ API/upload-svc                        │  1–5  Tab  Shift-Tab   switch tab                                        █                                         │
 │   ✎ feature/PROJ-123-retry              │  j k ↓ ↑               move                                              █                                         │
-│   ◐ feature/PROJ-130-chunking           │  g G  Home End         top / bottom (G groups in Todos)                  █-svc                                     │
+│   ◐ feature/PROJ-130-chunking           │  g G  Home End         top / bottom (G groups in Todos)                  █d-svc                                    │
 │   ○ chore/bump-deps                     │  Ctrl-d Ctrl-u         half page down / up                               █                                         │
-│   ↑ spike/s3-multipart                  │  J K                   scroll details                                    █cket.example.com                         │
+│   ↑ spike/s3-multipart                  │  J K                   scroll details                                    █ucket.example.com                        │
 │ ▾ API/auth                              │  /                     search (@repo: @state: in Work); esc clears       █                                         │
-│   ✓ feature/PROJ-118-sso                │  f                     cycle filter (Summary: section)                   █group                                    │
+│   ✓ feature/PROJ-118-sso                │  f                     cycle filter (Summary: section)                   █group.                                   │
 │   ✕ feature/PROJ-101-legacy             │  v                     cycle layout: auto / side / stacked / list        █                                         │
 │ ▾ WEB/portal                            │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
 │   ↑ feature/PROJ-140-webpack            │  r / R                 local reload / full sync                          █                                         │
@@ -46,4 +46,4 @@ expression: text
 │                                         │  h l  ← →  f           previous / next section                           ▼                                         │
 └─────────────────────────────────────────│  j k  g G              move in the section                               │─────────────────────────────────────────┘
                                           └──────────────────────────────────────────── ↑↓ scroll · other keys close ┘
- j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove  ? help  q quit
+ enter collapse · o PR · c resume · t todo · f filter · / search · ? help · q quit

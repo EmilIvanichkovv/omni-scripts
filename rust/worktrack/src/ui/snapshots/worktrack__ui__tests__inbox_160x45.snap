@@ -2,16 +2,18 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Inbox ──────────────────────────────────────────────────────────────────────────── 4 pending ┐┌ Suggestion ──────────────────────────────────────────────────┐
-│ pr_needs_work         + Address review on PR #44           upload-svc:feature/PROJ-123-retry ││+ Address review on PR #44                                    │
-│ session_unfinished    + Integration test for retry fails   upload-svc:feature/PROJ-123-retry ││Rule    pr_needs_work                                         │
-│ pr_declined           ? PR #31 declined: keep or abandon   auth:feature/PROJ-101-legacy      ││Created 13:30                                                 │
-│ new_unfinished_branch + chore/bump-deps                    upload-svc:chore/bump-deps        ││Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work│
-│                                                                                              ││Source  rule:pr_needs_work                                    │
-│                                                                                              ││Key     pr_needs_work:4                                       │
+│▌pr_needs_work         + Address review on PR #44           upload-svc:feature/PROJ-123-retry ││+ Address review on PR #44                                    │
+│ session_unfinished    + Integration test for retry fails   upload-svc:feature/PROJ-123-retry ││Rule     pr_needs_work                                        │
+│ pr_declined           ? PR #31 declined: keep or abandon   auth:feature/PROJ-101-legacy      ││Created  13:30                                                │
+│ new_unfinished_branch + chore/bump-deps                    upload-svc:chore/bump-deps        ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
+│                                                                                              ││         work                                                 │
+│                                                                                              ││Source   rule:pr_needs_work                                   │
+│                                                                                              ││Key      pr_needs_work:4                                      │
 │                                                                                              ││                                                              │
+│                                                                                              ││Actions                                                       │
 │                                                                                              ││  enter accept                                                │
 │                                                                                              ││  e edit, then accept                                         │
 │                                                                                              ││  x reject                                                    │
@@ -42,8 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
 
- enter accept  x reject  e edit  k/b keep/abandon  A/X all  ↑↓ move  ? help  q quit
+ enter accept · x reject · e edit · k/b keep/abandon · A/X all · ? help · q quit

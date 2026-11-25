@@ -2,18 +2,12 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────────────────────────────────────────────┐
-│ Done 1 │ In progress 6 │ Todo 3 │ Blockers 5 │▌Cleanup 0▐                                        │
-│nothing in Cleanup for this window (h/l switch sections, [ ] shifts the window)                   │
+┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────────┐
+│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 0                                         │
 │                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
+│  Nothing in Cleanup for this window. h/l switch sections, [ and ] move the window start.         │
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
@@ -29,6 +23,12 @@ expression: text
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- ←/→ section  j/k move  enter open  o PR  space done  y copy  w write  [ ] shift  ? help  q quit
+ h/l section · enter open · o PR · space done · y copy · [ ] window · ? help · q quit

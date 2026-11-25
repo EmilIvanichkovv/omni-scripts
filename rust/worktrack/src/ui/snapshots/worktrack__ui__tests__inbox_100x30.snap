@@ -2,10 +2,10 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Inbox ──────────────────────────────────────────────────────────────────────────────── 4 pending ┐
-│ pr_needs_work         + Address review on PR #44             upload-svc:feature/PROJ-123-retry   │
+│▌pr_needs_work         + Address review on PR #44             upload-svc:feature/PROJ-123-retry   │
 │ session_unfinished    + Integration test for retry fails     upload-svc:feature/PROJ-123-retry   │
 │ pr_declined           ? PR #31 declined: keep or abandon     auth:feature/PROJ-101-legacy        │
 │ new_unfinished_branch + chore/bump-deps                      upload-svc:chore/bump-deps          │
@@ -13,22 +13,22 @@ expression: text
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Suggestion ──────────────────────────────────────────────────────────────────────────────────────┐
+│+ Address review on PR #44                                                                        │
+│Rule     pr_needs_work                                                                            │
+│Created  13:30                                                                                    │
+│Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
+│Source   rule:pr_needs_work                                                                       │
+│Key      pr_needs_work:4                                                                          │
 │                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
+│Actions                                                                                           │
+│  enter accept                                                                                    │
+│  e edit, then accept                                                                             │
+│  x reject                                                                                        │
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Suggestion ──────────────────────────────────────────────────────────────────────────────────────┐
-│+ Address review on PR #44                                                                        ▲
-│Rule    pr_needs_work                                                                             █
-│Created 13:30                                                                                     █
-│Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                    █
-│Source  rule:pr_needs_work                                                                        █
-│Key     pr_needs_work:4                                                                           █
-│                                                                                                  ║
-│  enter accept                                                                                    ▼
-└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
 
- enter accept  x reject  e edit  k/b keep/abandon  A/X all  ↑↓ move  ? help  q quit
+ enter accept · x reject · e edit · k/b keep/abandon · A/X all · ? help · q quit

@@ -2,23 +2,23 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   ┌ Diagnostics ─────────────────────────────────────────┐
 ┌ │Bitbucket:                                            │ ┐
-│ │  token  set (BITBUCKET_TOKEN)                        │ │
-│ │  user   dev                                          │m│
-│ │Hook:                                                 │h│
-│ │  SessionEnd hook installed                           │h│
-│ │Paths:                                                │d│
+│▌│  token  set (BITBUCKET_TOKEN)                        │ │
+│ │  user   dev                                          │ │
+│ │Hook:                                                 │ │
+│ │  SessionEnd hook installed                           │ │
+│ │Paths:                                                │ │
 │ │  config ~/.config/worktrack/config.toml              │ │
-│ │  db     ~/.local/share/worktrack/worktrack.db        │d│
-│ │                                                      │d│
+│ │  db     ~/.local/share/worktrack/worktrack.db        │ │
+│ │                                                      │ │
 │ │Skipped repos                                         │ │
-│ │  ~/work/scratch/.git  origin is not Bitbucket Data   │d│
+│ │  ~/work/scratch/.git  origin is not Bitbucket Data   │ │
 │ │Center                                                │ │
 │ │                                                      │ │
 │ │Recent errors                                         │ │
 │ │  API/auth: git fetch failed                          │ │
 └─└──────────────────────────────────────────────────────┘ ┘
 
- j/k move  enter open  o PR  t todo  c resume  y/Y copy …
+ enter details · o PR · c resume · ? help · q quit

@@ -449,6 +449,22 @@ pub enum TodoRow {
     Todo(usize),
 }
 
+/// A row of the Summary list: a working-directory header or an entry (index into the
+/// current section's entries). The cursor only stops on `Entry` rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SummaryRow {
+    Header { label: String, count: usize },
+    Entry(usize),
+}
+
+/// The working directory a Summary entry is grouped under.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum SummaryDir {
+    Path(PathBuf),
+    NoDir,
+    Other,
+}
+
 /// Layout facts the renderer reports back (pane areas for the mouse, scroll limits).
 #[derive(Debug, Default)]
 pub struct RenderFeedback {
@@ -1076,11 +1092,119 @@ impl App {
         self.suggestions.get(i)
     }
 
-    /// Entries of the current Summary section.
-    pub fn summary_entries(&self) -> &[Entry] {
-        self.summary
+    /// Path with the home directory shown as `~`.
+    pub fn display_path(&self, p: &Path) -> String {
+        if let Some(home) = &self.home {
+            if let Ok(rest) = p.strip_prefix(home) {
+                return if rest.as_os_str().is_empty() {
+                    "~".into()
+                } else {
+                    format!("~/{}", rest.display())
+                };
+            }
+        }
+        p.display().to_string()
+    }
+
+    /// Directory of a repo: its main worktree, else the parent of its common git dir.
+    fn repo_dir(&self, repo_id: &str) -> Option<PathBuf> {
+        self.worktrees
+            .iter()
+            .find(|w| w.repo_id == repo_id && w.is_main)
+            .map(|w| w.path.clone())
+            .or_else(|| {
+                let repo = self.repos.iter().find(|r| r.id == repo_id)?;
+                repo.common_dir.parent().map(Path::to_path_buf)
+            })
+    }
+
+    /// Directory of a WorkItem: its worktree, else its repo's directory.
+    fn item_dir(&self, item: &WorkItem) -> Option<PathBuf> {
+        item.local
+            .worktree
+            .clone()
+            .or_else(|| self.repo_dir(&item.repo_id))
+    }
+
+    /// Working directory a Summary entry is grouped under, and its latest activity.
+    fn summary_dir(&self, target: &Target) -> (SummaryDir, Option<i64>) {
+        let path = |p: Option<PathBuf>| p.map_or(SummaryDir::NoDir, SummaryDir::Path);
+        match target {
+            Target::Item { repo_id, branch } => match self.work_item(repo_id, branch) {
+                Some(item) => (path(self.item_dir(item)), item.last_activity),
+                None => (path(self.repo_dir(repo_id)), None),
+            },
+            Target::Session { id } => match self.find_session(id) {
+                Some(s) => (
+                    path(s.cwd.as_deref().map(PathBuf::from)),
+                    s.last_activity_at.or(s.started_at),
+                ),
+                None => (SummaryDir::NoDir, None),
+            },
+            Target::Todo { .. } => match self.target_item(target) {
+                Some(item) => (path(self.item_dir(item)), item.last_activity),
+                None => (SummaryDir::NoDir, None),
+            },
+            Target::Inbox | Target::None => (SummaryDir::Other, None),
+        }
+    }
+
+    /// Rows of the current Summary section: entries grouped under their working directory
+    /// (directories with the most recent activity first, then `(no directory)`, then
+    /// `(other)`), entries in section order inside a group.
+    pub fn summary_rows(&self) -> Vec<SummaryRow> {
+        let entries = self
+            .summary
             .as_ref()
-            .map_or(&[], |s| self.summary_section.entries(s))
+            .map_or(&[][..], |s| self.summary_section.entries(s));
+        // (dir, newest activity, members) in first-seen order.
+        let mut groups: Vec<(SummaryDir, Option<i64>, Vec<usize>)> = Vec::new();
+        for (i, e) in entries.iter().enumerate() {
+            let (dir, at) = self.summary_dir(&e.target);
+            match groups.iter_mut().find(|g| g.0 == dir) {
+                Some(g) => {
+                    g.1 = g.1.max(at);
+                    g.2.push(i);
+                }
+                None => groups.push((dir, at, vec![i])),
+            }
+        }
+        // Stable: paths by newest activity (unknown last), then the two catch-alls.
+        groups.sort_by_key(|g| match g.0 {
+            SummaryDir::Path(_) => (0, std::cmp::Reverse(g.1.unwrap_or(i64::MIN))),
+            SummaryDir::NoDir => (1, std::cmp::Reverse(0)),
+            SummaryDir::Other => (2, std::cmp::Reverse(0)),
+        });
+        let mut rows = Vec::new();
+        for (dir, _, members) in groups {
+            let label = match &dir {
+                SummaryDir::Path(p) => self.display_path(p),
+                SummaryDir::NoDir => "(no directory)".to_string(),
+                SummaryDir::Other => "(other)".to_string(),
+            };
+            rows.push(SummaryRow::Header {
+                label,
+                count: members.len(),
+            });
+            rows.extend(members.into_iter().map(SummaryRow::Entry));
+        }
+        rows
+    }
+
+    /// Entries of the current Summary section in display order (as grouped by
+    /// [`Self::summary_rows`]); the Summary cursor indexes this list.
+    pub fn summary_entries(&self) -> Vec<&Entry> {
+        let Some(s) = &self.summary else {
+            return Vec::new();
+        };
+        let entries = self.summary_section.entries(s);
+        self.summary_rows()
+            .into_iter()
+            .filter_map(|r| match r {
+                SummaryRow::Entry(i) => entries.get(i),
+                SummaryRow::Header { .. } => None,
+            })
+            .collect()
     }
 
     pub fn summary_section_count(&self, sec: SummarySection) -> usize {
@@ -1090,6 +1214,7 @@ impl App {
     pub fn selected_summary_entry(&self) -> Option<&Entry> {
         self.summary_entries()
             .get(self.cursor[Tab::Summary.index()])
+            .copied()
     }
 
     pub fn work_item(&self, repo_id: &str, branch: &str) -> Option<&WorkItem> {
@@ -3147,6 +3272,60 @@ mod tests {
             .iter()
             .position(|e| e.line.contains(text))
             .unwrap_or_else(|| panic!("no {text} in {sec:?}"));
+    }
+
+    fn summary_headers(app: &App) -> Vec<String> {
+        app.summary_rows()
+            .into_iter()
+            .filter_map(|r| match r {
+                SummaryRow::Header { label, .. } => Some(label),
+                SummaryRow::Entry(_) => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn summary_rows_group_entries_by_working_directory() {
+        let mut app = summary_app();
+        // Items by their worktree, the unlinked session by its cwd; newest activity first.
+        assert_eq!(
+            summary_headers(&app),
+            [
+                "~/work/upload-svc-wt/retry",
+                "~/work/upload-svc",
+                "~/work/auth-wt/sso",
+                "/tmp/scratch"
+            ]
+        );
+        // The cursor walks entries in display order; headers are not positions.
+        let lines: Vec<String> = app
+            .summary_entries()
+            .iter()
+            .map(|e| e.line.clone())
+            .collect();
+        assert_eq!(app.row_count(Tab::Summary), lines.len());
+        assert!(lines[0].contains("PROJ-123-retry"), "{lines:?}");
+        assert!(lines[1].contains("PROJ-130-chunking"), "{lines:?}");
+        press(&mut app, "j");
+        assert!(app
+            .selected_summary_entry()
+            .unwrap()
+            .line
+            .contains("PROJ-130-chunking"));
+        // Todos: the linked item's directory, else `(no directory)`.
+        app.summary_section = SummarySection::Todo;
+        assert_eq!(
+            summary_headers(&app),
+            ["~/work/auth-wt/sso", "(no directory)"]
+        );
+        // Inbox choices go last, under `(other)`.
+        app.summary_section = SummarySection::Blockers;
+        assert_eq!(summary_headers(&app).last().unwrap(), "(other)");
+        // The exported Markdown is not affected by the grouping.
+        assert_eq!(
+            app.summary_markdown.as_deref(),
+            Some(crate::summary::to_markdown(app.summary.as_ref().unwrap()).as_str())
+        );
     }
 
     #[test]

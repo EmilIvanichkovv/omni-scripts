@@ -2,23 +2,23 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   ┌ Keys ────────────────────────────────────────────────┐
 ┌ │Global                                                ▲ ┐
-│ │  1–5  Tab  Shift-Tab                                 █ │
-│ │      switch tab                                      █m│
-│ │  j k ↓ ↑                                             ║h│
-│ │      move                                            ║h│
-│ │  g G  Home End                                       ║d│
+│▌│  1–5  Tab  Shift-Tab                                 █ │
+│ │      switch tab                                      █ │
+│ │  j k ↓ ↑                                             ║ │
+│ │      move                                            ║ │
+│ │  g G  Home End                                       ║ │
 │ │      top / bottom (G groups in Todos)                ║ │
-│ │  Ctrl-d Ctrl-u                                       ║d│
-│ │      half page down / up                             ║d│
+│ │  Ctrl-d Ctrl-u                                       ║ │
+│ │      half page down / up                             ║ │
 │ │  J K                                                 ║ │
-│ │      scroll details                                  ║d│
+│ │      scroll details                                  ║ │
 │ │  /                                                   ║ │
 │ │      search (@repo: @state: in Work); esc clears     ║ │
 │ │  f                                                   ║ │
 │ │      cycle filter (Summary: section)                 ▼ │
 └─│  v                                                   │ ┘
   └──────────────────────── ↑↓ scroll · other keys close ┘
- j/k move  enter open  o PR  t todo  c resume  y/Y copy …
+ enter details · o PR · c resume · ? help · q quit

@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ┐
-│ ▾ API/upload-svc                                                                               4 │
-│   ✎ feature/PROJ-123-retry                               PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2  │
-│   ◐ feature/PROJ-130-chunking                            PR #47  …ci     ↓3 ∅          1h T0 S1  │
-│   ○ chore/bump-deps                                      —               * ↑2          3h T1 S0  │
+│▌▾ API/upload-svc                                                                               4 │
+│   ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   │
+│   ◐ feature/PROJ-130-chunking                           PR #47  …ci     ↓3 ∅          1h T0 S1   │
+│   ○ chore/bump-deps                                     —               * ↑2          3h T1 S0   │
 │ ┌ Diagnostics ─────────────────────────────────────────────────────────────────────────────────┐ │
 │ │Bitbucket:                                                                                    │ │
 │ │  token  set (BITBUCKET_TOKEN)                                                                │ │
 │ │  user   dev                                                                                  │ │
 │ │Hook:                                                                                         │ │
 │ │  SessionEnd hook installed                                                                   │ │
-│ │Paths:                                                                                        │ │
-│ │  config ~/.config/worktrack/config.toml                                                      │ │
-│ │  db     ~/.local/share/worktrack/worktrack.db                                                │ │
-│ │                                                                                              │ │
-└─│Skipped repos                                                                                 │─┘
-┌ │  ~/work/scratch/.git  origin is not Bitbucket Data Center                                    │─┐
-│A│                                                                                              │ │
-│I│Recent errors                                                                                 │ │
-│P│  API/auth: git fetch failed                                                                  │ │
-│T└──────────────────────────────────────────────────────────────────────────────────────────────┘ │
-│Remote  https://bitbucket.example.com                                                             │
+└─│Paths:                                                                                        │─┘
+┌ │  config ~/.config/worktrack/config.toml                                                      │─┐
+│A│  db     ~/.local/share/worktrack/worktrack.db                                                │ │
+│I│                                                                                              │ │
+│P│Skipped repos                                                                                 │ │
+│T│  ~/work/scratch/.git  origin is not Bitbucket Data Center                                    │ │
+│R│                                                                                              │ │
+│ │Recent errors                                                                                 │ │
+│E│  API/auth: git fetch failed                                                                  │ │
+│ └──────────────────────────────────────────────────────────────────────────────────────────────┘ │
 │                                                                                                  │
-│enter collapses this group                                                                        │
+│                                                                                                  │
+│                                                                                                  │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove …
+ enter collapse · o PR · c resume · t todo · f filter · / search · ? help · q quit

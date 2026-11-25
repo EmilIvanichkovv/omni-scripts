@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Todos  Group: none ───────────────────────────────────────────────────────────────────── 4 todos ┐
-│▌Active 4▐│ Todo 3 │ Doing 1 │ Done 1 │ Dropped 1 │ All 6                                         │
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                         │
 │ [~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
 │ [ ] B  Write migration doc                                                                       │
-│ [ ]    Call Ivan about staging access                                                            │
+│▌[ ]    Call Ivan about staging access                                                            │
 │ [ ]    Review SSO rollout plan                         auth:feature/PROJ-118-sso                 │
 │                ┌ Link todo ─────────────────────────────────────────────────────┐                │
 │                │Link to › re▏                                                   │                │
 │                │                                                                │                │
-│                │✎ API/upload-svc:feature/PROJ-123-retry                         │                │
-│                │◐ API/upload-svc:feature/PROJ-130-chunking                      │                │
-│                │○ API/upload-svc:chore/bump-deps                                │                │
-│                │✓ API/auth:feature/PROJ-118-sso                                 │                │
-│                │↑ WEB/portal:feature/PROJ-140-webpack                           │                │
-│                │✕ API/auth:feature/PROJ-101-legacy                              │                │
-└────────────────│– WEB/portal:fix/old-banner                                     │────────────────┘
-┌ Todo ──────────│                                                                │────────────────┐
-│Call Ivan about │↑↓ move · enter link · esc cancel                               │                │
-│Status  [ ] todo└────────────────────────────────────────────────────────────────┘                │
-│Link    none (L links)                                                                            │
-│Source  manual                                                                                    │
-│Created Fri 2026-11-20                                                                            │
+└────────────────│▌✎ API/upload-svc:feature/PROJ-123-retry                        │────────────────┘
+┌ Todo ──────────│ ◐ API/upload-svc:feature/PROJ-130-chunking                     │────────────────┐
+│Call Ivan about │ ○ API/upload-svc:chore/bump-deps                               │                │
+│Status   [ ] tod│ ✓ API/auth:feature/PROJ-118-sso                                │                │
+│Link     none (L│ ↑ WEB/portal:feature/PROJ-140-webpack                          │                │
+│Source   manual │ ✕ API/auth:feature/PROJ-101-legacy                             │                │
+│Created  Fri 202│ – WEB/portal:fix/old-banner                                    │                │
+│                │                                                                │                │
+│Notes           │↑↓ move · enter link · esc cancel                               │                │
+│  none (E edits)└────────────────────────────────────────────────────────────────┘                │
 │                                                                                                  │
-│Notes                                                                                             │
-│  none (E edits)                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- a add  e edit  space done  s status  p prio  L link  +/- move  d delete  h/l filter  G group …
+ a add · space done · s status · e edit · L link · h/l filter · ? help · q quit

@@ -2,23 +2,23 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────┐
-│ Done 1 │ In progress 6 │ Todo 3 │▌Blockers 5▐│ Cleanup 1 │
-│▶ ✎ PR #44: reviewer requested changes                    │
-│  ✎ PR #44: CI failed                                     │
-│  ? PR #31 declined: keep or abandon                      │
-│  ◆ Waiting for IdP metadata from IT                      │
-│  ↑ API/upload-svc spike/s3-multipart: stale              │
-│                                                          │
-│                                                          │
-│                                                          │
-│                                                          │
+┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────┐
+│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1 │
+│ ~/work/upload-svc-wt/retry                             2 │
+│▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested c…│
+│   ✎ feature/PROJ-123-retry  PR #44: CI failed            │
+│ ~/work/auth-wt/sso                                     1 │
+│   ◆ Waiting for IdP metadata from IT                     │
+│ ~/work/upload-svc                                      1 │
+│   ↑ spike/s3-multipart  stale                            │
+│ (other)                                                1 │
+│   ? PR #31 declined: keep or abandon                     │
 │                                                          │
 │                                                          │
 │                                                          │
 │                                                          │
 └─────────────────────────────────────────── enter details ┘
 
- ←/→ section  j/k move  enter details  o PR  space done …
+ h/l section · enter details · o PR · ? help · q quit

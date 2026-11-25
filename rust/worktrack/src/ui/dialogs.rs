@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, fit, key_hint, render_modal};
+use super::widgets::{clean, cursor_line, fit, key_hint, render_modal};
 use crate::app::{App, Confirm, LinkPicker, PickerEntry};
 
 fn hint(groups: Vec<Vec<Span<'static>>>) -> Line<'static> {
@@ -135,19 +135,21 @@ pub fn draw_link_picker(frame: &mut Frame, app: &App, p: &LinkPicker) {
     for (i, e) in entries.iter().enumerate().skip(start).take(room) {
         let mut line = match e {
             PickerEntry::RemoveLink => Line::from(Span::styled(
-                fit("  — remove link —", width),
+                fit("   — remove link —", width),
                 theme::muted(),
             )),
             PickerEntry::Item(idx) => {
                 let w = &app.work_items[*idx];
+                // Column 0 is the cursor gutter.
                 Line::from(vec![
+                    Span::raw(" "),
                     Span::styled(format!("{} ", w.state.icon()), theme::state(w.state)),
-                    Span::raw(fit(&clean(&w.link_ref()), width.saturating_sub(2))),
+                    Span::raw(fit(&clean(&w.link_ref()), width.saturating_sub(3))),
                 ])
             }
         };
         if i == cursor {
-            line = line.patch_style(theme::selected());
+            line = cursor_line(line, width);
         }
         lines.push(line);
     }

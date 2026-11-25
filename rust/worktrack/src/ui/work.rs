@@ -1,12 +1,15 @@
 //! Work view (spec 9.2): WorkItems grouped by repo, and the WorkItem details pane.
 
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, field, fit, fit_right, fmt_age, fmt_when, render_rows, section};
+use super::widgets::{
+    clean, field, field_cont, fit, fit_right, fmt_age, fmt_when, header_row, push_section,
+    render_rows, LABEL_W,
+};
 use crate::app::{App, WorkRow};
 use crate::lgbc::responsive::{str_width, truncate_middle};
 use crate::model::{ReviewerStatus, WorkItem};
@@ -158,14 +161,8 @@ fn item_line(app: &App, item: &WorkItem, cols: WorkColumns) -> Line<'static> {
 }
 
 fn group_line(name: &str, count: usize, collapsed: bool, width: usize) -> Line<'static> {
-    let left = format!(" {} {}", if collapsed { "▸" } else { "▾" }, clean(name));
-    let right = format!("{count} ");
-    let pad = width.saturating_sub(str_width(&left) + str_width(&right));
-    Line::from(vec![
-        Span::styled(left, theme::bold()),
-        Span::raw(" ".repeat(pad)),
-        Span::styled(right, theme::muted()),
-    ])
+    let label = format!("{} {}", if collapsed { "▸" } else { "▾" }, clean(name));
+    header_row(&label, &count.to_string(), width)
 }
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
@@ -179,15 +176,18 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let rows = app.work_rows();
     if rows.is_empty() {
         let msg = if app.work_items.is_empty() {
-            "no work items yet (r reloads, i shows diagnostics)"
+            "No work items yet. Press r to reload, or i to see which repos were scanned."
+        } else if !app.search[0].trim().is_empty() {
+            "Nothing matches the search. Esc clears it."
         } else {
-            "nothing matches this filter (f cycles filters)"
+            "Nothing matches this filter. Press f for the next filter."
         };
         super::render_empty(frame, rows_area, msg);
         return;
     }
     let width = rows_area.width as usize;
-    let cols = columns(width);
+    // One column of air before the border.
+    let cols = columns(width.saturating_sub(1));
     let lines: Vec<Line<'static>> = rows
         .iter()
         .map(|r| match r {
@@ -276,7 +276,7 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
     let path = match &item.local.worktree {
         Some(p) => Span::raw(truncate_middle(
             &clean(&display_path(app, p)),
-            (width as usize).saturating_sub(8).max(10),
+            (width as usize).saturating_sub(LABEL_W + 1).max(10),
         )),
         None => Span::styled("no worktree", theme::muted()),
     };
@@ -320,11 +320,11 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
 
     match &item.pr {
         Some(pr) => {
-            lines.push(Line::from(vec![
-                Span::styled(fit(&format!("PR #{}", pr.id), 8), theme::muted()),
-                Span::raw(clean(&pr.title)),
-            ]));
-            let mut rev: Vec<Span<'static>> = vec![Span::raw(" ".repeat(8))];
+            lines.push(field(
+                &format!("PR #{}", pr.id),
+                vec![Span::raw(clean(&pr.title))],
+            ));
+            let mut rev: Vec<Span<'static>> = Vec::new();
             for (i, r) in pr.reviewers.iter().enumerate() {
                 if i > 0 {
                     rev.push(Span::styled(" · ", theme::muted()));
@@ -336,12 +336,12 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
             if pr.reviewers.is_empty() {
                 rev.push(Span::styled("no reviewers", theme::muted()));
             }
-            lines.push(Line::from(rev));
+            lines.push(field_cont(rev));
             if pr.comment_count > 0 {
-                lines.push(Line::from(Span::styled(
-                    format!("        {} comments", pr.comment_count),
+                lines.push(field_cont(vec![Span::styled(
+                    format!("{} comments", pr.comment_count),
                     theme::muted(),
-                )));
+                )]));
             }
         }
         None => lines.push(field("PR", vec![Span::styled("none", theme::muted())])),
@@ -359,8 +359,7 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
     ));
 
     let todos = app.item_todos(item);
-    lines.push(Line::from(""));
-    lines.push(section(&format!("Todos ({})", todos.len())));
+    push_section(&mut lines, &format!("Todos ({})", todos.len()));
     if todos.is_empty() {
         lines.push(Line::from(Span::styled(
             "  none (t adds one)",
@@ -379,8 +378,7 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
         ]));
     }
     let sessions = app.item_sessions(item);
-    lines.push(Line::from(""));
-    lines.push(section(&format!("Sessions ({})", sessions.len())));
+    push_section(&mut lines, &format!("Sessions ({})", sessions.len()));
     if sessions.is_empty() {
         lines.push(Line::from(Span::styled("  none", theme::muted())));
     }
@@ -391,11 +389,13 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
             .map(|x| x.summary.clone())
             .filter(|x| !x.trim().is_empty())
             .unwrap_or_else(|| app.session_title(s));
+        // `  13:59  text`: the time acts as a label, so wrapped text hangs under the text.
         lines.push(Line::from(vec![
+            Span::raw("  "),
             Span::styled(
-                format!(
-                    "  {} ",
-                    fit(&fmt_when(&app.now, s.last_activity_at.or(s.started_at)), 5)
+                fit(
+                    &fmt_when(&app.now, s.last_activity_at.or(s.started_at)),
+                    LABEL_W - 2,
                 ),
                 theme::muted(),
             ),
@@ -432,27 +432,18 @@ fn group_details(
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         if collapsed {
-            "enter expands this group"
+            "Enter expands this group."
         } else {
-            "enter collapses this group"
+            "Enter collapses this group."
         },
-        Style::new().add_modifier(Modifier::ITALIC).fg(theme::MUTED),
+        theme::muted(),
     )));
     lines
 }
 
 /// Path with the home directory shown as `~`.
 pub fn display_path(app: &App, p: &std::path::Path) -> String {
-    if let Some(home) = &app.home {
-        if let Ok(rest) = p.strip_prefix(home) {
-            return if rest.as_os_str().is_empty() {
-                "~".into()
-            } else {
-                format!("~/{}", rest.display())
-            };
-        }
-    }
-    p.display().to_string()
+    app.display_path(p)
 }
 
 #[cfg(test)]

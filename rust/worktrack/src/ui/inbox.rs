@@ -7,7 +7,9 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, field, fit, fmt_when_long, key_hint, render_rows, short_link};
+use super::widgets::{
+    clean, field, fit, fmt_when_long, key_hint, push_section, render_rows, short_link,
+};
 use crate::app::{needs_choice, suggestion_text, App};
 use crate::todos::rules::{Suggestion, SuggestionPayload};
 
@@ -68,7 +70,15 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         None,
     );
     if visible.is_empty() {
-        super::render_empty(frame, rows_area, "inbox is empty");
+        super::render_empty(
+            frame,
+            rows_area,
+            if app.pending_count() == 0 {
+                "Inbox is empty. Todo suggestions from branch, PR and session changes show up here."
+            } else {
+                "No suggestion matches the search. Esc clears it."
+            },
+        );
         return;
     }
     let width = rows_area.width as usize;
@@ -127,7 +137,7 @@ pub fn suggestion_details(app: &App, s: &Suggestion) -> Vec<Line<'static>> {
         "Key",
         vec![Span::styled(clean(&s.subject_key), theme::muted())],
     ));
-    lines.push(Line::from(""));
+    push_section(&mut lines, "Actions");
     let actions = if needs_choice(s) {
         vec![
             key_hint("k", "keep"),

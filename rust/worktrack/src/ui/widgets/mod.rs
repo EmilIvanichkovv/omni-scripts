@@ -98,13 +98,13 @@ pub fn key_hint(key: &str, label: &str) -> Vec<Span<'static>> {
 /// Hint groups on one line, cut with `…` at the first group that does not fit.
 pub fn hint_line(groups: Vec<Vec<Span<'static>>>, width: u16) -> Line<'static> {
     let width = width as usize;
-    let sep = "  ";
+    let sep = " · ";
     let mut spans: Vec<Span<'static>> = vec![Span::raw(" ")];
     let mut used = 1;
     let total = groups.len();
     for (i, group) in groups.into_iter().enumerate() {
         let w: usize = group.iter().map(Span::width).sum();
-        let sep_w = if i == 0 { 0 } else { sep.len() };
+        let sep_w = if i == 0 { 0 } else { str_width(sep) };
         let room_for_more = if i + 1 < total { 2 } else { 0 };
         if used + sep_w + w + room_for_more > width {
             spans.push(Span::styled(
@@ -114,12 +114,36 @@ pub fn hint_line(groups: Vec<Vec<Span<'static>>>, width: u16) -> Line<'static> {
             break;
         }
         if i > 0 {
-            spans.push(Span::raw(sep));
+            spans.push(Span::styled(sep, theme::muted()));
         }
         spans.extend(group);
         used += sep_w + w;
     }
     Line::from(spans)
+}
+
+/// Like [`hint_line`], but the `pinned` groups (`? help`, `q quit`) always stay at the end:
+/// view groups that do not fit are dropped first.
+pub fn hint_line_pinned(
+    groups: Vec<Vec<Span<'static>>>,
+    pinned: Vec<Vec<Span<'static>>>,
+    width: u16,
+) -> Line<'static> {
+    let group_w = |g: &Vec<Span<'static>>| g.iter().map(Span::width).sum::<usize>();
+    let sep_w = 3;
+    let pinned_w: usize = pinned.iter().map(|g| group_w(g) + sep_w).sum();
+    let mut budget = (width as usize).saturating_sub(1 + pinned_w);
+    let mut kept = Vec::new();
+    for g in groups {
+        let w = group_w(&g) + sep_w;
+        if w > budget {
+            break;
+        }
+        budget -= w;
+        kept.push(g);
+    }
+    kept.extend(pinned);
+    hint_line(kept, width)
 }
 
 /// Bordered pane block with a title.
@@ -141,6 +165,63 @@ pub fn render_scrollbar(frame: &mut Frame, area: Rect, scroll: Scroll) {
         .begin_style(theme::muted())
         .end_style(theme::muted());
     frame.render_stateful_widget(bar, area, &mut state);
+}
+
+/// The cursor row (see the UI conventions in `theme`): the blank gutter column becomes an
+/// accent `▌`, every span keeps its foreground on a subtle background (muted text lifted to
+/// gray, uncoloured text bold and bright), padded to `width`.
+pub fn cursor_line(line: Line<'static>, width: usize) -> Line<'static> {
+    let Line {
+        mut spans,
+        style,
+        alignment,
+    } = line;
+    if let Some(first) = spans.first_mut() {
+        if let Some(rest) = first.content.strip_prefix(' ') {
+            first.content = rest.to_string().into();
+        }
+    }
+    let mut out = vec![Span::styled(theme::CURSOR_MARK, theme::cursor_mark())];
+    for s in spans {
+        if !s.content.is_empty() {
+            out.push(Span::styled(
+                s.content,
+                theme::on_cursor(style.patch(s.style)),
+            ));
+        }
+    }
+    let used: usize = out.iter().map(Span::width).sum();
+    if used < width {
+        out.push(Span::styled(
+            " ".repeat(width - used),
+            Style::new().bg(theme::CURSOR_BG),
+        ));
+    }
+    Line {
+        spans: out,
+        style: Style::new(),
+        alignment,
+    }
+}
+
+/// A group header row inside a list: bold `label` after the gutter, muted `right` (a
+/// count) flush right.
+pub fn header_row(label: &str, right: &str, width: usize) -> Line<'static> {
+    let right = if right.is_empty() {
+        String::new()
+    } else {
+        format!(" {right} ")
+    };
+    let label = truncate_end(
+        &format!(" {label}"),
+        width.saturating_sub(str_width(&right)).max(1),
+    );
+    let pad = width.saturating_sub(str_width(&label) + str_width(&right));
+    Line::from(vec![
+        Span::styled(label, theme::bold()),
+        Span::raw(" ".repeat(pad)),
+        Span::styled(right, theme::muted()),
+    ])
 }
 
 /// Draw list `lines` in `rows`, keeping row `cursor` visible. The offset persists in
@@ -168,12 +249,7 @@ pub fn render_rows(
     offset.set(scroll.offset);
     if let Some(c) = cursor {
         if let Some(line) = lines.get_mut(c) {
-            let width = rows.width as usize;
-            let w = line.width();
-            if w < width {
-                line.spans.push(Span::raw(" ".repeat(width - w)));
-            }
-            *line = std::mem::take(line).patch_style(theme::selected());
+            *line = cursor_line(std::mem::take(line), rows.width as usize);
         }
     }
     let visible: Vec<Line> = lines
@@ -270,7 +346,8 @@ pub fn render_input(frame: &mut Frame, area: Rect, prompt: &str, input: &LineInp
     let line = Line::from(vec![
         Span::styled(prompt.to_string(), theme::key()),
         Span::raw(before.clone()),
-        Span::styled(at, theme::selected()),
+        // The caret cell: reversed like a terminal block cursor.
+        Span::styled(at, Style::new().add_modifier(Modifier::REVERSED)),
         Span::raw(after),
     ]);
     frame.render_widget(Paragraph::new(line), area);
@@ -347,9 +424,19 @@ pub fn render_modal(
     scroll
 }
 
-/// `Label   value` details row with a fixed-width label.
+/// Width of the label column of details rows (`Commits  3 ahead`).
+pub const LABEL_W: usize = 9;
+
+/// `Label    value` details row with a fixed-width muted label.
 pub fn field(label: &str, value: Vec<Span<'static>>) -> Line<'static> {
-    let mut spans = vec![Span::styled(fit(label, 8), theme::muted())];
+    let mut spans = vec![Span::styled(fit(label, LABEL_W), theme::muted())];
+    spans.extend(value);
+    Line::from(spans)
+}
+
+/// A details row continuing the value column (no label).
+pub fn field_cont(value: Vec<Span<'static>>) -> Line<'static> {
+    let mut spans = vec![Span::raw(" ".repeat(LABEL_W))];
     spans.extend(value);
     Line::from(spans)
 }
@@ -357,6 +444,134 @@ pub fn field(label: &str, value: Vec<Span<'static>>) -> Line<'static> {
 /// Section heading inside a details pane.
 pub fn section(title: &str) -> Line<'static> {
     Line::from(Span::styled(title.to_string(), theme::heading()))
+}
+
+/// One blank line, then a section heading.
+pub fn push_section(lines: &mut Vec<Line<'static>>, title: &str) {
+    lines.push(Line::from(""));
+    lines.push(section(title));
+}
+
+fn is_blank(line: &Line) -> bool {
+    line.spans.iter().all(|s| s.content.trim().is_empty())
+}
+
+/// Columns a wrapped continuation of `line` is indented by: the value column for field
+/// rows, the text after a bullet, else the line's own indentation.
+fn hang_of(line: &Line) -> usize {
+    if let Some(first) = line.spans.first() {
+        if line.spans.len() > 1
+            && first.style == theme::muted()
+            && first.width() == LABEL_W
+            && first.content.ends_with(' ')
+        {
+            return LABEL_W;
+        }
+    }
+    let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+    let lead = text.chars().take_while(|c| *c == ' ').count();
+    let rest = &text[lead..];
+    for marker in ["• ", "- "] {
+        if rest.starts_with(marker) {
+            return lead + str_width(marker);
+        }
+    }
+    lead
+}
+
+/// `line` wrapped to `width` at spaces (hard breaks for long words), continuation rows
+/// indented by [`hang_of`].
+fn wrap_hanging(line: Line<'static>, width: usize) -> Vec<Line<'static>> {
+    use unicode_width::UnicodeWidthChar;
+    if width == 0 || line.width() <= width {
+        return vec![line];
+    }
+    let mut hang = hang_of(&line);
+    if hang * 2 > width {
+        hang = 0;
+    }
+    let cells: Vec<(char, Style)> = line
+        .spans
+        .iter()
+        .flat_map(|s| {
+            let st = line.style.patch(s.style);
+            s.content.chars().map(move |c| (c, st))
+        })
+        .collect();
+    let cw = |c: char| c.width().unwrap_or(0);
+    let mut rows: Vec<Vec<(char, Style)>> = Vec::new();
+    let mut i = 0;
+    while i < cells.len() {
+        let first = rows.is_empty();
+        if !first {
+            while i < cells.len() && cells[i].0 == ' ' {
+                i += 1;
+            }
+            if i >= cells.len() {
+                break;
+            }
+        }
+        let cap = if first { width } else { width - hang };
+        let mut used = 0;
+        let mut j = i;
+        while j < cells.len() && used + cw(cells[j].0) <= cap {
+            used += cw(cells[j].0);
+            j += 1;
+        }
+        if j < cells.len() {
+            // Break at the last space of the row, but not inside the label / indent.
+            let min = if first { i + hang + 1 } else { i + 1 };
+            if let Some(sp) = (min..j).rev().find(|&k| cells[k].0 == ' ') {
+                j = sp;
+            }
+            if j == i {
+                j = i + 1; // a cell wider than the row
+            }
+        }
+        rows.push(cells[i..j].to_vec());
+        i = j;
+    }
+    rows.into_iter()
+        .enumerate()
+        .map(|(n, row)| {
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            if n > 0 && hang > 0 {
+                spans.push(Span::raw(" ".repeat(hang)));
+            }
+            let mut buf = String::new();
+            let mut cur: Option<Style> = None;
+            for (c, st) in row {
+                if let Some(prev) = cur.filter(|x| *x != st) {
+                    spans.push(Span::styled(std::mem::take(&mut buf), prev));
+                }
+                cur = Some(st);
+                buf.push(c);
+            }
+            if let Some(st) = cur {
+                spans.push(Span::styled(buf, st));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+/// Details pane lines made consistent: no leading, trailing or doubled blank lines, and
+/// rows wider than `width` wrapped with a hanging indent.
+pub fn tidy_details(lines: Vec<Line<'static>>, width: usize) -> Vec<Line<'static>> {
+    let mut out: Vec<Line<'static>> = Vec::new();
+    for line in lines {
+        if is_blank(&line) {
+            if out.last().is_some_and(|l| !is_blank(l)) {
+                out.push(Line::from(""));
+            }
+            continue;
+        }
+        out.extend(wrap_hanging(line, width));
+    }
+    while out.last().is_some_and(is_blank) {
+        out.pop();
+    }
+    out
 }
 
 /// `spans` cut to `width` columns; the span that overflows is cut with `…`.
@@ -389,17 +604,12 @@ pub struct BarItem {
     pub hit: BarHit,
 }
 
+/// ` text ` with the text in the active-label style (bold + underline survive `NO_COLOR`).
 fn bar_active(text: String) -> Vec<Span<'static>> {
-    // The ▌▐ markers keep the active label visible without color.
     vec![
-        Span::styled("▌", theme::accent()),
-        Span::styled(
-            text,
-            Style::new()
-                .fg(theme::ACCENT)
-                .add_modifier(Modifier::BOLD | Modifier::REVERSED),
-        ),
-        Span::styled("▐", theme::accent()),
+        Span::raw(" "),
+        Span::styled(text, theme::active_label()),
+        Span::raw(" "),
     ]
 }
 
@@ -407,13 +617,14 @@ fn bar_style(item: &BarItem) -> Style {
     if item.count == 0 {
         theme::muted()
     } else {
-        Style::new()
+        theme::soft()
     }
 }
 
-/// One-row filter / section bar: ` Done 1 │▌In progress 2▐│ Todo 5 `. Falls back to short
-/// labels, then to `Prev ‹▌Active N▐› Next` (neighbours only when they fit), so it never
-/// overflows `area`. Returns the line and the screen area of each label for mouse clicks.
+/// One-row filter / section bar: ` Done 1 · In progress 2 · Todo 5 `, the active label
+/// accent, bold and underlined. Falls back to short labels, then to `Prev ‹ Active N › Next`
+/// (neighbours only when they fit), so it never overflows `area`. Returns the line and the
+/// screen area of each label for mouse clicks.
 pub fn filter_bar(items: &[BarItem], area: Rect) -> (Line<'static>, Vec<(Rect, BarHit)>) {
     let width = area.width as usize;
     let hit_rect = |x: usize, w: usize| Rect::new(area.x + x as u16, area.y, w as u16, 1);
@@ -423,7 +634,7 @@ pub fn filter_bar(items: &[BarItem], area: Rect) -> (Line<'static>, Vec<(Rect, B
         let mut x = 0;
         for (i, it) in items.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled("│", theme::muted()));
+                spans.push(Span::styled("·", theme::muted()));
                 x += 1;
             }
             let text = format!("{} {}", if short { it.short } else { it.label }, it.count);
@@ -456,7 +667,7 @@ pub fn filter_bar(items: &[BarItem], area: Rect) -> (Line<'static>, Vec<(Rect, B
     if str_width(&text) + 6 > width {
         text = format!("{} {}", cur.short, cur.count);
     }
-    let core_w = str_width(&text) + 6; // " ‹▌…▐› "
+    let core_w = str_width(&text) + 6; // " ‹ … › "
     let prev_text = format!("{} {}", prev.short, prev.count);
     let next_text = format!("{} {}", next.short, next.count);
     let with_neighbours = str_width(&prev_text) + core_w + str_width(&next_text) + 2 <= width;
@@ -540,7 +751,7 @@ mod tests {
             .iter()
             .map(|s| s.content.to_string())
             .collect();
-        assert_eq!(full, " j/k move  q quit");
+        assert_eq!(full, " j/k move · q quit");
         let cut: String = hint_line(groups, 12)
             .spans
             .iter()

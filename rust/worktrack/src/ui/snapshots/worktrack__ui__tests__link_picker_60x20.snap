@@ -2,23 +2,23 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
 ┌ Todos  Group: none ───────────────────────────── 4 todos ┐
-│▌┌ Link todo ───────────────────────────────────────────┐ │
+│ ┌ Link todo ───────────────────────────────────────────┐ │
 │ │Link to › re▏                                         │ │
 │ │                                                      │ │
-│ │✎ API/upload-svc:feature/PROJ-123-retry               │ │
-│ │◐ API/upload-svc:feature/PROJ-130-chunking            │ │
-│ │○ API/upload-svc:chore/bump-deps                      │ │
-│ │✓ API/auth:feature/PROJ-118-sso                       │ │
-│ │↑ WEB/portal:feature/PROJ-140-webpack                 │ │
-│ │✕ API/auth:feature/PROJ-101-legacy                    │ │
-│ │– WEB/portal:fix/old-banner                           │ │
+│▌│▌✎ API/upload-svc:feature/PROJ-123-retry              │ │
+│ │ ◐ API/upload-svc:feature/PROJ-130-chunking           │ │
+│ │ ○ API/upload-svc:chore/bump-deps                     │ │
+│ │ ✓ API/auth:feature/PROJ-118-sso                      │ │
+│ │ ↑ WEB/portal:feature/PROJ-140-webpack                │ │
+│ │ ✕ API/auth:feature/PROJ-101-legacy                   │ │
+│ │ – WEB/portal:fix/old-banner                          │ │
 │ │                                                      │ │
 │ │↑↓ move · enter link · esc cancel                     │ │
 │ └──────────────────────────────────────────────────────┘ │
 │                                                          │
 └─────────────────────────────────────────── enter details ┘
 
- a add  e edit  space done  s status  p prio  L link …
+ a add · space done · s status · e edit · ? help · q quit

@@ -1,6 +1,7 @@
 //! Summary view (spec 9.5): a section bar (Done, In progress, Todo, Blockers, Cleanup), the
-//! entries of the current section as a selectable list, and the details of what the selected
-//! entry points at (a WorkItem, todo, session or Inbox choice).
+//! entries of the current section grouped under their working directory (`App::summary_rows`)
+//! as a selectable list, and the details of what the selected entry points at (a WorkItem,
+//! todo, session or Inbox choice).
 
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -8,8 +9,9 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, cut_spans, render_rows, BarItem};
-use crate::app::{App, BarHit, SummarySection, Tab};
+use super::widgets::{clean, cut_spans, header_row, render_rows, BarItem};
+use crate::app::{App, BarHit, SummaryRow, SummarySection, Tab};
+use crate::lgbc::responsive::truncate_middle;
 use crate::summary::{Entry, Target};
 
 /// Style inline `**bold**` and `` `code` `` in one Markdown line.
@@ -71,35 +73,102 @@ fn target_icon(app: &App, target: &Target) -> (String, Style) {
     }
 }
 
-/// List lines of one entry: `▶ icon head`, then the part after ` — ` and the children
-/// indented under it.
-fn entry_lines(app: &App, e: &Entry, width: usize, selected: bool) -> Vec<Line<'static>> {
+/// Child lines shown under an entry before `+N more`.
+const CHILDREN_MAX: usize = 2;
+
+/// Main text and status phrase of an entry shown under its directory header, so the repo
+/// and path are not repeated: an item shows its branch and the phrase after ` — ` (or the
+/// blocker text), a session its title, todos and the rest their own line.
+fn entry_parts(e: &Entry) -> (Vec<Span<'static>>, Option<String>) {
     let line = clean(&e.line);
     let (head, tail) = match line.split_once(" — ") {
         Some((h, t)) => (h.to_string(), Some(t.to_string())),
         None => (line.clone(), None),
     };
+    match &e.target {
+        Target::Item { branch, .. } => {
+            let branch = clean(branch);
+            let phrase = tail.unwrap_or_else(|| {
+                // `repo `branch`: stale` → `stale`; `PR #3: CI failed` stays.
+                let tick = format!("`{branch}`: ");
+                match line.split_once(&tick) {
+                    Some((_, rest)) => rest.to_string(),
+                    None => line.replace(&format!("`{branch}`"), &branch),
+                }
+            });
+            (vec![Span::raw(branch)], Some(phrase))
+        }
+        Target::Session { .. } => match tail {
+            Some(t) => (vec![Span::raw(t)], Some(head)),
+            None => (inline(&line, Style::new()), None),
+        },
+        _ => (inline(&head, Style::new()), tail),
+    }
+}
+
+/// List lines of one entry: ` icon main  phrase`, then at most [`CHILDREN_MAX`] dimmed
+/// child lines and `+N more`.
+fn entry_lines(app: &App, e: &Entry, width: usize) -> Vec<Line<'static>> {
     let (icon, icon_style) = target_icon(app, &e.target);
+    let (main, phrase) = entry_parts(e);
+    let children = shown_children(e);
     let mut spans = vec![
-        Span::styled(if selected { "▶ " } else { "  " }, theme::accent()),
+        Span::raw("   "),
         Span::styled(icon, icon_style),
         Span::raw(" "),
     ];
-    spans.extend(inline(&head, Style::new()));
+    spans.extend(main);
+    if let Some(p) = phrase.filter(|p| !p.is_empty()) {
+        spans.push(Span::styled(format!("  {p}"), theme::soft()));
+    }
     let mut out = vec![Line::from(cut_spans(spans, width))];
-    if let Some(tail) = tail {
+    for c in children.iter().take(CHILDREN_MAX) {
         out.push(Line::from(cut_spans(
-            vec![Span::raw("    "), Span::raw(tail)],
+            vec![Span::styled(format!("       {}", clean(c)), theme::muted())],
             width,
         )));
     }
-    for c in &e.children {
+    if children.len() > CHILDREN_MAX {
         out.push(Line::from(cut_spans(
-            vec![Span::styled(format!("    {}", clean(c)), theme::muted())],
+            vec![Span::styled(
+                format!("       +{} more", children.len() - CHILDREN_MAX),
+                theme::muted(),
+            )],
             width,
         )));
     }
     out
+}
+
+/// Children worth a list row: not a `Session: …` line repeating the entry's own text.
+fn shown_children(e: &Entry) -> Vec<&String> {
+    let (main, _) = entry_parts(e);
+    let main: String = main.iter().map(|s| s.content.as_ref()).collect();
+    e.children
+        .iter()
+        .filter(|c| c.strip_prefix("Session: ") != Some(main.as_str()))
+        .collect()
+}
+
+/// Rows of an entry in the list (main line, children, `+N more`).
+fn entry_height(e: &Entry) -> usize {
+    let n = shown_children(e).len();
+    1 + n.min(CHILDREN_MAX) + usize::from(n > CHILDREN_MAX)
+}
+
+/// Rows of the list below the section bar.
+pub fn line_count(app: &App) -> usize {
+    let Some(sum) = &app.summary else {
+        return 0;
+    };
+    let entries = app.summary_section.entries(sum);
+    app.summary_rows()
+        .iter()
+        .map(|r| match r {
+            SummaryRow::Header { .. } => 1,
+            SummaryRow::Entry(i) => entries.get(*i).map_or(0, entry_height),
+        })
+        .sum()
 }
 
 fn bar(app: &App) -> Vec<BarItem> {
@@ -126,17 +195,19 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let title = Line::from(vec![
         Span::styled(" Summary ", theme::accent()),
         Span::styled(format!("· {} · since {since} ", day(today)), theme::bold()),
-        Span::styled(" [ ] shift ", theme::muted()),
     ]);
     let rows_area = super::list_pane(frame, app, area, title, String::new(), Some(bar(app)));
     if app.summary.is_none() {
-        super::render_empty(frame, rows_area, "building the summary…");
+        super::render_empty(frame, rows_area, "Building the summary…");
         return;
     }
-    let entries = app.summary_entries();
+    let Some(sum) = &app.summary else {
+        return;
+    };
+    let entries = app.summary_section.entries(sum);
     if entries.is_empty() {
         let msg = format!(
-            "nothing in {} for this window (h/l switch sections, [ ] shifts the window)",
+            "Nothing in {} for this window. h/l switch sections, [ and ] move the window start.",
             app.summary_section.label()
         );
         super::render_empty(frame, rows_area, &msg);
@@ -146,11 +217,24 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let cursor = app.cursor[Tab::Summary.index()].min(entries.len() - 1);
     let mut lines = Vec::new();
     let mut cursor_row = None;
-    for (i, e) in entries.iter().enumerate() {
-        if i == cursor {
-            cursor_row = Some(lines.len());
+    let mut n = 0;
+    for row in app.summary_rows() {
+        match row {
+            SummaryRow::Header { label, count } => {
+                lines.push(header_row(
+                    &truncate_middle(&clean(&label), width.saturating_sub(6).max(4)),
+                    &count.to_string(),
+                    width,
+                ));
+            }
+            SummaryRow::Entry(i) => {
+                if n == cursor {
+                    cursor_row = Some(lines.len());
+                }
+                n += 1;
+                lines.extend(entry_lines(app, &entries[i], width));
+            }
         }
-        lines.extend(entry_lines(app, e, width, i == cursor));
     }
     render_rows(
         frame,
@@ -242,18 +326,57 @@ mod tests {
     }
 
     #[test]
-    fn entry_lines_split_head_tail_and_children_and_are_sanitized() {
+    fn entry_lines_show_main_phrase_and_capped_children_sanitized() {
         let app = crate::ui::sample::app();
         let e = Entry {
             line: "**API/x** `b\u{1b}[31m` — PR #1 open\u{1b}]0;t\u{7}".into(),
-            children: vec!["Session: evil\u{1b}[2J".into()],
+            children: vec![
+                "Session: evil\u{1b}[2J".into(),
+                "Session: two".into(),
+                "Doing: three".into(),
+                "Doing: four".into(),
+            ],
             target: Target::None,
         };
-        let lines = entry_lines(&app, &e, 80, true);
-        assert_eq!(text(&lines[0]), "▶ • API/x b");
-        assert_eq!(text(&lines[1]), "    PR #1 open");
-        assert_eq!(text(&lines[2]), "    Session: evil");
-        let narrow = entry_lines(&app, &e, 8, false);
+        let lines = entry_lines(&app, &e, 80);
+        assert_eq!(text(&lines[0]), "   • API/x b  PR #1 open");
+        assert_eq!(text(&lines[1]), "       Session: evil");
+        assert_eq!(text(&lines[2]), "       Session: two");
+        assert_eq!(text(&lines[3]), "       +2 more");
+        assert_eq!(lines.len(), entry_height(&e));
+        let narrow = entry_lines(&app, &e, 8);
         assert!(narrow.iter().all(|l| l.width() <= 8));
+    }
+
+    #[test]
+    fn item_entries_show_the_branch_not_the_repo() {
+        let app = crate::ui::sample::app();
+        let item = &app.work_items[0];
+        let e = Entry {
+            line: format!(
+                "**{}** `{}` — PR #44 needs work",
+                item.repo_name, item.branch
+            ),
+            children: Vec::new(),
+            target: Target::Item {
+                repo_id: item.repo_id.clone(),
+                branch: item.branch.clone(),
+            },
+        };
+        let first = text(&entry_lines(&app, &e, 120)[0]);
+        assert!(
+            first.contains(&format!("{}  PR #44 needs work", item.branch)),
+            "{first}"
+        );
+        assert!(!first.contains(&item.repo_name), "{first}");
+        let stale = Entry {
+            line: format!("{} `{}`: stale", item.repo_name, item.branch),
+            ..e
+        };
+        let first = text(&entry_lines(&app, &stale, 120)[0]);
+        assert!(
+            first.ends_with(&format!("{}  stale", item.branch)),
+            "{first}"
+        );
     }
 }

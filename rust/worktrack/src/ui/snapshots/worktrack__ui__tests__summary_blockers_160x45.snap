@@ -2,25 +2,25 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
-│ Done 1 │ In progress 6 │ Todo 3 │▌Blockers 5▐│ Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│▶ ✎ PR #44: reviewer requested changes                                                        ││State   ✎ PR needs work (since 13:20)                         │
-│  ✎ PR #44: CI failed                                                                         ││Repo    API/upload-svc                                        │
-│  ? PR #31 declined: keep or abandon                                                          ││Path    ~/work/upload-svc-wt/retry                            │
-│  ◆ Waiting for IdP metadata from IT                                                          ││Flags   dirty · ahead 1 · ci failed · 2 open tasks · session  │
-│  ↑ API/upload-svc spike/s3-multipart: stale                                                  ││live                                                          │
-│                                                                                              ││PR #44  Add retry with backoff to uploads                     │
-│                                                                                              ││        ivan ✗ needs work · maria ○ unapproved                │
-│                                                                                              ││        4 comments                                            │
-│                                                                                              ││Commits 3 ahead of trunk · last 2m                            │
+┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
+│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
+│ ~/work/upload-svc-wt/retry                                                                 2 ││State    ✎ PR needs work (since 13:20)                        │
+│▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested changes                               ││Repo     API/upload-svc                                       │
+│   ✎ feature/PROJ-123-retry  PR #44: CI failed                                                ││Path     ~/work/upload-svc-wt/retry                           │
+│ ~/work/auth-wt/sso                                                                         1 ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│   ◆ Waiting for IdP metadata from IT                                                         ││         session live                                         │
+│ ~/work/upload-svc                                                                          1 ││PR #44   Add retry with backoff to uploads                    │
+│   ↑ spike/s3-multipart  stale                                                                ││         ivan ✗ needs work · maria ○ unapproved               │
+│ (other)                                                                                    1 ││         4 comments                                           │
+│   ? PR #31 declined: keep or abandon                                                         ││Commits  3 ahead of trunk · last 2m                           │
 │                                                                                              ││                                                              │
 │                                                                                              ││Todos (1)                                                     │
 │                                                                                              ││  [~] (A) Finish upload retry logic                           │
 │                                                                                              ││                                                              │
 │                                                                                              ││Sessions (1)                                                  │
-│                                                                                              ││  13:59 Add backoff to uploads                                │
+│                                                                                              ││  13:59  Add backoff to uploads                               │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
 
- ←/→ section  j/k move  enter open  o PR  space done  y copy  w write  [ ] shift  ? help  q quit
+ h/l section · enter open · o PR · space done · y copy · [ ] window · ? help · q quit

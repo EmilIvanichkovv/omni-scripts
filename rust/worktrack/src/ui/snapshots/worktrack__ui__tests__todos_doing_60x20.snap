@@ -2,11 +2,11 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+ worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
 ┌ Todos  Group: none ───────────────────────────── 1 todos ┐
-│ Active 4 │ Todo 3 │▌Doing 1▐│ Done 1 │ Dropped 1 │ All 6 │
-│ [~] A  Finish upload retry … upload-svc:feature/PR…      │
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
+│▌[~] A  Finish upload retry … upload-svc:feature/PR…      │
 │                                                          │
 │                                                          │
 │                                                          │
@@ -21,4 +21,4 @@ expression: text
 │                                                          │
 └─────────────────────────────────────────── enter details ┘
 
- a add  e edit  space done  s status  p prio  L link …
+ a add · space done · s status · e edit · ? help · q quit

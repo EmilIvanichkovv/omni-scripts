@@ -19,6 +19,25 @@ GitHub issue carries a copy of the entry and links back to it.
 
 Session context from the user: $ARGUMENTS
 
+## Phase 0 — Branch
+
+Before reading the tracker or writing anything, put the session on a fresh branch cut from the
+latest `main`, never on `main` itself:
+
+1. Check `git status`. If tracked files have uncommitted changes, stop and ask the user what to do
+   with them; do not stash or discard them yourself.
+2. `git fetch origin main`, then `git switch -c qa/tui-<DD-MM-YYYY> origin/main` (local date; add a
+   `-2`, `-3`... suffix if the branch already exists). Do not base it on local `main`, which may be
+   behind `origin/main`.
+3. If the user wants to continue an earlier session's branch instead, switch to it and rebase it
+   onto `origin/main` first (`git rebase origin/main`; force-push with `--force-with-lease` only if
+   it was already pushed).
+4. Tell the user the branch name in one line.
+
+All commits of the session (the report commit and every fix commit) go on this branch. Number new
+entries from the tracker as it is on this branch: `origin/main` may already hold entries that local
+`main` does not, and a stale base leads to duplicate `Issue #N` numbers and GitHub titles.
+
 ## Phase 1 — Report
 
 For each item the user describes:

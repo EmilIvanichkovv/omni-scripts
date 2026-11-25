@@ -4,12 +4,12 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Active ▾  Group: none ────────────────────────────────────────────────────────── 4 todos ┐
+┌ Todos  Group: none ───────────────────────────────────────────────────────────────────── 4 todos ┐
+│▌Active 4▐│ Todo 3 │ Doing 1 │ Done 1 │ Dropped 1 │ All 6                                         │
 │ [~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
 │ [ ] B  Write migration doc                                                                       │
 │ [ ]    Call Ivan about staging access                                                            │
 │ [ ]    Review SSO rollout plan                         auth:feature/PROJ-118-sso                 │
-│                                                                                                  │
 │                ┌ Link todo ─────────────────────────────────────────────────────┐                │
 │                │Link to › re▏                                                   │                │
 │                │                                                                │                │
@@ -31,4 +31,4 @@ expression: text
 │  none (E edits)                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- a add  e edit  space done  s status  p prio  L link  +/- move  d delete  f filter  G group …
+ a add  e edit  space done  s status  p prio  L link  +/- move  d delete  h/l filter  G group …

@@ -124,6 +124,7 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         area,
         title,
         format!("{} sessions", visible.len()),
+        None,
     );
     if visible.is_empty() {
         super::render_empty(
@@ -167,6 +168,11 @@ pub fn details(app: &App) -> Vec<Line<'static>> {
             theme::muted(),
         ))];
     };
+    session_details(app, s)
+}
+
+/// Details pane lines for one session (Sessions tab and Summary targets).
+pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
     let live = s.is_live(app.now_ts());
     let mut lines = vec![Line::from(Span::styled(
         clean(&app.session_title(s)),

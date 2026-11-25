@@ -34,7 +34,7 @@ use ratatui::Frame;
 use crate::app::{App, InputPurpose, Overlay, StatusKind, Tab};
 use crate::lgbc::responsive::{self, str_width, truncate_end, Arrangement, LayoutMode};
 use crate::refresh::PrStatus;
-use widgets::{clean, fmt_age, hint_line, key_hint, pane_block};
+use widgets::{clean, fmt_age, hint_line, key_hint, pane_block, BarItem};
 
 /// Auto layout: side by side from this terminal width (spec 9.1).
 const SIDE_BY_SIDE_WIDTH: u16 = 120;
@@ -47,6 +47,7 @@ const STACKED_MIN_HEIGHT: u16 = 13;
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let fb = &app.feedback;
+    fb.bar_hits.borrow_mut().clear();
     let too_small = responsive::is_too_small(area);
     fb.too_small.set(too_small);
     if too_small {
@@ -71,11 +72,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let arrangement = choose_arrangement(app.layout_mode, area, content);
     fb.arrangement.set(Some(arrangement));
 
-    if app.tab == Tab::Summary {
-        fb.list_area.set(content);
-        fb.details_area.set(None);
-        summary::draw(frame, app, content);
-    } else if arrangement == Arrangement::ListOnly && app.details_open {
+    if arrangement == Arrangement::ListOnly && app.details_open {
         fb.list_area.set(Rect::default());
         fb.details_area.set(Some(content));
         draw_details(frame, app, content);
@@ -87,8 +84,8 @@ pub fn draw(frame: &mut Frame, app: &App) {
             Tab::Work => work::draw_list(frame, app, list),
             Tab::Todos => todos::draw_list(frame, app, list),
             Tab::Sessions => sessions::draw_list(frame, app, list),
+            Tab::Summary => summary::draw_list(frame, app, list),
             Tab::Inbox => inbox::draw_list(frame, app, list),
-            Tab::Summary => {}
         }
         if let Some(details) = details {
             draw_details(frame, app, details);
@@ -129,7 +126,7 @@ fn draw_details(frame: &mut Frame, app: &App, area: Rect) {
         Tab::Todos => (todos::details(app), " Todo "),
         Tab::Sessions => (sessions::details(app), " Session "),
         Tab::Inbox => (inbox::details(app), " Suggestion "),
-        Tab::Summary => (Vec::new(), ""),
+        Tab::Summary => summary::details(app, area.width.saturating_sub(2)),
     };
     let mut block = pane_block(Line::from(Span::styled(title, theme::accent())));
     if app.details_open {
@@ -188,19 +185,24 @@ fn split(arrangement: Arrangement, content: Rect) -> (Rect, Option<Rect>) {
     }
 }
 
-/// Draw the bordered list pane chrome: `title` left, `count` right, the search line on top
-/// when a query is set, the inline input at the bottom when one is open. Returns the area
-/// left for rows and records the viewport height.
+/// Draw the bordered list pane chrome: `title` left, `count` right (if any), the filter /
+/// section `bar` as the first row, the search line under it when a query is set, the inline
+/// input at the bottom when one is open. Returns the area left for rows and records the
+/// viewport height.
 pub(crate) fn list_pane(
     frame: &mut Frame,
     app: &App,
     area: Rect,
     title: Line<'static>,
     count: String,
+    bar: Option<Vec<BarItem>>,
 ) -> Rect {
-    let mut block = pane_block(title)
-        .title(Line::from(Span::styled(format!(" {count} "), theme::muted())).right_aligned());
-    if app.tab.has_details() && app.feedback.arrangement.get() == Some(Arrangement::ListOnly) {
+    let mut block = pane_block(title);
+    if !count.is_empty() {
+        block = block
+            .title(Line::from(Span::styled(format!(" {count} "), theme::muted())).right_aligned());
+    }
+    if app.feedback.arrangement.get() == Some(Arrangement::ListOnly) {
         block = block.title_bottom(
             Line::from(vec![
                 Span::styled(" enter", theme::key()),
@@ -211,6 +213,17 @@ pub(crate) fn list_pane(
     }
     let mut inner = block.inner(area);
     frame.render_widget(block, area);
+
+    if let Some(items) = bar {
+        if inner.height > 1 {
+            let [top, rest] =
+                Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(inner);
+            let (line, hits) = widgets::filter_bar(&items, top);
+            frame.render_widget(Paragraph::new(line), top);
+            app.feedback.bar_hits.borrow_mut().extend(hits);
+            inner = rest;
+        }
+    }
 
     let query = &app.search[app.tab.index()];
     let searching = matches!(&app.input, Some(a) if a.purpose == InputPurpose::Search);
@@ -430,12 +443,20 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
         };
     }
     if app.details_open {
-        return vec![
-            key_hint("esc", "back"),
-            key_hint("j/k", "scroll"),
-            key_hint("?", "help"),
-        ];
+        let mut g = vec![key_hint("esc", "back"), key_hint("j/k", "scroll")];
+        match app.tab {
+            Tab::Sessions => g.push(key_hint("enter", "work item")),
+            Tab::Summary => g.extend([
+                key_hint("enter", "open"),
+                key_hint("o", "PR"),
+                key_hint("space", "done"),
+            ]),
+            _ => {}
+        }
+        g.push(key_hint("?", "help"));
+        return g;
     }
+    let list_only = app.feedback.arrangement.get() == Some(Arrangement::ListOnly);
     let mut g = match app.tab {
         Tab::Work => vec![
             key_hint("j/k", "move"),
@@ -458,7 +479,7 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             key_hint("L", "link"),
             key_hint("+/-", "move"),
             key_hint("d", "delete"),
-            key_hint("f", "filter"),
+            key_hint("h/l", "filter"),
             key_hint("G", "group"),
             key_hint("E/O", "editor"),
         ],
@@ -470,10 +491,15 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             key_hint("/", "search"),
         ],
         Tab::Summary => vec![
-            key_hint("[ ]", "shift"),
+            key_hint("←/→", "section"),
+            key_hint("j/k", "move"),
+            // List only: Enter opens the details, Enter there jumps.
+            key_hint("enter", if list_only { "details" } else { "open" }),
+            key_hint("o", "PR"),
+            key_hint("space", "done"),
             key_hint("y", "copy"),
             key_hint("w", "write"),
-            key_hint("j/k", "scroll"),
+            key_hint("[ ]", "shift"),
         ],
         Tab::Inbox => vec![
             key_hint("enter", "accept"),

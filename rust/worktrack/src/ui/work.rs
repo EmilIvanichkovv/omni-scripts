@@ -175,7 +175,7 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled("  Sort: activity ", theme::muted()),
     ]);
     let count = app.work_item_count();
-    let rows_area = super::list_pane(frame, app, area, title, format!("{count} items"));
+    let rows_area = super::list_pane(frame, app, area, title, format!("{count} items"), None);
     let rows = app.work_rows();
     if rows.is_empty() {
         let msg = if app.work_items.is_empty() {
@@ -234,6 +234,11 @@ pub fn details(app: &App, width: u16) -> Vec<Line<'static>> {
         } => return group_details(app, &repo_id, &name, count, collapsed),
         WorkRow::Item(i) => &app.work_items[i],
     };
+    item_details(app, item, width)
+}
+
+/// Details pane lines for one WorkItem (Work tab and Summary targets).
+pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     let branch = clean(&item.branch);
     // Title row: branch, Jira key (↗ when it links somewhere) on the right.

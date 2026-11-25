@@ -18,7 +18,7 @@ expression: text
 │ │  /                                                   ║ │
 │ │      search (@repo: @state: in Work); esc clears     ║ │
 │ │  f                                                   ║ │
-│ │      cycle filter                                    ▼ │
+│ │      cycle filter (Summary: section)                 ▼ │
 └─│  v                                                   │ ┘
   └──────────────────────── ↑↓ scroll · other keys close ┘
  j/k move  enter open  o PR  t todo  c resume  y/Y copy …

@@ -107,9 +107,10 @@ pub enum AppEvent {
     /// `Err` carries the parse error line; the UI keeps its last good state.
     TodosReloaded(Result<Vec<Todo>, String>),
     SuggestionsUpdated(Vec<Suggestion>),
-    /// Rendered daily summary Markdown for the current window.
+    /// Daily summary for the current window: the structured sections and their Markdown.
     SummaryUpdated {
         since: chrono::NaiveDate,
+        summary: summary::Summary,
         markdown: String,
     },
     Diagnostics(Vec<String>),
@@ -1320,6 +1321,11 @@ impl Engine {
     // summary, suggestions, diagnostics
 
     async fn summary_markdown(&self, since: Option<NaiveDate>) -> Result<(Window, String)> {
+        let (window, s) = self.build_summary(since).await?;
+        Ok((window, summary::to_markdown(&s)))
+    }
+
+    async fn build_summary(&self, since: Option<NaiveDate>) -> Result<(Window, summary::Summary)> {
         let today = today();
         let window = match since.or(self.summary_since) {
             Some(s) => Window::for_since(s, today),
@@ -1345,15 +1351,17 @@ impl Engine {
             },
             &window,
         );
-        Ok((window, summary::to_markdown(&s)))
+        Ok((window, s))
     }
 
     async fn emit_summary(&mut self) {
-        match self.summary_markdown(None).await {
-            Ok((window, markdown)) => {
+        match self.build_summary(None).await {
+            Ok((window, summary)) => {
                 self.clear_error("summary");
+                let markdown = summary::to_markdown(&summary);
                 self.emit(AppEvent::SummaryUpdated {
                     since: window.since,
+                    summary,
                     markdown,
                 });
             }

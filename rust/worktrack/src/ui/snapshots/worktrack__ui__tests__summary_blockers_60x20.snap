@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  1W  2T  3S●  4S  5I·4
+┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────┐
+│ Done 1 │ In progress 6 │ Todo 3 │▌Blockers 5▐│ Cleanup 1 │
+│▶ ✎ PR #44: reviewer requested changes                    │
+│  ✎ PR #44: CI failed                                     │
+│  ? PR #31 declined: keep or abandon                      │
+│  ◆ Waiting for IdP metadata from IT                      │
+│  ↑ API/upload-svc spike/s3-multipart: stale              │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+└─────────────────────────────────────────── enter details ┘
+
+ ←/→ section  j/k move  enter details  o PR  space done …

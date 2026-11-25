@@ -4,12 +4,12 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Active ▾  Group: none ────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
-│ [~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Call Ivan about staging access                                │
-│ [ ] B  Write migration doc                                                                   ││Status  [ ] todo                                              │
-│ [ ]    Call Ivan about staging access                                                        ││Link    none (L links)                                        │
-│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││Source  manual                                                │
-│                                                                                              ││Created Fri 2026-11-20                                        │
+┌ Todos  Group: none ───────────────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
+│▌Active 4▐│ Todo 3 │ Doing 1 │ Done 1 │ Dropped 1 │ All 6                                     ││Call Ivan about staging access                                │
+│ [~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Status  [ ] todo                                              │
+│ [ ] B  Write migration doc                                                                   ││Link    none (L links)                                        │
+│ [ ]    Call Ivan about staging access                                                        ││Source  manual                                                │
+│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││Created Fri 2026-11-20                                        │
 │                                                                                              ││                                                              │
 │                                                                                              ││Notes                                                         │
 │                                                                                              ││  none (E edits)                                              │
@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
 
- a add  e edit  space done  s status  p prio  L link  +/- move  d delete  f filter  G group  E/O editor  ? help  q quit
+ a add  e edit  space done  s status  p prio  L link  +/- move  d delete  h/l filter  G group  E/O editor  ? help  q quit

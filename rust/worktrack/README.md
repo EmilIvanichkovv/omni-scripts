@@ -100,21 +100,28 @@ tab.
 
 The full list is in section 9.6 of the spec and behind `?` in the app.
 
-| Keys                          | Action                                                      |
-| ----------------------------- | ----------------------------------------------------------- |
-| `1`–`5`, `Tab`                | Work, Todos, Sessions, Summary, Inbox                       |
-| `j` `k` / arrows, `g` `G`     | move, top / bottom                                          |
-| `/`, `f`, `v`                 | search, cycle filter, cycle layout                          |
-| `r` / `R`                     | local reload / full sync                                    |
-| `i`, `?`, `q`                 | diagnostics, help, quit                                     |
-| Work: `o`, `t`, `c`           | open PR (or Jira), add a linked todo, copy resume command   |
-| Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree          |
-| Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                    |
-| Todos: `Space` `s` `p` `L`    | toggle done, cycle status, cycle priority, link to a branch |
-| Todos: `O`                    | open the whole todo file in the editor                      |
-| Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again           |
-| Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file             |
-| Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                             |
+| Keys                          | Action                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| `1`–`5`, `Tab`                | Work, Todos, Sessions, Summary, Inbox                                                         |
+| `j` `k` / `↓` `↑`, `g` `G`    | move, top / bottom                                                                            |
+| `/`, `f`, `v`                 | search, cycle filter, cycle layout                                                            |
+| `Enter` / `Esc`               | details full screen in the list-only layout / back                                            |
+| `r` / `R`                     | local reload / full sync                                                                      |
+| `i`, `?`, `q`                 | diagnostics, help, quit                                                                       |
+| Work: `o`, `t`, `c`           | open PR (or Jira), add a linked todo, copy resume command                                     |
+| Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                            |
+| Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                       |
+| Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                                                      |
+| Todos: `Space` `s` `p` `L`    | toggle done, cycle status, cycle priority, link to a branch                                   |
+| Todos: `O`                    | open the whole todo file in the editor                                                        |
+| Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                             |
+| Summary: `h` `l` / `←` `→`    | previous / next section (Done, In progress, Todo, Blockers, Cleanup)                          |
+| Summary: `Enter`              | open the entry in its tab; in the list-only layout `Enter` shows details, `Enter` again jumps |
+| Summary: `o`, `Space`         | open the item's PR (or Jira), toggle done on a todo entry                                     |
+| Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file                                               |
+| Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                                                               |
+
+The filter and section bars of Todos and Summary also take a mouse click.
 
 The editor is `ui.editor`, else `$VISUAL`, else `$EDITOR`, else `vi`.
 

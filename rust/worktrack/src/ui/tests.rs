@@ -119,6 +119,98 @@ fn summary_view() {
 }
 
 #[test]
+fn summary_blockers_section() {
+    snap_all("summary_blockers", |app| keys(app, "4ll"));
+}
+
+#[test]
+fn summary_empty_section() {
+    snap_all("summary_empty", |app| {
+        keys(app, "4");
+        app.summary.as_mut().unwrap().cleanup.clear();
+        app.summary_section = crate::app::SummarySection::Cleanup;
+    });
+}
+
+#[test]
+fn summary_details_full_screen() {
+    let mut app = sample::app();
+    keys(&mut app, "4");
+    screen(&app, 60, 20);
+    key(&mut app, KeyCode::Enter);
+    assert!(app.details_open);
+    insta::assert_snapshot!("summary_details_open_60x20", screen(&app, 60, 20));
+}
+
+#[test]
+fn todos_view_doing_filter() {
+    snap_all("todos_doing", |app| keys(app, "2ll"));
+}
+
+#[test]
+fn todos_bar_shortens_then_collapses_on_narrow_widths() {
+    let mut app = sample::app();
+    keys(&mut app, "2");
+    // Two-digit counts no longer fit the full labels at 60 columns.
+    let extra: Vec<_> = (0..12)
+        .map(|i| {
+            let mut t = crate::todos::Todo::new(format!("extra {i}"));
+            t.id = Some(format!("x_{i}"));
+            t
+        })
+        .collect();
+    let mut todos = app.todos.clone();
+    todos.extend(extra);
+    app.handle_event(AppEvent::TodosReloaded(Ok(todos)));
+    let text = screen(&app, 60, 20);
+    let bar = text.lines().nth(3).unwrap();
+    assert!(bar.contains("▌Act 16▐") && bar.contains("Drop 1"), "{bar}");
+    let text = screen(&app, 44, 20);
+    let bar = text.lines().nth(3).unwrap();
+    assert!(bar.contains("‹▌Active 16▐›"), "{bar}");
+    for (w, h) in [(40, 12), (44, 20), (60, 20)] {
+        for line in screen(&app, w, h).lines() {
+            assert!(line.width() <= w as usize, "{line}");
+        }
+    }
+}
+
+#[test]
+fn clicking_a_bar_label_selects_it() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let mut app = sample::app();
+    keys(&mut app, "2");
+    let click = |app: &mut App, hit: crate::app::BarHit| {
+        render(app, 100, 30);
+        let rect = app
+            .feedback
+            .bar_hits
+            .borrow()
+            .iter()
+            .find(|(_, h)| *h == hit)
+            .map(|(r, _)| *r)
+            .unwrap();
+        app.handle_mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: rect.x + 1,
+            row: rect.y,
+            modifiers: KeyModifiers::NONE,
+        });
+    };
+    click(
+        &mut app,
+        crate::app::BarHit::Todo(crate::app::TodoFilter::Dropped),
+    );
+    assert_eq!(app.todo_filter, crate::app::TodoFilter::Dropped);
+    keys(&mut app, "4");
+    click(
+        &mut app,
+        crate::app::BarHit::Summary(crate::app::SummarySection::Blockers),
+    );
+    assert_eq!(app.summary_section, crate::app::SummarySection::Blockers);
+}
+
+#[test]
 fn inbox_view() {
     snap_all("inbox", |app| keys(app, "5"));
 }

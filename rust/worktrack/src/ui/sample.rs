@@ -12,6 +12,7 @@ use crate::model::{
 };
 use crate::refresh::{AppEvent, PrStatus};
 use crate::sessions::{Session, SessionLink, SessionSummary, SummaryStatus};
+use crate::summary::{self, Summary};
 use crate::todos::rules::{Suggestion, SuggestionPayload, SuggestionStatus};
 use crate::todos::{Priority, Section, Todo, TodoStatus};
 
@@ -491,27 +492,37 @@ fn suggestions() -> Vec<Suggestion> {
     ]
 }
 
-pub const SUMMARY_MD: &str = "# Summary — Wed 2026-11-25 (since Tue 2026-11-24)
-
-## Done
-
-- **API/auth** `bugfix/flaky` — PR #41 merged
-  - Fix flaky auth test
-
-## In progress
-
-- **API/upload-svc** `feature/PROJ-123-retry` — PR #44 needs work · ci failed · 2 tasks
-  - Session: Added exponential backoff; integration test still failing
-
-## Todo
-
-- (A) Finish upload retry logic
-- Write migration doc
-
-## Blockers
-
-- PR #44: reviewer requested changes
-";
+/// The summary of the sample data for the window since Tue 2026-11-24 00:00 UTC, with
+/// `bugfix/flaky` merged in the window and the declined PR's keep/abandon choice pending.
+pub fn summary() -> Summary {
+    let since = NaiveDate::from_ymd_opt(2026, 11, 24).unwrap();
+    let window = summary::Window {
+        since,
+        today: now().date_naive(),
+        start_ts: now().timestamp() - 38 * 3600,
+    };
+    let events = vec![summary::StateEvent {
+        repo_id: "r_auth".into(),
+        branch: "bugfix/flaky".into(),
+        from_state: Some(WorkState::PrApproved),
+        to_state: WorkState::Merged,
+        at: ts(20 * HOUR),
+    }];
+    let unresolved = vec![summary::UnresolvedChoice {
+        rule: "pr_declined".into(),
+        message: "PR #31 declined: keep or abandon".into(),
+    }];
+    summary::build(
+        &summary::SummaryInput {
+            items: &work_items(),
+            todos: &todos(),
+            sessions: &sessions(),
+            events: &events,
+            unresolved: &unresolved,
+        },
+        &window,
+    )
+}
 
 /// An App on the Work tab with every kind of data filled in, at the fixed `now()`.
 pub fn app() -> App {
@@ -561,9 +572,11 @@ pub fn app() -> App {
     app.handle_event(AppEvent::SessionsUpdated(sessions()));
     app.handle_event(AppEvent::TodosReloaded(Ok(todos())));
     app.handle_event(AppEvent::SuggestionsUpdated(suggestions()));
+    let summary = summary();
     app.handle_event(AppEvent::SummaryUpdated {
         since: NaiveDate::from_ymd_opt(2026, 11, 24).unwrap(),
-        markdown: SUMMARY_MD.into(),
+        markdown: summary::to_markdown(&summary),
+        summary,
     });
     app.handle_event(AppEvent::Diagnostics(vec![
         "Bitbucket:".into(),

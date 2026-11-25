@@ -4,31 +4,31 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary since Tue 2026-11-24 ([ ] to shift) ─────────────────────────────────────────────────────┐
-│Summary — Wed 2026-11-25 (since Tue 2026-11-24)                                                   │
-│                                                                                                  │
-│Done                                                                                              │
-│                                                                                                  │
-│• API/auth bugfix/flaky — PR #41 merged                                                           │
-│  ◦ Fix flaky auth test                                                                           │
-│                                                                                                  │
-│In progress                                                                                       │
-│                                                                                                  │
-│• API/upload-svc feature/PROJ-123-retry — PR #44 needs work · ci failed · 2 tasks                 │
-│  ◦ Session: Added exponential backoff; integration test still failing                            │
-│                                                                                                  │
-│Todo                                                                                              │
-│                                                                                                  │
-│• (A) Finish upload retry logic                                                                   │
-│• Write migration doc                                                                             │
-│                                                                                                  │
-│Blockers                                                                                          │
-│                                                                                                  │
-│• PR #44: reviewer requested changes                                                              │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
+┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────────────────────────────────────────────┐
+│ Done 1 │▌In progress 6▐│ Todo 3 │ Blockers 5 │ Cleanup 1                                         ▲
+│▶ ✎ API/upload-svc feature/PROJ-123-retry                                                         █
+│    PR #44 needs work · ci failed · 2 tasks · dirty · ahead 1                                     █
+│    Session: Add backoff to uploads                                                               █
+│    Doing: (A) Finish upload retry logic                                                          █
+│  ◐ API/upload-svc feature/PROJ-130-chunking                                                      █
+│    PR #47 open · ci running · behind 3                                                           █
+│  ○ API/upload-svc chore/bump-deps                                                                █
+│    local only · dirty · ahead 2                                                                  █
+│  ✓ API/auth feature/PROJ-118-sso                                                                 █
+│    PR #39 approved · ci ok                                                                       ║
+│    Session: Fixed the SAML redirect loop; login works against staging IdP.                       ║
+│  ◆ (no branch)                                                                                   ║
+│    Explain webpack config                                                                        ▼
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Details ─────────────────────────────────────────────────────────────────────────────────────────┐
+│feature/PROJ-123-retry                                                                 PROJ-123 ↗ ▲
+│State   ✎ PR needs work (since 13:20)                                                             █
+│Repo    API/upload-svc                                                                            █
+│Path    ~/work/upload-svc-wt/retry                                                                █
+│Flags   dirty · ahead 1 · ci failed · 2 open tasks · session live                                 ║
+│PR #44  Add retry with backoff to uploads                                                         ║
+│        ivan ✗ needs work · maria ○ unapproved                                                    ║
+│        4 comments                                                                                ▼
+└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
 
- [ ] shift  y copy  w write  j/k scroll  ? help  q quit
+ ←/→ section  j/k move  enter open  o PR  space done  y copy  w write  [ ] shift  ? help  q quit

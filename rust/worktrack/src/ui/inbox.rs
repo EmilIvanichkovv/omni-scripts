@@ -65,6 +65,7 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         area,
         title,
         format!("{} pending", visible.len()),
+        None,
     );
     if visible.is_empty() {
         super::render_empty(frame, rows_area, "inbox is empty");
@@ -93,6 +94,11 @@ pub fn details(app: &App) -> Vec<Line<'static>> {
             theme::muted(),
         ))];
     };
+    suggestion_details(app, s)
+}
+
+/// Details pane lines for one suggestion (Inbox tab and Summary targets).
+pub fn suggestion_details(app: &App, s: &Suggestion) -> Vec<Line<'static>> {
     let (text, link) = suggestion_text(s);
     let (m, mstyle) = marker(s);
     let mut lines = vec![Line::from(vec![

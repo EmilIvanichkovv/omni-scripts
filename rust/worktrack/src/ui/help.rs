@@ -19,7 +19,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
             ("Ctrl-d Ctrl-u", "half page down / up"),
             ("J K", "scroll details"),
             ("/", "search (@repo: @state: in Work); esc clears"),
-            ("f", "cycle filter"),
+            ("f", "cycle filter (Summary: section)"),
             ("v", "cycle layout: auto / side / stacked / list"),
             (
                 "Enter / Esc",
@@ -49,6 +49,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
             ("Space", "toggle done"),
             ("s / p", "cycle status / cycle priority"),
             ("L", "link to a work item"),
+            ("h l  ← →", "previous / next status filter (f cycles)"),
             ("+ / -", "move up / down"),
             ("D / d", "drop / delete (confirm)"),
             ("G / O", "group by repo / open file in editor"),
@@ -65,6 +66,14 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
     (
         "Summary",
         &[
+            ("h l  ← →  f", "previous / next section"),
+            ("j k  g G", "move in the section"),
+            (
+                "Enter",
+                "open the entry in its tab (list-only: details, Enter again)",
+            ),
+            ("o", "open the item's PR in browser (Jira if no PR)"),
+            ("Space", "toggle done on a todo entry"),
             ("[ / ]", "shift window start by one workday"),
             ("y / w", "copy Markdown / write file"),
         ],

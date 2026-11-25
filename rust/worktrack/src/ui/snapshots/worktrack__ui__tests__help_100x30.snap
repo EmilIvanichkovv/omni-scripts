@@ -11,11 +11,11 @@ expression: text
 │   ○ chore/│  Ctrl-d Ctrl-u         half page down / up                               █ 3h T1 S0  │
 │   ↑ spike/│  J K                   scroll details                                    █16d T0 S1  │
 │ ▾ API/auth│  /                     search (@repo: @state: in Work); esc clears       █         2 │
-│   ✓ featur│  f                     cycle filter                                      █ 1d T1 S2  │
+│   ✓ featur│  f                     cycle filter (Summary: section)                   █ 1d T1 S2  │
 │   ✕ featur│  v                     cycle layout: auto / side / stacked / list        █ 4d T0 S0  │
 │ ▾ WEB/port│  Enter / Esc           details full screen on narrow layouts / back      █         1 │
 │   ↑ featur│  r / R                 local reload / full sync                          █ 2d T0 S1  │
-│           │  i                     diagnostics                                       █           │
+│           │  i                     diagnostics                                       ║           │
 │           │  ? / q                 help / quit                                       ║           │
 │           │                                                                          ║           │
 │           │Work                                                                      ║           │

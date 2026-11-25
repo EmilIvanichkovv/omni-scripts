@@ -4,7 +4,8 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
-┌ Filter: Active ▾  Group: repo ────────────────── 4 todos ┐
+┌ Todos  Group: repo ───────────────────────────── 4 todos ┐
+│▌Active 4▐│ Todo 3 │ Doing 1 │ Done 1 │ Dropped 1 │ All 6 │
 │ ▾ API/auth                                               │
 │   [ ]    Review SSO rollout … auth:feature/PROJ-11…      │
 │ ▾ API/upload-svc                                         │
@@ -12,7 +13,6 @@ expression: text
 │ ▾ (no link)                                              │
 │   [ ] B  Write migration doc                             │
 │   [ ]    Call Ivan about sta…                            │
-│                                                          │
 │                                                          │
 │                                                          │
 │                                                          │

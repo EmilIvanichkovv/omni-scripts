@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────────────────────────────────────────────┐
+│ Done 1 │ In progress 6 │ Todo 3 │▌Blockers 5▐│ Cleanup 1                                         │
+│▶ ✎ PR #44: reviewer requested changes                                                            │
+│  ✎ PR #44: CI failed                                                                             │
+│  ? PR #31 declined: keep or abandon                                                              │
+│  ◆ Waiting for IdP metadata from IT                                                              │
+│  ↑ API/upload-svc spike/s3-multipart: stale                                                      │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Details ─────────────────────────────────────────────────────────────────────────────────────────┐
+│feature/PROJ-123-retry                                                                 PROJ-123 ↗ ▲
+│State   ✎ PR needs work (since 13:20)                                                             █
+│Repo    API/upload-svc                                                                            █
+│Path    ~/work/upload-svc-wt/retry                                                                █
+│Flags   dirty · ahead 1 · ci failed · 2 open tasks · session live                                 ║
+│PR #44  Add retry with backoff to uploads                                                         ║
+│        ivan ✗ needs work · maria ○ unapproved                                                    ║
+│        4 comments                                                                                ▼
+└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+
+ ←/→ section  j/k move  enter open  o PR  space done  y copy  w write  [ ] shift  ? help  q quit

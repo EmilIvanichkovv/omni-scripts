@@ -6,8 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, field, fit, fmt_when, render_rows, section, short_link};
-use crate::app::{App, TodoRow};
+use super::widgets::{clean, field, fit, fmt_when, render_rows, section, short_link, BarItem};
+use crate::app::{App, BarHit, TodoFilter, TodoRow};
 use crate::todos::{Todo, TodoStatus};
 
 const MARK_W: usize = 3;
@@ -72,9 +72,8 @@ fn todo_line(app: &App, t: &Todo, width: usize, indent: usize) -> Line<'static> 
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let mut title = vec![
-        Span::styled(" Filter: ", theme::muted()),
-        Span::styled(format!("{} ▾", app.todo_filter.label()), theme::accent()),
-        Span::styled("  Group: ", theme::muted()),
+        Span::styled(" Todos ", theme::accent()),
+        Span::styled(" Group: ", theme::muted()),
         Span::styled(
             if app.todo_grouped { "repo" } else { "none" },
             theme::accent(),
@@ -88,12 +87,23 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
     let visible = app.visible_todos();
+    let bar = TodoFilter::ALL
+        .into_iter()
+        .map(|f| BarItem {
+            label: f.label(),
+            short: f.short(),
+            count: app.todo_filter_count(f),
+            active: f == app.todo_filter,
+            hit: BarHit::Todo(f),
+        })
+        .collect();
     let rows_area = super::list_pane(
         frame,
         app,
         area,
         Line::from(title),
         format!("{} todos", visible.len()),
+        Some(bar),
     );
     if visible.is_empty() {
         super::render_empty(
@@ -102,7 +112,7 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
             if app.todos.is_empty() {
                 "no todos yet (a adds one, O opens the file)"
             } else {
-                "nothing matches this filter (f cycles filters)"
+                "nothing matches this filter (h/l switch filters)"
             },
         );
         return;
@@ -141,6 +151,11 @@ pub fn details(app: &App) -> Vec<Line<'static>> {
     let Some(t) = app.selected_todo() else {
         return vec![Line::from(Span::styled("no todo selected", theme::muted()))];
     };
+    todo_details(app, t)
+}
+
+/// Details pane lines for one todo (Todos tab and Summary targets).
+pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
     let mut lines = vec![Line::from(Span::styled(
         clean(&t.title),
         theme::bold().patch(theme::todo_status(t.status)),

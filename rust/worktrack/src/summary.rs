@@ -20,8 +20,8 @@ use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Number of Active todos listed before `+N more`.
-const TODO_LIMIT: usize = 10;
+/// Number of Active todos listed in the Markdown before `+N more`.
+pub const TODO_LIMIT: usize = 10;
 
 /// The latest workday in `workdays` strictly before `today` (Monday → Friday).
 pub fn previous_workday(today: NaiveDate, workdays: &[Weekday]) -> NaiveDate {
@@ -163,10 +163,43 @@ pub struct SummaryInput<'a> {
     pub unresolved: &'a [UnresolvedChoice],
 }
 
+/// What a summary entry points at, so the TUI can show its details and jump to it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum Target {
+    #[default]
+    None,
+    /// A WorkItem.
+    Item {
+        repo_id: String,
+        branch: String,
+    },
+    /// A todo; `id` is `None` for todos not written back with an id yet (match by title).
+    Todo {
+        id: Option<String>,
+        title: String,
+    },
+    Session {
+        id: String,
+    },
+    /// A pending keep/abandon choice in the Inbox.
+    Inbox,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Entry {
     pub line: String,
     pub children: Vec<String>,
+    pub target: Target,
+}
+
+impl Entry {
+    fn leaf(line: String, target: Target) -> Self {
+        Self {
+            line,
+            children: Vec::new(),
+            target,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -175,14 +208,33 @@ pub struct Summary {
     pub since: Option<NaiveDate>,
     pub done: Vec<Entry>,
     pub in_progress: Vec<Entry>,
-    pub todo: Vec<String>,
-    pub todo_more: usize,
-    pub blockers: Vec<String>,
-    pub cleanup: Vec<String>,
+    /// Every Active `todo` item, priority A first. The Markdown lists the first
+    /// [`TODO_LIMIT`] and `+N more`.
+    pub todo: Vec<Entry>,
+    pub blockers: Vec<Entry>,
+    pub cleanup: Vec<Entry>,
 }
 
 fn key(repo_id: &str, branch: &str) -> (String, String) {
     (repo_id.to_string(), branch.to_string())
+}
+
+fn item_target(item: &WorkItem) -> Target {
+    Target::Item {
+        repo_id: item.repo_id.clone(),
+        branch: item.branch.clone(),
+    }
+}
+
+fn todo_target(t: &Todo) -> Target {
+    Target::Todo {
+        id: t.id.clone(),
+        title: t.title.clone(),
+    }
+}
+
+fn session_target(s: &Session) -> Target {
+    Target::Session { id: s.id.clone() }
 }
 
 fn sessions_for<'a>(sessions: &'a [Session], item: &WorkItem) -> Vec<&'a Session> {
@@ -347,15 +399,13 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
         done.push(Entry {
             line: format!("{} — {}", item_head(item), pr_phrase(item)),
             children,
+            target: item_target(item),
         });
     }
     for t in input.todos.iter().filter(|t| {
         t.status == TodoStatus::Done && t.link.is_none() && t.done.is_some_and(|d| d >= since_date)
     }) {
-        done.push(Entry {
-            line: todo_line(t),
-            children: Vec::new(),
-        });
+        done.push(Entry::leaf(todo_line(t), todo_target(t)));
     }
 
     // In progress: unfinished items with activity in the window.
@@ -405,6 +455,7 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
             Entry {
                 line: format!("{} — {}", item_head(item), parts.join(" · ")),
                 children,
+                target: item_target(item),
             },
         ));
     }
@@ -420,6 +471,7 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
             Entry {
                 line: format!("(no branch) — {}", session_title(s)),
                 children: vec![format!("Session: {}", session_text(s))],
+                target: session_target(s),
             },
         ));
     }
@@ -440,10 +492,10 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
                     .any(|e| e.children.iter().any(|c| c.ends_with(&todo_line(t))))
         });
         if !under_item {
-            in_progress.push(Entry {
-                line: format!("Doing: {}", todo_line(t)),
-                children: vec![],
-            });
+            in_progress.push(Entry::leaf(
+                format!("Doing: {}", todo_line(t)),
+                todo_target(t),
+            ));
         }
     }
 
@@ -455,11 +507,9 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
         .enumerate()
         .collect();
     todo_items.sort_by_key(|(idx, t)| (priority_rank(t.priority), *idx));
-    let todo_more = todo_items.len().saturating_sub(TODO_LIMIT);
-    let todo: Vec<String> = todo_items
+    let todo: Vec<Entry> = todo_items
         .iter()
-        .take(TODO_LIMIT)
-        .map(|(_, t)| todo_line(t))
+        .map(|(_, t)| Entry::leaf(todo_line(t), todo_target(t)))
         .collect();
 
     // Blockers: needs work, ci failed, unresolved choices, session blockers, stale.
@@ -473,17 +523,23 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
         .iter()
         .filter(|i| i.state == WorkState::PrNeedsWork)
     {
-        blockers.push(format!("{}: reviewer requested changes", pr_label(i)));
+        blockers.push(Entry::leaf(
+            format!("{}: reviewer requested changes", pr_label(i)),
+            item_target(i),
+        ));
     }
     for i in input
         .items
         .iter()
         .filter(|i| i.state.is_unfinished() && i.flags.ci == Some(CiState::Failed))
     {
-        blockers.push(format!("{}: CI failed", pr_label(i)));
+        blockers.push(Entry::leaf(
+            format!("{}: CI failed", pr_label(i)),
+            item_target(i),
+        ));
     }
     for u in input.unresolved {
-        blockers.push(clean_line(&u.message));
+        blockers.push(Entry::leaf(clean_line(&u.message), Target::Inbox));
     }
     for s in input
         .sessions
@@ -492,7 +548,7 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
     {
         if let Some(sum) = &s.summary {
             for b in &sum.blockers {
-                blockers.push(clean_line(b));
+                blockers.push(Entry::leaf(clean_line(b), session_target(s)));
             }
         }
     }
@@ -501,10 +557,13 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
         .iter()
         .filter(|i| i.state.is_unfinished() && i.flags.stale)
     {
-        blockers.push(format!(
-            "{} `{}`: stale",
-            clean_line(&i.repo_name),
-            clean_line(&i.branch)
+        blockers.push(Entry::leaf(
+            format!(
+                "{} `{}`: stale",
+                clean_line(&i.repo_name),
+                clean_line(&i.branch)
+            ),
+            item_target(i),
         ));
     }
 
@@ -514,7 +573,12 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
     cleanup_items.sort_by(|a, b| (&a.repo_name, &a.branch).cmp(&(&b.repo_name, &b.branch)));
     let cleanup = cleanup_items
         .iter()
-        .map(|i| format!("{} — {}", item_head(i), pr_phrase(i)))
+        .map(|i| {
+            Entry::leaf(
+                format!("{} — {}", item_head(i), pr_phrase(i)),
+                item_target(i),
+            )
+        })
         .collect();
 
     Summary {
@@ -523,7 +587,6 @@ pub fn build(input: &SummaryInput, window: &Window) -> Summary {
         done,
         in_progress,
         todo,
-        todo_more,
         blockers,
         cleanup,
     }
@@ -561,24 +624,16 @@ pub fn to_markdown(s: &Summary) -> String {
     push_entries(&mut out, "In progress", &s.in_progress);
     if !s.todo.is_empty() {
         out.push_str("\n## Todo\n");
-        for t in &s.todo {
-            out.push_str(&format!("- {t}\n"));
+        for t in s.todo.iter().take(TODO_LIMIT) {
+            out.push_str(&format!("- {}\n", t.line));
         }
-        if s.todo_more > 0 {
-            out.push_str(&format!("- +{} more\n", s.todo_more));
+        let more = s.todo.len().saturating_sub(TODO_LIMIT);
+        if more > 0 {
+            out.push_str(&format!("- +{more} more\n"));
         }
     }
-    let simple = |out: &mut String, title: &str, lines: &[String]| {
-        if lines.is_empty() {
-            return;
-        }
-        out.push_str(&format!("\n## {title}\n"));
-        for l in lines {
-            out.push_str(&format!("- {l}\n"));
-        }
-    };
-    simple(&mut out, "Blockers", &s.blockers);
-    simple(&mut out, "Cleanup", &s.cleanup);
+    push_entries(&mut out, "Blockers", &s.blockers);
+    push_entries(&mut out, "Cleanup", &s.cleanup);
     if s.done.is_empty()
         && s.in_progress.is_empty()
         && s.todo.is_empty()
@@ -778,6 +833,111 @@ mod tests {
 - Staging access missing
 ";
         assert_eq!(md, expected);
+    }
+
+    #[test]
+    fn entries_carry_targets() {
+        let w = Window::for_since(d("2026-11-24"), d("2026-11-25"));
+        let t0 = w.start_ts + 60;
+        let mut needs = item("feature/retry", WorkState::PrNeedsWork, Some(44));
+        needs.flags.ci = Some(CiState::Failed);
+        needs.local.last_commit_at = Some(t0);
+        let mut stale = item("old/thing", WorkState::Pushed, None);
+        stale.flags.stale = true;
+        let mut merged = item("bugfix/flaky", WorkState::Merged, Some(41));
+        merged.flags.cleanup = true;
+        let items = vec![needs, stale, merged];
+        let mut doing = todo("Unlinked doing", TodoStatus::Doing, None);
+        doing.id = Some("t_d".into());
+        let mut done = todo("Unlinked done", TodoStatus::Done, None);
+        done.done = Some(d("2026-11-25"));
+        let todos = vec![doing, done, todo("Plain", TodoStatus::Todo, None)];
+        let sessions = vec![Session {
+            id: "s1".into(),
+            cwd: None,
+            transcript_path: None,
+            title: Some("Loose".into()),
+            started_at: Some(t0),
+            last_activity_at: Some(t0),
+            ended_at: None,
+            end_reason: None,
+            user_turns: 1,
+            branches: vec![],
+            files_touched: vec![],
+            explicit_todos: vec![],
+            summary_status: SummaryStatus::Done,
+            summary: Some(SessionSummary {
+                blockers: vec!["No access".into()],
+                ..Default::default()
+            }),
+            summarized_at: None,
+            links: vec![],
+        }];
+        let unresolved = vec![UnresolvedChoice {
+            rule: "pr_declined".into(),
+            message: "PR #31 declined".into(),
+        }];
+        let input = SummaryInput {
+            items: &items,
+            todos: &todos,
+            sessions: &sessions,
+            events: &[],
+            unresolved: &unresolved,
+        };
+        let s = build(&input, &w);
+        let it = |b: &str| Target::Item {
+            repo_id: "r1".into(),
+            branch: b.into(),
+        };
+        let targets = |v: &[Entry]| v.iter().map(|e| e.target.clone()).collect::<Vec<_>>();
+        assert_eq!(
+            targets(&s.done),
+            vec![Target::Todo {
+                id: None,
+                title: "Unlinked done".into()
+            }]
+        );
+        assert_eq!(
+            targets(&s.in_progress),
+            vec![
+                it("feature/retry"),
+                Target::Session { id: "s1".into() },
+                Target::Todo {
+                    id: Some("t_d".into()),
+                    title: "Unlinked doing".into()
+                }
+            ]
+        );
+        assert_eq!(
+            targets(&s.blockers),
+            vec![
+                it("feature/retry"),
+                it("feature/retry"),
+                Target::Inbox,
+                Target::Session { id: "s1".into() },
+                it("old/thing"),
+            ]
+        );
+        assert_eq!(targets(&s.cleanup), vec![it("bugfix/flaky")]);
+        assert_eq!(s.todo.len(), 1);
+    }
+
+    #[test]
+    fn todo_holds_every_entry_but_markdown_stops_at_ten() {
+        let w = Window::for_since(d("2026-11-24"), d("2026-11-25"));
+        let todos: Vec<Todo> = (0..12)
+            .map(|i| todo(&format!("t{i}"), TodoStatus::Todo, None))
+            .collect();
+        let input = SummaryInput {
+            items: &[],
+            todos: &todos,
+            sessions: &[],
+            events: &[],
+            unresolved: &[],
+        };
+        let s = build(&input, &w);
+        assert_eq!(s.todo.len(), 12);
+        assert_eq!(s.todo[11].line, "t11");
     }
 
     #[test]

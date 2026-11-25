@@ -29,12 +29,14 @@
 //! for mouse hit tests, scroll limits, list offsets, the arrangement chosen for the terminal
 //! size) live in `Cell`s.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, TimeZone, Weekday};
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind};
+use crossterm::event::{
+    KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::layout::{Position, Rect};
 
 use crate::config::Config;
@@ -42,6 +44,7 @@ use crate::lgbc::responsive::{Arrangement, LayoutMode};
 use crate::model::{CiState, Repo, WorkItem, WorkState, Worktree};
 use crate::refresh::{AppEvent, Command, PrStatus};
 use crate::sessions::Session;
+use crate::summary::{Entry, Summary, Target};
 use crate::todos::rules::{Suggestion, SuggestionPayload, SuggestionStatus};
 use crate::todos::{Priority, Todo, TodoOp, TodoPatch, TodoStatus};
 
@@ -114,11 +117,6 @@ impl Tab {
     fn prev(self) -> Self {
         Self::ALL[(self.index() + Self::ALL.len() - 1) % Self::ALL.len()]
     }
-
-    /// Whether the tab has a details pane.
-    pub fn has_details(self) -> bool {
-        !matches!(self, Tab::Summary)
-    }
 }
 
 /// Work view filters, cycled with `f` (spec 9.2).
@@ -153,30 +151,137 @@ impl WorkFilter {
     }
 }
 
-/// Todos view filters (spec 9.3).
+/// Todos view status filters (spec 9.3), shown as an always-visible bar; `h`/`l`, `←`/`→`
+/// move between them and `f` cycles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TodoFilter {
+    /// `todo` and `doing`.
     #[default]
     Active,
+    Todo,
+    Doing,
     Done,
+    Dropped,
     All,
 }
 
 impl TodoFilter {
+    pub const ALL: [TodoFilter; 6] = [
+        Self::Active,
+        Self::Todo,
+        Self::Doing,
+        Self::Done,
+        Self::Dropped,
+        Self::All,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Active => "Active",
+            Self::Todo => "Todo",
+            Self::Doing => "Doing",
             Self::Done => "Done",
+            Self::Dropped => "Dropped",
             Self::All => "All",
         }
     }
-    fn next(self) -> Self {
+
+    /// Label for narrow filter bars.
+    pub fn short(self) -> &'static str {
         match self {
-            Self::Active => Self::Done,
-            Self::Done => Self::All,
-            Self::All => Self::Active,
+            Self::Active => "Act",
+            Self::Dropped => "Drop",
+            other => other.label(),
         }
     }
+
+    pub fn matches(self, status: TodoStatus) -> bool {
+        match self {
+            Self::Active => status.is_active(),
+            Self::Todo => status == TodoStatus::Todo,
+            Self::Doing => status == TodoStatus::Doing,
+            Self::Done => status == TodoStatus::Done,
+            Self::Dropped => status == TodoStatus::Dropped,
+            Self::All => true,
+        }
+    }
+
+    fn step(self, delta: isize) -> Self {
+        let i = Self::ALL.iter().position(|f| *f == self).unwrap_or(0);
+        Self::ALL[(i as isize + delta).rem_euclid(Self::ALL.len() as isize) as usize]
+    }
+}
+
+/// Sections of the Summary tab, in bar order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SummarySection {
+    Done,
+    #[default]
+    InProgress,
+    Todo,
+    Blockers,
+    Cleanup,
+}
+
+impl SummarySection {
+    pub const ALL: [SummarySection; 5] = [
+        Self::Done,
+        Self::InProgress,
+        Self::Todo,
+        Self::Blockers,
+        Self::Cleanup,
+    ];
+
+    /// Order in which the first non-empty section is picked when the summary arrives.
+    const INITIAL_ORDER: [SummarySection; 5] = [
+        Self::InProgress,
+        Self::Done,
+        Self::Todo,
+        Self::Blockers,
+        Self::Cleanup,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Done => "Done",
+            Self::InProgress => "In progress",
+            Self::Todo => "Todo",
+            Self::Blockers => "Blockers",
+            Self::Cleanup => "Cleanup",
+        }
+    }
+
+    /// Label for narrow section bars.
+    pub fn short(self) -> &'static str {
+        match self {
+            Self::InProgress => "Prog",
+            Self::Blockers => "Block",
+            Self::Cleanup => "Clean",
+            other => other.label(),
+        }
+    }
+
+    pub fn entries(self, s: &Summary) -> &[Entry] {
+        match self {
+            Self::Done => &s.done,
+            Self::InProgress => &s.in_progress,
+            Self::Todo => &s.todo,
+            Self::Blockers => &s.blockers,
+            Self::Cleanup => &s.cleanup,
+        }
+    }
+
+    fn step(self, delta: isize) -> Self {
+        let i = Self::ALL.iter().position(|f| *f == self).unwrap_or(0);
+        Self::ALL[(i as isize + delta).rem_euclid(Self::ALL.len() as isize) as usize]
+    }
+}
+
+/// A clickable label of a filter/section bar, recorded by the renderer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarHit {
+    Todo(TodoFilter),
+    Summary(SummarySection),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,8 +458,9 @@ pub struct RenderFeedback {
     pub list_viewport: Cell<usize>,
     pub details_max_scroll: Cell<usize>,
     pub overlay_max_scroll: Cell<usize>,
-    pub summary_max_scroll: Cell<usize>,
     pub too_small: Cell<bool>,
+    /// Screen areas of the filter/section bar labels drawn in the last frame (mouse clicks).
+    pub bar_hits: RefCell<Vec<(Rect, BarHit)>>,
     /// First visible row of each tab's list.
     pub list_offset: [Cell<usize>; 5],
 }
@@ -375,6 +481,8 @@ pub struct App {
     pub todo_error: Option<String>,
     pub suggestions: Vec<Suggestion>,
     pub summary_markdown: Option<String>,
+    /// The structured summary behind `summary_markdown` (the Summary tab's lists).
+    pub summary: Option<Summary>,
     /// Start of the summary window shown (or requested).
     pub summary_since: Option<NaiveDate>,
     pub diagnostics: Vec<String>,
@@ -400,6 +508,7 @@ pub struct App {
     pub layout_mode: LayoutMode,
     pub work_filter: WorkFilter,
     pub todo_filter: TodoFilter,
+    pub summary_section: SummarySection,
     pub todo_grouped: bool,
     pub collapsed: HashSet<String>,
     pub search: [String; 5],
@@ -407,7 +516,6 @@ pub struct App {
     pub details_scroll: usize,
     /// List-only layout: details shown full screen.
     pub details_open: bool,
-    pub summary_scroll: usize,
     pub input: Option<ActiveInput>,
     pub overlay: Option<Overlay>,
     pub overlay_scroll: usize,
@@ -495,6 +603,7 @@ impl App {
             todo_error: None,
             suggestions: Vec::new(),
             summary_markdown: None,
+            summary: None,
             summary_since: None,
             diagnostics: Vec::new(),
             errors: Vec::new(),
@@ -510,13 +619,13 @@ impl App {
             layout_mode: LayoutMode::Auto,
             work_filter: WorkFilter::default(),
             todo_filter: TodoFilter::default(),
+            summary_section: SummarySection::default(),
             todo_grouped: false,
             collapsed: HashSet::new(),
             search: Default::default(),
             cursor: [0; 5],
             details_scroll: 0,
             details_open: false,
-            summary_scroll: 0,
             input: None,
             overlay: None,
             overlay_scroll: 0,
@@ -592,8 +701,22 @@ impl App {
                 self.todo_error = Some(e);
             }
             AppEvent::SuggestionsUpdated(s) => self.suggestions = s,
-            AppEvent::SummaryUpdated { since, markdown } => {
+            AppEvent::SummaryUpdated {
+                since,
+                summary,
+                markdown,
+            } => {
+                if self.summary.is_none() {
+                    // First summary: open on the first section with something in it.
+                    if let Some(sec) = SummarySection::INITIAL_ORDER
+                        .into_iter()
+                        .find(|sec| !sec.entries(&summary).is_empty())
+                    {
+                        self.summary_section = sec;
+                    }
+                }
                 self.summary_since = Some(since);
+                self.summary = Some(summary);
                 self.summary_markdown = Some(markdown);
             }
             AppEvent::Diagnostics(lines) => self.diagnostics = lines,
@@ -746,22 +869,23 @@ impl App {
         let mut out: Vec<usize> = (0..self.todos.len())
             .filter(|&i| {
                 let t = &self.todos[i];
-                let pass = match self.todo_filter {
-                    TodoFilter::Active => t.status.is_active(),
-                    TodoFilter::Done => !t.status.is_active(),
-                    TodoFilter::All => true,
-                };
-                pass && q.split_whitespace().all(|w| {
-                    t.title.to_lowercase().contains(w)
-                        || t.link.as_deref().unwrap_or("").to_lowercase().contains(w)
-                        || t.notes.to_lowercase().contains(w)
-                })
+                self.todo_filter.matches(t.status)
+                    && q.split_whitespace().all(|w| {
+                        t.title.to_lowercase().contains(w)
+                            || t.link.as_deref().unwrap_or("").to_lowercase().contains(w)
+                            || t.notes.to_lowercase().contains(w)
+                    })
             })
             .collect();
         if self.todo_grouped {
             out.sort_by_key(|&i| self.todo_group_name(&self.todos[i]));
         }
         out
+    }
+
+    /// Todos matching status filter `f`, ignoring the search (the filter bar's counts).
+    pub fn todo_filter_count(&self, f: TodoFilter) -> usize {
+        self.todos.iter().filter(|t| f.matches(t.status)).count()
     }
 
     pub fn todo_group_name(&self, t: &Todo) -> String {
@@ -952,6 +1076,69 @@ impl App {
         self.suggestions.get(i)
     }
 
+    /// Entries of the current Summary section.
+    pub fn summary_entries(&self) -> &[Entry] {
+        self.summary
+            .as_ref()
+            .map_or(&[], |s| self.summary_section.entries(s))
+    }
+
+    pub fn summary_section_count(&self, sec: SummarySection) -> usize {
+        self.summary.as_ref().map_or(0, |s| sec.entries(s).len())
+    }
+
+    pub fn selected_summary_entry(&self) -> Option<&Entry> {
+        self.summary_entries()
+            .get(self.cursor[Tab::Summary.index()])
+    }
+
+    pub fn work_item(&self, repo_id: &str, branch: &str) -> Option<&WorkItem> {
+        self.work_items
+            .iter()
+            .find(|w| w.repo_id == repo_id && w.branch == branch)
+    }
+
+    /// A todo by id, or by title when it has no id yet.
+    pub fn find_todo(&self, id: Option<&str>, title: &str) -> Option<&Todo> {
+        match id {
+            Some(id) => self.todos.iter().find(|t| t.id.as_deref() == Some(id)),
+            None => self
+                .todos
+                .iter()
+                .find(|t| t.id.is_none() && t.title == title),
+        }
+    }
+
+    pub fn find_session(&self, id: &str) -> Option<&Session> {
+        self.sessions.iter().find(|s| s.id == id)
+    }
+
+    /// The pending suggestion an Inbox summary entry stands for (same message), if any.
+    pub fn suggestion_for_entry(&self, entry: &Entry) -> Option<&Suggestion> {
+        self.suggestions.iter().find(|s| {
+            s.status == SuggestionStatus::Pending
+                && s.payload.needs_choice()
+                && crate::sanitize::clean_line(s.payload.text()) == entry.line
+        })
+    }
+
+    /// The WorkItem a summary target refers to: the item itself, or the item a todo or
+    /// session is linked to.
+    pub fn target_item(&self, target: &Target) -> Option<&WorkItem> {
+        match target {
+            Target::Item { repo_id, branch } => self.work_item(repo_id, branch),
+            Target::Todo { id, title } => {
+                let link = self.find_todo(id.as_deref(), title)?.link.as_deref()?;
+                self.item_for_link(link)
+            }
+            Target::Session { id } => {
+                let link = self.find_session(id)?.links.first()?;
+                self.work_item(&link.repo_id, &link.branch)
+            }
+            Target::Inbox | Target::None => None,
+        }
+    }
+
     pub fn any_session_live(&self) -> bool {
         let now = self.now_ts();
         self.sessions.iter().any(|s| s.is_live(now))
@@ -991,7 +1178,7 @@ impl App {
             Tab::Work => self.work_rows().len(),
             Tab::Todos => self.visible_todos().len(),
             Tab::Sessions => self.visible_sessions().len(),
-            Tab::Summary => 0,
+            Tab::Summary => self.summary_entries().len(),
             Tab::Inbox => self.pending_suggestions().len(),
         }
     }
@@ -1019,7 +1206,22 @@ impl App {
                 .into_iter()
                 .map(|i| self.sessions[i].id.clone())
                 .collect(),
-            Tab::Summary => Vec::new(),
+            Tab::Summary => {
+                // Target first, so a selection survives text changes; duplicates numbered.
+                let mut seen: Vec<String> = Vec::new();
+                self.summary_entries()
+                    .iter()
+                    .map(|e| {
+                        let base = match &e.target {
+                            Target::None => format!("l:{}", e.line),
+                            t => format!("{t:?}"),
+                        };
+                        let n = seen.iter().filter(|k| **k == base).count();
+                        seen.push(base.clone());
+                        format!("{base}#{n}")
+                    })
+                    .collect()
+            }
             Tab::Inbox => self
                 .pending_suggestions()
                 .into_iter()
@@ -1089,11 +1291,6 @@ impl App {
         self.details_scroll = self.details_scroll.saturating_add_signed(delta).min(max);
     }
 
-    fn scroll_summary(&mut self, delta: isize) {
-        let max = self.feedback.summary_max_scroll.get();
-        self.summary_scroll = self.summary_scroll.saturating_add_signed(delta).min(max);
-    }
-
     fn scroll_overlay(&mut self, delta: isize) {
         let max = self.feedback.overlay_max_scroll.get();
         self.overlay_scroll = self.overlay_scroll.saturating_add_signed(delta).min(max);
@@ -1137,6 +1334,7 @@ impl App {
                     return Vec::new();
                 }
                 KeyCode::Enter if self.tab == Tab::Sessions => return self.jump_to_session_item(),
+                KeyCode::Enter if self.tab == Tab::Summary => return self.jump_to_summary_target(),
                 KeyCode::Enter => return Vec::new(),
                 _ => {}
             }
@@ -1174,34 +1372,10 @@ impl App {
                 let n = self.half_page() * 2;
                 self.move_or_scroll(-n);
             }
-            KeyCode::Char('g') | KeyCode::Home => {
-                if self.tab == Tab::Summary {
-                    self.summary_scroll = 0;
-                } else {
-                    self.set_cursor(0);
-                }
-            }
-            KeyCode::Char('G') | KeyCode::End => {
-                if self.tab == Tab::Summary {
-                    self.summary_scroll = self.feedback.summary_max_scroll.get();
-                } else {
-                    self.set_cursor(usize::MAX);
-                }
-            }
-            KeyCode::Char('J') => {
-                if self.tab == Tab::Summary {
-                    self.scroll_summary(1);
-                } else {
-                    self.scroll_details(1);
-                }
-            }
-            KeyCode::Char('K') => {
-                if self.tab == Tab::Summary {
-                    self.scroll_summary(-1);
-                } else {
-                    self.scroll_details(-1);
-                }
-            }
+            KeyCode::Char('g') | KeyCode::Home => self.set_cursor(0),
+            KeyCode::Char('G') | KeyCode::End => self.set_cursor(usize::MAX),
+            KeyCode::Char('J') => self.scroll_details(1),
+            KeyCode::Char('K') => self.scroll_details(-1),
             KeyCode::Char('/') => {
                 if self.tab == Tab::Summary {
                     self.set_status("the summary has no search");
@@ -1238,10 +1412,7 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                if self.arrangement() == Arrangement::ListOnly
-                    && self.tab.has_details()
-                    && self.row_count(self.tab) > 0
-                {
+                if self.arrangement() == Arrangement::ListOnly && self.row_count(self.tab) > 0 {
                     self.details_open = true;
                     self.details_scroll = 0;
                 }
@@ -1252,11 +1423,7 @@ impl App {
     }
 
     fn move_or_scroll(&mut self, delta: isize) {
-        if self.tab == Tab::Summary {
-            self.scroll_summary(delta);
-        } else {
-            self.move_cursor(delta);
-        }
+        self.move_cursor(delta);
     }
 
     fn open_overlay(&mut self, overlay: Overlay) {
@@ -1272,12 +1439,32 @@ impl App {
                 self.set_status(format!("filter: {}", self.work_filter.label()));
             }
             Tab::Todos => {
-                self.todo_filter = self.todo_filter.next();
-                self.set_status(format!("filter: {}", self.todo_filter.label()));
+                self.set_todo_filter(self.todo_filter.step(1));
+                return;
+            }
+            Tab::Summary => {
+                self.set_summary_section(self.summary_section.step(1));
+                return;
             }
             _ => self.set_status("no filters in this view"),
         }
         self.reselect(self.tab, key);
+    }
+
+    /// Select a Todos status filter, keeping the selected todo when it still shows.
+    fn set_todo_filter(&mut self, f: TodoFilter) {
+        let key = self.selected_key(Tab::Todos);
+        self.todo_filter = f;
+        self.reselect(Tab::Todos, key);
+        self.details_scroll = 0;
+    }
+
+    /// Switch the Summary section; the cursor goes back to the first entry.
+    fn set_summary_section(&mut self, sec: SummarySection) {
+        self.summary_section = sec;
+        self.cursor[Tab::Summary.index()] = 0;
+        self.details_scroll = 0;
+        self.details_open = false;
     }
 
     /// Keys specific to the current tab. `None` = not handled, fall through to global keys.
@@ -1312,16 +1499,7 @@ impl App {
             },
             KeyCode::Char('o') => {
                 let item = item?;
-                if let Some(pr) = &item.pr {
-                    return Some(vec![Effect::Command(Command::OpenUrl(pr.url.clone()))]);
-                }
-                match self.jira_key(&item.branch).and_then(|k| self.jira_url(&k)) {
-                    Some(url) => Some(vec![Effect::Command(Command::OpenUrl(url))]),
-                    None => {
-                        self.set_status("no PR or Jira link for this branch");
-                        none
-                    }
-                }
+                Some(self.open_item_url(&item))
             }
             KeyCode::Char('y') => {
                 let item = item?;
@@ -1401,6 +1579,20 @@ impl App {
         }
     }
 
+    /// `o`: open the item's PR, else its Jira issue.
+    fn open_item_url(&mut self, item: &WorkItem) -> Vec<Effect> {
+        if let Some(pr) = &item.pr {
+            return vec![Effect::Command(Command::OpenUrl(pr.url.clone()))];
+        }
+        match self.jira_key(&item.branch).and_then(|k| self.jira_url(&k)) {
+            Some(url) => vec![Effect::Command(Command::OpenUrl(url))],
+            None => {
+                self.set_status("no PR or Jira link for this branch");
+                Vec::new()
+            }
+        }
+    }
+
     fn start_remove(&mut self, item: &WorkItem) {
         if !item.flags.cleanup {
             self.set_status("X only removes cleanup items (done or abandoned)");
@@ -1470,6 +1662,24 @@ impl App {
         vec![Effect::Command(Command::Todo(TodoOp::Update { id, patch }))]
     }
 
+    /// `Space`: done ↔ todo.
+    fn toggle_done(&mut self, id: String, todo: &Todo) -> Vec<Effect> {
+        let patch = if todo.status == TodoStatus::Done {
+            TodoPatch {
+                status: Some(TodoStatus::Todo),
+                done: Some(None),
+                ..Default::default()
+            }
+        } else {
+            TodoPatch {
+                status: Some(TodoStatus::Done),
+                done: Some(Some(self.today())),
+                ..Default::default()
+            }
+        };
+        self.todo_update(id, patch)
+    }
+
     fn todos_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
         let none = Some(Vec::new());
         let today = self.today();
@@ -1481,6 +1691,14 @@ impl App {
                 let key = self.selected_key(Tab::Todos);
                 self.todo_grouped = !self.todo_grouped;
                 self.reselect(Tab::Todos, key);
+                none
+            }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.set_todo_filter(self.todo_filter.step(-1));
+                none
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.set_todo_filter(self.todo_filter.step(1));
                 none
             }
             KeyCode::Char('a') => {
@@ -1511,22 +1729,7 @@ impl App {
                     KeyCode::Char('E') => vec![Effect::OpenEditor {
                         kind: EditorTarget::NotesOf(id),
                     }],
-                    KeyCode::Char(' ') => {
-                        let patch = if todo.status == TodoStatus::Done {
-                            TodoPatch {
-                                status: Some(TodoStatus::Todo),
-                                done: Some(None),
-                                ..Default::default()
-                            }
-                        } else {
-                            TodoPatch {
-                                status: Some(TodoStatus::Done),
-                                done: Some(Some(today)),
-                                ..Default::default()
-                            }
-                        };
-                        self.todo_update(id, patch)
-                    }
+                    KeyCode::Char(' ') => self.toggle_done(id, &todo),
                     KeyCode::Char('s') => {
                         let next = match todo.status {
                             TodoStatus::Todo => TodoStatus::Doing,
@@ -1670,22 +1873,94 @@ impl App {
             self.set_status("this session is not linked to a branch");
             return Vec::new();
         };
-        if !self
-            .work_items
-            .iter()
-            .any(|w| w.repo_id == link.repo_id && w.branch == link.branch)
-        {
+        if self.work_item(&link.repo_id, &link.branch).is_none() {
             self.set_status(format!("{} is not a tracked work item", link.branch));
             return Vec::new();
         }
+        self.select_work_item(&link.repo_id, &link.branch);
+        Vec::new()
+    }
+
+    /// Switch to Work and select an item. When the search, the filter or a collapsed group
+    /// hides it: clear the search, then widen the filter to All, and expand its group.
+    fn select_work_item(&mut self, repo_id: &str, branch: &str) {
         self.switch_tab(Tab::Work);
-        self.search[0].clear();
-        self.collapsed.remove(&link.repo_id);
-        let key = format!("i:{}:{}", link.repo_id, link.branch);
+        self.collapsed.remove(repo_id);
+        let key = format!("i:{repo_id}:{branch}");
+        if !self.row_keys(Tab::Work).contains(&key) {
+            self.search[Tab::Work.index()].clear();
+        }
         if !self.row_keys(Tab::Work).contains(&key) {
             self.work_filter = WorkFilter::All;
         }
         self.reselect(Tab::Work, Some(key));
+        self.details_scroll = 0;
+    }
+
+    /// Switch to Todos and select a todo, clearing the search / widening the filter to All
+    /// when they hide it.
+    fn select_todo(&mut self, key: String) {
+        self.switch_tab(Tab::Todos);
+        if !self.row_keys(Tab::Todos).contains(&key) {
+            self.search[Tab::Todos.index()].clear();
+        }
+        if !self.row_keys(Tab::Todos).contains(&key) {
+            self.todo_filter = TodoFilter::All;
+        }
+        self.reselect(Tab::Todos, Some(key));
+        self.details_scroll = 0;
+    }
+
+    /// Switch to Sessions and select a session, clearing the search when it hides it.
+    fn select_session(&mut self, id: String) {
+        self.switch_tab(Tab::Sessions);
+        if !self.row_keys(Tab::Sessions).contains(&id) {
+            self.search[Tab::Sessions.index()].clear();
+        }
+        self.reselect(Tab::Sessions, Some(id));
+        self.details_scroll = 0;
+    }
+
+    /// Enter on a Summary entry: show what it points at in its own tab.
+    fn jump_to_summary_target(&mut self) -> Vec<Effect> {
+        let Some(target) = self.selected_summary_entry().map(|e| e.target.clone()) else {
+            return Vec::new();
+        };
+        match target {
+            Target::None => self.set_status("this entry does not point anywhere"),
+            Target::Item { repo_id, branch } => {
+                if self.work_item(&repo_id, &branch).is_some() {
+                    self.select_work_item(&repo_id, &branch);
+                } else {
+                    self.set_status(format!("{} is no longer present", clean_status(&branch)));
+                }
+            }
+            Target::Todo { id, title } => match self.find_todo(id.as_deref(), &title) {
+                Some(t) => {
+                    let key = todo_key(t);
+                    self.select_todo(key);
+                }
+                None => self.set_status("this todo is no longer present"),
+            },
+            Target::Session { id } => {
+                if self.find_session(&id).is_some() {
+                    self.select_session(id);
+                } else {
+                    self.set_status("this session is no longer present");
+                }
+            }
+            Target::Inbox => {
+                let id = self
+                    .selected_summary_entry()
+                    .and_then(|e| self.suggestion_for_entry(e))
+                    .map(|s| s.id.to_string());
+                self.switch_tab(Tab::Inbox);
+                if id.is_some() {
+                    self.search[Tab::Inbox.index()].clear();
+                    self.reselect(Tab::Inbox, id);
+                }
+            }
+        }
         Vec::new()
     }
 
@@ -1693,7 +1968,54 @@ impl App {
         let since = self
             .summary_since
             .unwrap_or_else(|| previous_workday(self.today(), &self.workdays));
+        let none = Some(Vec::new());
         match key.code {
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.set_summary_section(self.summary_section.step(-1));
+                none
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.set_summary_section(self.summary_section.step(1));
+                none
+            }
+            KeyCode::Enter if self.arrangement() != Arrangement::ListOnly => {
+                Some(self.jump_to_summary_target())
+            }
+            KeyCode::Char('o') => {
+                let target = self.selected_summary_entry()?.target.clone();
+                match self.target_item(&target).cloned() {
+                    Some(item) => Some(self.open_item_url(&item)),
+                    None => {
+                        self.set_status("no PR or Jira link for this entry");
+                        none
+                    }
+                }
+            }
+            KeyCode::Char(' ') => {
+                let target = self.selected_summary_entry()?.target.clone();
+                let Target::Todo { id, title } = target else {
+                    self.set_status("space marks todos done; this entry is not a todo");
+                    return none;
+                };
+                let Some(todo) = self.find_todo(id.as_deref(), &title).cloned() else {
+                    self.set_status("this todo is no longer present");
+                    return none;
+                };
+                if self.refuse_todo_edit() {
+                    return none;
+                }
+                let Some(id) = todo.id.clone() else {
+                    self.set_status("this todo has no id yet; it gets one on the next write");
+                    return none;
+                };
+                let done = todo.status != TodoStatus::Done;
+                self.set_status(if done {
+                    "marked done"
+                } else {
+                    "marked not done"
+                });
+                Some(self.toggle_done(id, &todo))
+            }
             KeyCode::Char('[') => {
                 let new = previous_workday(since, &self.workdays);
                 Some(self.request_summary(new))
@@ -1724,7 +2046,6 @@ impl App {
 
     fn request_summary(&mut self, since: NaiveDate) -> Vec<Effect> {
         self.summary_since = Some(since);
-        self.summary_scroll = 0;
         vec![Effect::Command(Command::Summary { since })]
     }
 
@@ -1987,12 +2308,16 @@ impl App {
         if self.feedback.too_small.get() {
             return Vec::new();
         }
+        let pos = Position::new(mouse.column, mouse.row);
         let delta = match mouse.kind {
             MouseEventKind::ScrollDown => WHEEL_ROWS,
             MouseEventKind::ScrollUp => -WHEEL_ROWS,
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.click(pos);
+                return Vec::new();
+            }
             _ => return Vec::new(),
         };
-        let pos = Position::new(mouse.column, mouse.row);
         if self.overlay.is_some() {
             if let Some(Overlay::LinkPicker(p)) = &mut self.overlay {
                 p.cursor = p.cursor.saturating_add_signed(delta.signum());
@@ -2001,9 +2326,7 @@ impl App {
             }
             return Vec::new();
         }
-        if self.tab == Tab::Summary {
-            self.scroll_summary(delta);
-        } else if self
+        if self
             .feedback
             .details_area
             .get()
@@ -2018,6 +2341,30 @@ impl App {
         }
         Vec::new()
     }
+
+    /// Left click: select a filter / section label of the bar under the pointer.
+    fn click(&mut self, pos: Position) {
+        if self.overlay.is_some() || self.input.is_some() {
+            return;
+        }
+        let hit = self
+            .feedback
+            .bar_hits
+            .borrow()
+            .iter()
+            .find(|(r, _)| r.contains(pos))
+            .map(|(_, h)| *h);
+        match hit {
+            Some(BarHit::Todo(f)) if self.tab == Tab::Todos => self.set_todo_filter(f),
+            Some(BarHit::Summary(sec)) if self.tab == Tab::Summary => self.set_summary_section(sec),
+            _ => {}
+        }
+    }
+}
+
+/// Branch names in status messages, sanitized.
+fn clean_status(s: &str) -> String {
+    crate::sanitize::clean_line(s)
 }
 
 fn todo_key(t: &Todo) -> String {
@@ -2142,10 +2489,24 @@ mod tests {
                 WorkFilter::Unfinished
             ]
         );
-        press(&mut app, "2f");
-        assert_eq!(app.todo_filter, TodoFilter::Done);
-        press(&mut app, "ff");
-        assert_eq!(app.todo_filter, TodoFilter::Active);
+        press(&mut app, "2");
+        let seen: Vec<TodoFilter> = (0..6)
+            .map(|_| {
+                press(&mut app, "f");
+                app.todo_filter
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            vec![
+                TodoFilter::Todo,
+                TodoFilter::Doing,
+                TodoFilter::Done,
+                TodoFilter::Dropped,
+                TodoFilter::All,
+                TodoFilter::Active
+            ]
+        );
     }
 
     #[test]
@@ -2770,6 +3131,288 @@ mod tests {
         assert!(fuzzy_score("chk", "chunking").is_some());
         assert!(fuzzy_score("xyz", "chunking").is_none());
         assert!(fuzzy_score("abc", "abc").unwrap() < fuzzy_score("abc", "a_b_c").unwrap());
+    }
+
+    fn summary_app() -> App {
+        let mut app = sample::app();
+        press(&mut app, "4");
+        app
+    }
+
+    /// Put the Summary cursor on the first entry of `sec` whose line contains `text`.
+    fn select_entry(app: &mut App, sec: SummarySection, text: &str) {
+        app.summary_section = sec;
+        app.cursor[3] = app
+            .summary_entries()
+            .iter()
+            .position(|e| e.line.contains(text))
+            .unwrap_or_else(|| panic!("no {text} in {sec:?}"));
+    }
+
+    #[test]
+    fn summary_opens_on_the_first_non_empty_section() {
+        let app = summary_app();
+        assert_eq!(app.summary_section, SummarySection::InProgress);
+
+        let mut app = App::new(&Config::default(), Tab::Summary);
+        let mut s = sample::summary();
+        s.in_progress.clear();
+        s.done.clear();
+        let since = NaiveDate::from_ymd_opt(2026, 11, 24).unwrap();
+        app.handle_event(AppEvent::SummaryUpdated {
+            since,
+            summary: s.clone(),
+            markdown: String::new(),
+        });
+        assert_eq!(app.summary_section, SummarySection::Todo);
+        // Later updates keep the section the user is on.
+        app.summary_section = SummarySection::Cleanup;
+        app.handle_event(AppEvent::SummaryUpdated {
+            since,
+            summary: sample::summary(),
+            markdown: String::new(),
+        });
+        assert_eq!(app.summary_section, SummarySection::Cleanup);
+    }
+
+    #[test]
+    fn summary_sections_switch_with_h_l_arrows_and_f() {
+        let mut app = summary_app();
+        assert_eq!(app.row_count(Tab::Summary), app.summary_entries().len());
+        assert!(app.row_count(Tab::Summary) > 2);
+        press(&mut app, "jj");
+        assert_eq!(app.cursor[3], 2);
+        press(&mut app, "l");
+        assert_eq!(app.summary_section, SummarySection::Todo);
+        assert_eq!(app.cursor[3], 0, "a new section starts at the top");
+        press(&mut app, "h");
+        assert_eq!(app.summary_section, SummarySection::InProgress);
+        app.handle_key(key(KeyCode::Right));
+        assert_eq!(app.summary_section, SummarySection::Todo);
+        app.handle_key(key(KeyCode::Left));
+        app.handle_key(key(KeyCode::Left));
+        assert_eq!(app.summary_section, SummarySection::Done);
+        app.handle_key(key(KeyCode::Left));
+        assert_eq!(app.summary_section, SummarySection::Cleanup, "wraps around");
+        press(&mut app, "f");
+        assert_eq!(app.summary_section, SummarySection::Done);
+        press(&mut app, "ff");
+        assert_eq!(app.summary_section, SummarySection::Todo);
+        // j/k/G move within the section.
+        press(&mut app, "G");
+        assert_eq!(app.cursor[3], app.summary_entries().len() - 1);
+        press(&mut app, "g");
+        assert_eq!(app.cursor[3], 0);
+    }
+
+    #[test]
+    fn summary_selection_survives_an_update() {
+        let mut app = summary_app();
+        select_entry(&mut app, SummarySection::InProgress, "chunking");
+        let mut s = sample::summary();
+        s.in_progress.reverse();
+        app.handle_event(AppEvent::SummaryUpdated {
+            since: NaiveDate::from_ymd_opt(2026, 11, 24).unwrap(),
+            summary: s,
+            markdown: String::new(),
+        });
+        assert!(app
+            .selected_summary_entry()
+            .unwrap()
+            .line
+            .contains("chunking"));
+    }
+
+    #[test]
+    fn summary_enter_jumps_to_a_hidden_work_item() {
+        let mut app = summary_app();
+        // bugfix/flaky is merged: hidden by the Unfinished filter, the search and a
+        // collapsed group.
+        app.search[0] = "retry".into();
+        app.collapsed.insert("r_auth".into());
+        select_entry(&mut app, SummarySection::Cleanup, "bugfix/flaky");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Work);
+        assert_eq!(app.work_filter, WorkFilter::All);
+        assert!(app.search[0].is_empty());
+        assert!(!app.collapsed.contains("r_auth"));
+        assert_eq!(app.selected_work_item().unwrap().branch, "bugfix/flaky");
+    }
+
+    #[test]
+    fn summary_enter_keeps_the_work_filter_when_the_item_shows() {
+        let mut app = summary_app();
+        select_entry(&mut app, SummarySection::InProgress, "chunking");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Work);
+        assert_eq!(app.work_filter, WorkFilter::Unfinished);
+        assert_eq!(
+            app.selected_work_item().unwrap().branch,
+            "feature/PROJ-130-chunking"
+        );
+    }
+
+    #[test]
+    fn summary_enter_jumps_to_todos_widening_the_filter() {
+        let mut app = summary_app();
+        app.todo_filter = TodoFilter::Done;
+        select_entry(&mut app, SummarySection::Todo, "Call Ivan");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Todos);
+        assert_eq!(app.todo_filter, TodoFilter::All);
+        assert_eq!(app.selected_todo().unwrap().id.as_deref(), Some("t_3"));
+
+        // Visible under the current filter: the filter stays.
+        let mut app = summary_app();
+        app.todo_filter = TodoFilter::Todo;
+        select_entry(&mut app, SummarySection::Todo, "Review SSO");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.todo_filter, TodoFilter::Todo);
+        assert_eq!(app.selected_todo().unwrap().id.as_deref(), Some("t_6"));
+    }
+
+    #[test]
+    fn summary_enter_jumps_to_sessions_and_inbox() {
+        let mut app = summary_app();
+        app.search[2] = "nothing matches".into();
+        select_entry(&mut app, SummarySection::Blockers, "IdP metadata");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Sessions);
+        assert!(app.search[2].is_empty());
+        assert_eq!(app.selected_session().unwrap().id, "s-sso");
+
+        let mut app = summary_app();
+        select_entry(&mut app, SummarySection::Blockers, "PR #31 declined");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Inbox);
+        assert_eq!(app.selected_suggestion().unwrap().id, 2);
+    }
+
+    #[test]
+    fn summary_enter_on_a_vanished_target_stays() {
+        let mut app = summary_app();
+        select_entry(&mut app, SummarySection::Cleanup, "bugfix/flaky");
+        app.work_items.retain(|w| w.branch != "bugfix/flaky");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Summary);
+        assert!(app
+            .status
+            .as_ref()
+            .unwrap()
+            .text
+            .contains("no longer present"));
+    }
+
+    #[test]
+    fn summary_list_only_enter_opens_details_then_jumps() {
+        let mut app = summary_app();
+        app.feedback.arrangement.set(Some(Arrangement::ListOnly));
+        select_entry(&mut app, SummarySection::InProgress, "chunking");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Summary);
+        assert!(app.details_open);
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Work);
+        assert!(!app.details_open);
+        assert_eq!(
+            app.selected_work_item().unwrap().branch,
+            "feature/PROJ-130-chunking"
+        );
+    }
+
+    #[test]
+    fn summary_space_toggles_a_todo_entry() {
+        let mut app = summary_app();
+        let today = app.today();
+        select_entry(&mut app, SummarySection::Todo, "migration doc");
+        assert_eq!(
+            todo_ops(press(&mut app, " ")),
+            vec![TodoOp::Update {
+                id: "t_2".into(),
+                patch: TodoPatch {
+                    status: Some(TodoStatus::Done),
+                    done: Some(Some(today)),
+                    ..Default::default()
+                }
+            }]
+        );
+        // A done todo goes back to todo.
+        select_entry(&mut app, SummarySection::Done, "bugfix/flaky");
+        app.summary.as_mut().unwrap().done[0].target = Target::Todo {
+            id: Some("t_4".into()),
+            title: "Fix flaky auth test".into(),
+        };
+        assert_eq!(
+            todo_ops(press(&mut app, " ")),
+            vec![TodoOp::Update {
+                id: "t_4".into(),
+                patch: TodoPatch {
+                    status: Some(TodoStatus::Todo),
+                    done: Some(None),
+                    ..Default::default()
+                }
+            }]
+        );
+        // Not a todo: nothing happens.
+        select_entry(&mut app, SummarySection::InProgress, "retry");
+        assert!(press(&mut app, " ").is_empty());
+    }
+
+    #[test]
+    fn summary_o_opens_the_item_pr_or_jira() {
+        let mut app = summary_app();
+        select_entry(&mut app, SummarySection::InProgress, "retry");
+        let c = commands(press(&mut app, "o"));
+        assert!(matches!(c.as_slice(), [Command::OpenUrl(u)] if u.ends_with("/pull-requests/44")));
+        // A todo entry opens its linked item's PR.
+        select_entry(&mut app, SummarySection::Todo, "Review SSO");
+        let c = commands(press(&mut app, "o"));
+        assert!(matches!(c.as_slice(), [Command::OpenUrl(u)] if u.ends_with("/pull-requests/39")));
+        // Unlinked todo: nothing to open.
+        select_entry(&mut app, SummarySection::Todo, "migration doc");
+        assert!(commands(press(&mut app, "o")).is_empty());
+        // y and w still work on the Summary.
+        assert!(matches!(
+            press(&mut app, "y").as_slice(),
+            [Effect::CopyToClipboard(md)] if md.starts_with("# Summary")
+        ));
+    }
+
+    #[test]
+    fn todo_filters_move_with_h_l_and_arrows_and_count() {
+        let mut app = sample::app();
+        press(&mut app, "2");
+        let counts: Vec<usize> = TodoFilter::ALL
+            .iter()
+            .map(|f| app.todo_filter_count(*f))
+            .collect();
+        // Active, Todo, Doing, Done, Dropped, All
+        assert_eq!(counts, vec![4, 3, 1, 1, 1, 6]);
+        press(&mut app, "l");
+        assert_eq!(app.todo_filter, TodoFilter::Todo);
+        app.handle_key(key(KeyCode::Right));
+        assert_eq!(app.todo_filter, TodoFilter::Doing);
+        assert_eq!(app.selected_todo().unwrap().id.as_deref(), Some("t_1"));
+        assert_eq!(app.visible_todos().len(), 1);
+        press(&mut app, "h");
+        assert_eq!(app.todo_filter, TodoFilter::Todo);
+        app.handle_key(key(KeyCode::Left));
+        assert_eq!(app.todo_filter, TodoFilter::Active);
+        app.handle_key(key(KeyCode::Left));
+        assert_eq!(app.todo_filter, TodoFilter::All, "wraps around");
+        // Counts ignore the search; the list does not.
+        app.search[1] = "flaky".into();
+        assert_eq!(app.todo_filter_count(TodoFilter::All), 6);
+        assert_eq!(app.visible_todos().len(), 1);
+        app.search[1].clear();
+        press(&mut app, "hh");
+        assert_eq!(app.todo_filter, TodoFilter::Done);
+        let ids: Vec<_> = app
+            .visible_todos()
+            .iter()
+            .map(|&i| app.todos[i].id.clone().unwrap())
+            .collect();
+        assert_eq!(ids, vec!["t_4"]);
     }
 
     #[test]

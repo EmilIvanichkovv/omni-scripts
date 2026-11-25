@@ -4,21 +4,21 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
-┌ Summary since Tue 2026-11-24 ([ ] to shift) ─────────────┐
-│Summary — Wed 2026-11-25 (since Tue 2026-11-24)           ▲
-│                                                          █
-│Done                                                      █
-│                                                          █
-│• API/auth bugfix/flaky — PR #41 merged                   █
-│  ◦ Fix flaky auth test                                   █
-│                                                          █
-│In progress                                               █
-│                                                          █
-│• API/upload-svc feature/PROJ-123-retry — PR #44 needs    ║
-│work · ci failed · 2 tasks                                ║
-│  ◦ Session: Added exponential backoff; integration test  ║
-│still failing                                             ║
-│                                                          ▼
-└────────────────────────────────────────────── j/k scroll ┘
+┌ Summary · Wed 25 Nov · since Tue 24 Nov  [ ] shift ──────┐
+│ Done 1 │▌In progress 6▐│ Todo 3 │ Blockers 5 │ Cleanup 1 ▲
+│▶ ✎ API/upload-svc feature/PROJ-123-retry                 █
+│    PR #44 needs work · ci failed · 2 tasks · dirty · ahe…█
+│    Session: Add backoff to uploads                       █
+│    Doing: (A) Finish upload retry logic                  █
+│  ◐ API/upload-svc feature/PROJ-130-chunking              █
+│    PR #47 open · ci running · behind 3                   █
+│  ○ API/upload-svc chore/bump-deps                        █
+│    local only · dirty · ahead 2                          █
+│  ✓ API/auth feature/PROJ-118-sso                         █
+│    PR #39 approved · ci ok                               ║
+│    Session: Fixed the SAML redirect loop; login works ag…║
+│  ◆ (no branch)                                           ║
+│    Explain webpack config                                ▼
+└─────────────────────────────────────────── enter details ┘
 
- [ ] shift  y copy  w write  j/k scroll  ? help  q quit
+ ←/→ section  j/k move  enter details  o PR  space done …

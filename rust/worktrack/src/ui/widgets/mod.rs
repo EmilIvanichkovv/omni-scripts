@@ -5,7 +5,7 @@ use std::cell::Cell;
 
 use chrono::{Datelike, TimeZone};
 use ratatui::layout::{Margin, Position, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
@@ -13,7 +13,7 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::theme;
-use crate::app::{LineInput, Now};
+use crate::app::{BarHit, LineInput, Now};
 use crate::lgbc::responsive::{str_width, truncate_end, Scroll};
 
 /// Sanitized single-line external text (spec 11.3).
@@ -357,6 +357,139 @@ pub fn field(label: &str, value: Vec<Span<'static>>) -> Line<'static> {
 /// Section heading inside a details pane.
 pub fn section(title: &str) -> Line<'static> {
     Line::from(Span::styled(title.to_string(), theme::heading()))
+}
+
+/// `spans` cut to `width` columns; the span that overflows is cut with `…`.
+pub fn cut_spans(spans: Vec<Span<'static>>, width: usize) -> Vec<Span<'static>> {
+    let mut used = 0;
+    let mut out = Vec::new();
+    for s in spans {
+        let w = s.width();
+        if used + w > width {
+            let rest = width - used;
+            if rest > 0 {
+                out.push(Span::styled(truncate_end(&s.content, rest), s.style));
+            }
+            break;
+        }
+        used += w;
+        out.push(s);
+    }
+    out
+}
+
+/// One label of a filter / section bar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BarItem {
+    pub label: &'static str,
+    /// Shorter label used when the full bar does not fit.
+    pub short: &'static str,
+    pub count: usize,
+    pub active: bool,
+    pub hit: BarHit,
+}
+
+fn bar_active(text: String) -> Vec<Span<'static>> {
+    // The ▌▐ markers keep the active label visible without color.
+    vec![
+        Span::styled("▌", theme::accent()),
+        Span::styled(
+            text,
+            Style::new()
+                .fg(theme::ACCENT)
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED),
+        ),
+        Span::styled("▐", theme::accent()),
+    ]
+}
+
+fn bar_style(item: &BarItem) -> Style {
+    if item.count == 0 {
+        theme::muted()
+    } else {
+        Style::new()
+    }
+}
+
+/// One-row filter / section bar: ` Done 1 │▌In progress 2▐│ Todo 5 `. Falls back to short
+/// labels, then to `Prev ‹▌Active N▐› Next` (neighbours only when they fit), so it never
+/// overflows `area`. Returns the line and the screen area of each label for mouse clicks.
+pub fn filter_bar(items: &[BarItem], area: Rect) -> (Line<'static>, Vec<(Rect, BarHit)>) {
+    let width = area.width as usize;
+    let hit_rect = |x: usize, w: usize| Rect::new(area.x + x as u16, area.y, w as u16, 1);
+    for short in [false, true] {
+        let mut spans = Vec::new();
+        let mut hits = Vec::new();
+        let mut x = 0;
+        for (i, it) in items.iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled("│", theme::muted()));
+                x += 1;
+            }
+            let text = format!("{} {}", if short { it.short } else { it.label }, it.count);
+            let w = str_width(&text) + 2;
+            if it.active {
+                spans.extend(bar_active(text));
+            } else {
+                spans.push(Span::styled(format!(" {text} "), bar_style(it)));
+            }
+            hits.push((x, w, it.hit));
+            x += w;
+        }
+        if x <= width {
+            let hits = hits
+                .into_iter()
+                .map(|(x, w, h)| (hit_rect(x, w), h))
+                .collect();
+            return (Line::from(spans), hits);
+        }
+    }
+    // Only the active one, with the arrows standing for its neighbours.
+    let Some(pos) = items.iter().position(|it| it.active) else {
+        return (Line::default(), Vec::new());
+    };
+    let n = items.len();
+    let prev = &items[(pos + n - 1) % n];
+    let next = &items[(pos + 1) % n];
+    let cur = &items[pos];
+    let mut text = format!("{} {}", cur.label, cur.count);
+    if str_width(&text) + 6 > width {
+        text = format!("{} {}", cur.short, cur.count);
+    }
+    let core_w = str_width(&text) + 6; // " ‹▌…▐› "
+    let prev_text = format!("{} {}", prev.short, prev.count);
+    let next_text = format!("{} {}", next.short, next.count);
+    let with_neighbours = str_width(&prev_text) + core_w + str_width(&next_text) + 2 <= width;
+    let mut spans = Vec::new();
+    let mut hits = Vec::new();
+    let mut x = 0;
+    if with_neighbours {
+        let w = str_width(&prev_text) + 1;
+        spans.push(Span::styled(format!(" {prev_text}"), theme::muted()));
+        hits.push((hit_rect(x, w), prev.hit));
+        x += w;
+    }
+    spans.push(Span::styled(" ‹", theme::key()));
+    hits.push((hit_rect(x, 2), prev.hit));
+    x += 2;
+    let w = str_width(&text) + 2;
+    spans.extend(bar_active(text));
+    hits.push((hit_rect(x, w), cur.hit));
+    x += w;
+    spans.push(Span::styled("› ", theme::key()));
+    hits.push((hit_rect(x, 2), next.hit));
+    x += 2;
+    if with_neighbours {
+        let w = str_width(&next_text) + 1;
+        spans.push(Span::styled(format!("{next_text} "), theme::muted()));
+        hits.push((hit_rect(x, w), next.hit));
+    }
+    let line_w: usize = spans.iter().map(Span::width).sum();
+    if line_w > width {
+        spans = cut_spans(spans, width);
+        hits.retain(|(r, _)| r.right() <= area.right());
+    }
+    (Line::from(spans), hits)
 }
 
 /// `PROJECT/repo:branch` → `repo:branch`.

@@ -4,8 +4,8 @@ expression: text
 ---
  worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
-┌ Filter: Active ▾  Group: none ────────────────── 4 todos ┐
-│ ┌ Link todo ───────────────────────────────────────────┐ │
+┌ Todos  Group: none ───────────────────────────── 4 todos ┐
+│▌┌ Link todo ───────────────────────────────────────────┐ │
 │ │Link to › re▏                                         │ │
 │ │                                                      │ │
 │ │✎ API/upload-svc:feature/PROJ-123-retry               │ │

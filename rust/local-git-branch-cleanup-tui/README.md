@@ -358,6 +358,7 @@ interactive interface.
 | `R`                | Fetch the remote, reload, re-fetch PR data       |
 | `v`                | Cycle the pane layout (auto/side/stacked/list)   |
 | `J` / `K`          | Scroll the details pane                          |
+| `]` / `[`          | Scroll the action log to older / newer entries   |
 | `?`                | Show help                                        |
 | `q` / `Esc` `Esc`  | Quit (press `Esc` twice within 1s)               |
 

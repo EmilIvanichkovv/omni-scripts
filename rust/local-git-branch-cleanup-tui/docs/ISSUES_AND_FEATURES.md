@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 25-11-2026 17:52
+**Last Updated:** 25-11-2026 18:02
 
 ---
 
@@ -137,42 +137,6 @@ _No open critical issues._
 
 ---
 
-### Issue #26: Make the action log scrollable
-
-- **Status:** 🔴 Open
-- **Reported:** 25-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#83](https://github.com/EmilIvanichkovv/omni-scripts/issues/83)
-- **Description:**
-  - The action log panel shows only the newest entries that fit in its box, and nothing can scroll
-    back to older ones. `draw` in `ui.rs` caps the panel at 4 rows (1 in compact mode) via
-    `log_rows`, and `render_action_log` takes `.rev().take(height)` of `app.action_log`, so after a
-    bulk delete of more than 4 branches the earlier results (including failures) are unreachable.
-  - The mouse wheel does nothing over the panel: `App::scroll_at` only routes wheel events to an
-    open modal, the details pane (`details_area`), or the list (`list_area`), and the log area is
-    not recorded.
-- **Steps to Reproduce:**
-  1. Select 6 or more branches and delete them (`Enter`, confirm).
-  2. Look at the Action Log panel and try to see the first results (wheel over the panel, keys).
-- **Expected Behavior:**
-  - The mouse wheel over the action log scrolls through all its entries, newest first.
-  - A keyboard way to scroll it exists too, and the panel shows its position (e.g. `3-6 of 12` in
-    the title) when it holds more entries than fit.
-  - A new action resets the scroll to the newest entry.
-- **Actual Behavior:** Only the newest 4 entries (1 in compact mode) are ever visible; older ones
-  are hidden with no indication that they exist.
-- **Proposed Fix:**
-  - Add `action_log_scroll: usize` and `action_log_area: Option<Rect>` to `App`; set the area in
-    `draw`, and route wheel events over it in `scroll_at` to a new `scroll_action_log`, clamped to
-    `len - visible rows`.
-  - `render_action_log` skips `action_log_scroll` entries before `take`, and shows the range in the
-    title when the log overflows. Reset the scroll to 0 wherever entries are pushed.
-  - Keyboard: bind a free key pair (e.g. `[` / `]`) and list it in the footer, help modal, README
-    and usage guide. Alternative: a full-screen log modal (`L`) reusing the modal scroll keys, which
-    also helps long failure messages that the one-line rows truncate. Worth deciding before fixing.
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -215,6 +179,46 @@ _No open performance issues._
 ---
 
 ## Resolved Issues
+
+### Issue #26: Make the action log scrollable
+
+- **Status:** 🟢 Resolved
+- **Reported:** 25-11-2026
+- **Resolved:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#83](https://github.com/EmilIvanichkovv/omni-scripts/issues/83)
+- **Description:**
+  - The action log panel showed only the newest entries that fit in its box, and nothing could
+    scroll back to older ones. `draw` in `ui.rs` capped the panel at 4 rows (1 in compact mode) via
+    `log_rows`, and `render_action_log` took `.rev().take(height)` of `app.action_log`, so after a
+    bulk delete of more than 4 branches the earlier results (including failures) were unreachable.
+  - The mouse wheel did nothing over the panel: `App::scroll_at` only routed wheel events to an open
+    modal, the details pane (`details_area`), or the list (`list_area`), and the log area was not
+    recorded.
+- **Steps to Reproduce:**
+  1. Select 6 or more branches and delete them (`Enter`, confirm).
+  2. Look at the Action Log panel and try to see the first results (wheel over the panel, keys).
+- **Expected Behavior:**
+  - The mouse wheel over the action log scrolls through all its entries, newest first.
+  - A keyboard way to scroll it exists too, and the panel shows its position (e.g. `3-6 of 12` in
+    the title) when it holds more entries than fit.
+  - A new action resets the scroll to the newest entry.
+- **Actual Behavior:** Only the newest 4 entries (1 in compact mode) were ever visible; older ones
+  were hidden with no indication that they existed.
+- **Fix:**
+  - `App` gained `action_log_scroll`, `action_log_viewport` and `action_log_area`.
+    `render_action_log` records the area and viewport, clamps the scroll, skips that many entries
+    from the newest, and, when the log overflows, shows `· A-B of N` in the title and a `[/] scroll`
+    hint on the bottom border.
+  - `scroll_at` routes the wheel over the log to the new `App::scroll_action_log`, and
+    `handle_layout_key` binds `]` (older) / `[` (newer) in both views while the log is on screen.
+  - Every write to the log goes through the new `App::log_actions`, which scrolls back to the newest
+    entry.
+  - Listed the keys in both help modals, the README and the usage guide; added a manual check to
+    `TESTING.md` and render tests for the range, the hint, the wheel and the reset.
+- **Commit:** `feat(tui): Scroll the action log with the mouse wheel and ] / [`
+
+---
 
 ### Issue #25: Fetch and prune the remote when the TUI starts
 
@@ -1187,3 +1191,4 @@ _No open performance issues._
 | 25-11-2026 | 15:44 | #28   | Reported: Show the active filter in the header                         |
 | 25-11-2026 | 17:52 | #29   | Reported: Show external command errors in a popup, not over the screen |
 | 25-11-2026 | 17:52 | #30   | Reported: Write a log file for diagnosing errors                       |
+| 25-11-2026 | 18:02 | #26   | Resolved: Action log scrolls with the wheel and `]` / `[`              |

@@ -126,6 +126,9 @@ Compare behavior with the original bash script:
 - [ ] `y` in confirmation - delete branches
 - [ ] `n` or Esc in confirmation - cancel
 - [ ] Action log shows results after deletion
+- [ ] With more results than fit (delete 6+ branches), the log title shows `1-4 of N` and a
+      `[/] scroll` hint; `]` / `[` and the mouse wheel over the log scroll through every entry, and
+      the next deletion scrolls back to the newest
 - [ ] Branch list refreshes after deletion
 - [ ] Selected branches removed from UI after successful deletion
 

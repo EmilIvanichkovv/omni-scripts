@@ -529,16 +529,16 @@ fn run_tui_mode(
                                         .iter()
                                         .map(|b| b.name.clone())
                                         .collect();
-                                    for branch_name in branches_to_preview {
-                                        app.action_log.push(app::ActionLogEntry {
-                                            branch_name: branch_name.clone(),
-                                            success: true,
+                                    app.log_actions(branches_to_preview.into_iter().map(
+                                        |branch_name| app::ActionLogEntry {
                                             message: format!(
                                                 "[DRY RUN] Would delete: {}",
                                                 branch_name
                                             ),
-                                        });
-                                    }
+                                            branch_name,
+                                            success: true,
+                                        },
+                                    ));
                                     app.clear_selection();
                                 }
                                 app.show_confirmation = false;
@@ -904,8 +904,9 @@ fn handle_modal_scroll_key(app: &mut App, key: event::KeyEvent) -> bool {
     true
 }
 
-/// Normal-mode keys for the pane arrangement (`v`) and for scrolling the
-/// details pane (`J` / `K`, Shift+↓ / Shift+↑), the same in both views.
+/// Normal-mode keys for the pane arrangement (`v`), for scrolling the
+/// details pane (`J` / `K`, Shift+↓ / Shift+↑) and the action log
+/// (`]` older, `[` newer), the same in both views.
 /// Returns whether `key` was one of them.
 fn handle_layout_key(app: &mut App, key: event::KeyEvent) -> bool {
     // Ctrl+V, Alt+J and the like are not these keys
@@ -928,6 +929,8 @@ fn handle_layout_key(app: &mut App, key: event::KeyEvent) -> bool {
         KeyCode::Char('K') => app.scroll_details(-1),
         KeyCode::Down if shift => app.scroll_details(1),
         KeyCode::Up if shift => app.scroll_details(-1),
+        KeyCode::Char(']') if app.action_log_area.is_some() => app.scroll_action_log(1),
+        KeyCode::Char('[') if app.action_log_area.is_some() => app.scroll_action_log(-1),
         _ => return false,
     }
     true

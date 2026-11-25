@@ -901,6 +901,12 @@ fn handle_layout_key(app: &mut App, key: event::KeyEvent) -> bool {
         return false;
     }
     let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+    let scroll_key = matches!(key.code, KeyCode::Char('J' | 'K'))
+        || (shift && matches!(key.code, KeyCode::Down | KeyCode::Up));
+    // With the details pane hidden, these act as plain navigation
+    if scroll_key && app.details_area.is_none() {
+        return false;
+    }
     match key.code {
         KeyCode::Char('v') => app.cycle_layout_mode(),
         KeyCode::Char('J') => app.scroll_details(1),

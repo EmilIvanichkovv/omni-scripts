@@ -98,7 +98,7 @@ pub fn arrange(mode: LayoutMode, content: Rect) -> Arrangement {
 pub fn split_content(arrangement: Arrangement, content: Rect) -> (Rect, Option<Rect>) {
     match arrangement {
         Arrangement::SideBySide => {
-            let details = (content.width * 3 / 10)
+            let details = ((u32::from(content.width) * 3 / 10) as u16)
                 .clamp(32, 60)
                 .min(content.width.saturating_sub(LIST_MIN_WIDTH));
             let [list, details] =
@@ -107,7 +107,7 @@ pub fn split_content(arrangement: Arrangement, content: Rect) -> (Rect, Option<R
             (list, Some(details))
         }
         Arrangement::Stacked => {
-            let details = (content.height * 2 / 5)
+            let details = ((u32::from(content.height) * 2 / 5) as u16)
                 .clamp(8, 14)
                 .min(content.height.saturating_sub(LIST_MIN_HEIGHT));
             let [list, details] =

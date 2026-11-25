@@ -1454,9 +1454,9 @@ fn footer_lines(app: &App, width: u16, compact: bool) -> Vec<Line<'static>> {
         };
     }
 
-    let mut groups = footer_hint_groups(app);
     // A compact footer has no bottom border to carry the refresh status and
-    // the update notice
+    // the update notice. They go first, so the hints are what gets cut.
+    let mut groups = Vec::new();
     if compact {
         if let Some(status) = app.refresh_status(std::time::Instant::now()) {
             groups.push(vec![Span::styled(
@@ -1471,6 +1471,7 @@ fn footer_lines(app: &App, width: u16, compact: bool) -> Vec<Line<'static>> {
             )]);
         }
     }
+    groups.extend(footer_hint_groups(app));
     let more = vec![
         Span::styled("… ", Style::default().fg(COLOR_MUTED)),
         Span::styled(
@@ -1580,6 +1581,13 @@ fn branch_confirmation_lines(app: &App) -> Vec<Line<'_>> {
             Span::styled(" branch(es)?", Style::default().fg(COLOR_MUTED)),
         ]));
     }
+    // Above the list, which can run below the fold, so it is always seen
+    if unmerged_count > 0 {
+        lines.push(Line::from(vec![Span::styled(
+            format!("  ⚠️  {} unmerged (force delete)", unmerged_count),
+            Style::default().fg(COLOR_DANGER),
+        )]));
+    }
     lines.push(Line::from(""));
 
     // Every branch that will go; the modal scrolls when they do not fit
@@ -1593,15 +1601,6 @@ fn branch_confirmation_lines(app: &App) -> Vec<Line<'_>> {
                 Style::default().fg(get_status_color(&branch.status)),
             ),
         ]));
-    }
-
-    // Warning for unmerged
-    if unmerged_count > 0 {
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![Span::styled(
-            format!("  ⚠️  {} unmerged (force delete)", unmerged_count),
-            Style::default().fg(COLOR_DANGER),
-        )]));
     }
 
     lines
@@ -3088,6 +3087,45 @@ fn worktree_confirmation_lines(app: &App) -> Vec<Line<'static>> {
             Span::styled(" worktree(s)?", Style::default().fg(COLOR_MUTED)),
         ]));
     }
+
+    // Warnings and the b toggle go above the list, which can run below the
+    // fold, so they are always seen
+    let forced = selected
+        .iter()
+        .filter(|(_, a)| *a == RemovalAction::ForceRemove)
+        .count();
+    if forced > 0 {
+        lines.push(Line::from(Span::styled(
+            format!("  ⚠️  {forced} dirty: uncommitted changes will be lost"),
+            Style::default().fg(COLOR_DANGER),
+        )));
+    }
+    if selected.iter().any(|(_, a)| *a == RemovalAction::Prune) {
+        lines.push(Line::from(Span::styled(
+            "  git worktree prune cleans up every prunable worktree",
+            Style::default().fg(COLOR_MUTED),
+        )));
+    }
+    let (state, style) = if view.delete_branches {
+        (
+            "ON (-d/-D as in the branch view)",
+            Style::default()
+                .fg(COLOR_DANGER)
+                .add_modifier(Modifier::BOLD),
+        )
+    } else {
+        ("off", Style::default().fg(COLOR_MUTED))
+    };
+    lines.push(Line::from(vec![
+        Span::styled(
+            "  b",
+            Style::default()
+                .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" also delete branches: ", Style::default().fg(COLOR_MUTED)),
+        Span::styled(state, style),
+    ]));
     lines.push(Line::from(""));
 
     for (wt, action) in selected.iter() {
@@ -3109,45 +3147,6 @@ fn worktree_confirmation_lines(app: &App) -> Vec<Line<'static>> {
             ),
         ]));
     }
-    let forced = selected
-        .iter()
-        .filter(|(_, a)| *a == RemovalAction::ForceRemove)
-        .count();
-    if forced > 0 {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            format!("  ⚠️  {forced} dirty: uncommitted changes will be lost"),
-            Style::default().fg(COLOR_DANGER),
-        )));
-    }
-    if selected.iter().any(|(_, a)| *a == RemovalAction::Prune) {
-        lines.push(Line::from(Span::styled(
-            "  git worktree prune cleans up every prunable worktree",
-            Style::default().fg(COLOR_MUTED),
-        )));
-    }
-
-    lines.push(Line::from(""));
-    let (state, style) = if view.delete_branches {
-        (
-            "ON (-d/-D as in the branch view)",
-            Style::default()
-                .fg(COLOR_DANGER)
-                .add_modifier(Modifier::BOLD),
-        )
-    } else {
-        ("off", Style::default().fg(COLOR_MUTED))
-    };
-    lines.push(Line::from(vec![
-        Span::styled(
-            "  b",
-            Style::default()
-                .fg(COLOR_ACCENT)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" also delete branches: ", Style::default().fg(COLOR_MUTED)),
-        Span::styled(state, style),
-    ]));
     lines
 }
 
@@ -3853,6 +3852,29 @@ mod tests {
         let text = screen_at(&mut app, 120, 24);
         assert!(text.contains("branch-029"));
         assert!(text.contains("y / Enter"));
+    }
+
+    #[test]
+    fn force_delete_warning_shows_even_when_the_list_overflows() {
+        let mut app = many_branches_app(0);
+        app.branches = (0..30)
+            .map(|i| named_branch(&format!("branch-{i:03}"), BranchStatus::Unmerged))
+            .collect();
+        app.force_mode = true;
+        app.selected_branches = app.branches.iter().map(|b| b.name.clone()).collect();
+        app.show_confirmation = true;
+
+        let text = screen_at(&mut app, 120, 24);
+        assert!(text.contains("↑↓ scroll"));
+        assert!(text.contains("30 unmerged (force delete)"));
+    }
+
+    #[test]
+    fn compact_footer_keeps_the_update_notice_over_the_hints() {
+        let mut app = many_branches_app(3);
+        app.update_notice = Some("Update available: 9.9.9".into());
+        let text = screen_at(&mut app, 80, 24);
+        assert!(text.contains("Update available: 9.9.9"));
     }
 
     #[test]

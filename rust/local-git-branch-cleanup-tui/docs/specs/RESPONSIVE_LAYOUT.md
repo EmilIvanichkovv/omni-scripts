@@ -80,9 +80,10 @@ it is clear why the layout does not follow the window.
 
 Below 30 rows the header, search box, filter tabs, legend and footer drop their borders and titles
 and take one row each instead of three; the legend shows a `Legend:` prefix in place of its title.
-The search box shows `🔍` in front of the query in place of its title. The update notice, normally
-on the footer's bottom border, becomes the last footer item. The action log keeps its border (its
-title holds the success/failure counts) and shows only the newest entry.
+The search box shows `🔍` in front of the query in place of its title. The refresh status and update
+notice, normally on the footer's bottom border, become the first footer items, so the key hints are
+what gets cut when the footer is full. The action log keeps its border (its title holds the
+success/failure counts) and shows only the newest entry.
 
 ### Text that does not fit
 
@@ -120,7 +121,7 @@ The details pane shows every dropped value.
 | List         | unchanged (↑↓ j k, PgUp/PgDn, Home/End, g/G, ^U/^D)           | scrollbar on the right border when the list overflows; offset read back from `TableState`     |
 | Details      | `J` / `K` or Shift+↓ / Shift+↑                                | scrollbar when it overflows; resets to the top when the cursor moves to another item          |
 | Help, About  | ↑↓ j k, PgUp/PgDn, Home/End, g/G scroll; any other key closes | modal sized to its content, capped at the screen; bottom border reads `↑↓ scroll` on overflow |
-| Confirmation | ↑↓ j k, PgUp/PgDn scroll; y / Enter / n / Esc / b as before   | lists **every** selected branch / worktree instead of the first 3 or 4                        |
+| Confirmation | ↑↓ j k, PgUp/PgDn scroll; y / Enter / n / Esc / b as before   | lists **every** selected branch / worktree; warnings and the `b` state sit above the list     |
 | Action log   | none                                                          | shows as many of the newest entries as fit                                                    |
 
 **Mouse wheel** scrolls the pane under the pointer. The renderer stores the list and details rects

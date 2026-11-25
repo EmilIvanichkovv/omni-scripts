@@ -2,6 +2,7 @@
 
 pub mod markdown;
 pub mod rules;
+pub mod store;
 pub mod watch;
 
 use chrono::NaiveDate;

@@ -3,6 +3,23 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.12.0 - 25-11-2026
+
+### Features
+
+- **tui:** Scroll the action log with the mouse wheel and ] / [
+- **tui:** Move the legend to a full-width box above the footer
+- **tui:** Show the active filter in the header
+- **tui:** Write a daily log file for diagnosing errors
+
+### Bug fixes
+
+- **tui:** Show browser opener errors in a popup instead of over the screen
+
+### Build and dependencies
+
+- **deps:** Bump the cargo-minor-patch group across 1 directory with 3 updates
+
 ## 0.11.0 - 25-11-2026
 
 ### Features

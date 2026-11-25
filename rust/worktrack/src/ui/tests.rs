@@ -977,8 +977,23 @@ fn bars_get_a_blank_row_under_them_unless_the_terminal_is_short() {
 /// to the last row too) stays on screen.
 #[test]
 fn every_tab_renders_across_sizes_with_the_cursor_visible() {
-    let widths = [40, 43, 44, 57, 58, 67, 68, 80, 119, 120, 200];
-    let heights = [10, 12, 13, 20, 23, 24, 30, 60];
+    // One size per side of each breakpoint (tab-bar widths 43/44, 57/58, 67/68; roomy height
+    // 23/24; layout widths 79/80, 119/120) instead of the full grid, which took about a minute
+    // in debug builds and starved timing-sensitive tests running in parallel.
+    let sizes: [(u16, u16); 12] = [
+        (40, 10),
+        (43, 12),
+        (44, 24),
+        (57, 13),
+        (58, 24),
+        (67, 20),
+        (68, 24),
+        (79, 23),
+        (80, 30),
+        (119, 24),
+        (120, 23),
+        (200, 60),
+    ];
     for tab in ["1", "2", "3", "4", "5"] {
         for layout in 0..4 {
             for end in [false, true] {
@@ -989,8 +1004,8 @@ fn every_tab_renders_across_sizes_with_the_cursor_visible() {
                 if end {
                     key(&mut app, KeyCode::End);
                 }
-                for &w in &widths {
-                    for &h in &heights {
+                for &(w, h) in &sizes {
+                    {
                         let buf = render(&app, w, h);
                         for line in buffer_text(&buf).lines() {
                             assert!(line.width() <= w as usize, "{tab} {w}x{h}: {line}");

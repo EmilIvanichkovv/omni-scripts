@@ -3,9 +3,11 @@
 
 mod app;
 mod bitbucket;
+mod cli;
 mod config;
 mod discovery;
 mod lgbc;
+mod logging;
 mod model;
 mod refresh;
 mod sanitize;

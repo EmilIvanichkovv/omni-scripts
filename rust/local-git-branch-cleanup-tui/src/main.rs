@@ -463,6 +463,7 @@ fn run_tui_mode(
         app.update_notice = update_notice.message();
         app.poll_worktree_status();
         app.poll_refresh();
+        app.poll_errors();
 
         // Draw UI
         terminal.draw(|frame| ui::render(frame, &mut app))?;
@@ -495,9 +496,14 @@ fn run_tui_mode(
                     // Any key dismisses a footer message
                     app.flash = None;
 
-                    // Help / about: scroll keys scroll when there is more
-                    // to see, any other key closes
-                    if app.show_help || app.show_info {
+                    // Error popup, help, about: scroll keys scroll when
+                    // there is more to see, any other key closes. The error
+                    // popup is on top of everything, so it goes first.
+                    if app.error_popup.is_some() {
+                        if !app.modal_overflows || !handle_modal_scroll_key(&mut app, key) {
+                            app.close_error_popup();
+                        }
+                    } else if app.show_help || app.show_info {
                         if !app.modal_overflows || !handle_modal_scroll_key(&mut app, key) {
                             app.close_info_modals();
                         }

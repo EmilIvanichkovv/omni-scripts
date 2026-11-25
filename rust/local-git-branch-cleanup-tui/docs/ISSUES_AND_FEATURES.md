@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 25-11-2026 18:11
+**Last Updated:** 25-11-2026 18:16
 
 ---
 
@@ -30,45 +30,7 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-### Issue #29: Show errors from external commands in a popup instead of over the screen
-
-- **Status:** 🔴 Open
-- **Reported:** 25-11-2026
-- **Category:** UI/UX / Bug
-- **GitHub:** [#88](https://github.com/EmilIvanichkovv/omni-scripts/issues/88)
-- **Description:**
-  - When opening a PR in the browser (`o`) fails, the opener's error text is printed straight onto
-    the terminal over the TUI, e.g. `/usr/bin/xdg-open: 1050: rundll32.exe: not found` under WSL. It
-    stays there, breaking the layout, until something forces a full redraw.
-  - Root cause: `git::open_url_in_browser` runs `Command::new("xdg-open").arg(url).spawn()` (and
-    `open` / `cmd /C start` on macOS / Windows) without setting stdio, so the child inherits the
-    TUI's stdout/stderr and writes into the alternate screen. `spawn` returns as soon as the process
-    starts, so its exit status and error output are never checked, and `App::open_selected_pr`
-    reports success.
-  - There is no error popup to show such a failure in: errors go to the one-line `flash` message in
-    the footer, which is cut off for long text and clears on the next key.
-- **Steps to Reproduce:**
-  1. In WSL without a working browser bridge (no `rundll32.exe` on `PATH`), start the TUI with PR
-     integration on.
-  2. Put the cursor on a branch with a PR and press `o`.
-- **Expected Behavior:**
-  - Nothing from a child process is written to the terminal while the TUI runs.
-  - A failed open shows an error popup (title, the command that failed, its error output) that the
-    user dismisses with `Esc`/`Enter`, and the error is written to the log file (TUI-30).
-- **Actual Behavior:** The opener's stderr is drawn over the app, and the TUI behaves as if the PR
-  had opened.
-- **Proposed Fix:**
-  - In `open_url_in_browser`, set `stdin`/`stdout` to `Stdio::null()` and `stderr` to
-    `Stdio::piped()`, and wait for the opener on a background thread (`xdg-open` exits once the
-    browser is handed the URL). On a non-zero exit, send the trimmed stderr to the app through the
-    existing event channel.
-  - Add an error modal to `App` (`error_popup: Option<ErrorPopup { title, message }>`), include it
-    in `modal_open` so it takes keys and the mouse wheel, and render it like the other modals with
-    wrapped, scrollable text. Use it for other user-facing failures that do not fit the footer
-    `flash` (failed worktree listing, failed refresh).
-  - Audit the other `Command`s: the `git` and `gh` calls use `.output()` (captured) and the
-    clipboard nulls its stdio, so `open_url_in_browser` is the only one that inherits the terminal
-    today. Add a comment there so new spawns follow the same rule.
+_No open UI/UX issues._
 
 ---
 
@@ -114,6 +76,56 @@ _No open performance issues._
 ---
 
 ## Resolved Issues
+
+### Issue #29: Show errors from external commands in a popup instead of over the screen
+
+- **Status:** 🟢 Resolved
+- **Reported:** 25-11-2026
+- **Resolved:** 25-11-2026
+- **Category:** UI/UX / Bug
+- **GitHub:** [#88](https://github.com/EmilIvanichkovv/omni-scripts/issues/88)
+- **Description:**
+  - When opening a PR in the browser (`o`) failed, the opener's error text was printed straight onto
+    the terminal over the TUI, e.g. `/usr/bin/xdg-open: 1050: rundll32.exe: not found` under WSL. It
+    stayed there, breaking the layout, until something forced a full redraw.
+  - Root cause: `git::open_url_in_browser` ran `Command::new("xdg-open").arg(url).spawn()` (and
+    `open` / `cmd /C start` on macOS / Windows) without setting stdio, so the child inherited the
+    TUI's stdout/stderr and wrote into the alternate screen. `spawn` returned as soon as the process
+    started, so its exit status and error output were never checked, and `App::open_selected_pr`
+    reported success.
+  - There was no error popup to show such a failure in: errors went to the one-line `flash` message
+    in the footer, which is cut off for long text and clears on the next key.
+- **Steps to Reproduce:**
+  1. In WSL without a working browser bridge (no `rundll32.exe` on `PATH`), start the TUI with PR
+     integration on.
+  2. Put the cursor on a branch with a PR and press `o`.
+- **Expected Behavior:**
+  - Nothing from a child process is written to the terminal while the TUI runs.
+  - A failed open shows an error popup (title, the command that failed, its error output) that the
+    user dismisses with `Esc`/`Enter`, and the error is written to the log file (TUI-30).
+- **Actual Behavior:** The opener's stderr was drawn over the app, and the TUI behaved as if the PR
+  had opened.
+- **Fix:**
+  - `open_url_in_browser` now takes an `on_failure` callback. The opener runs with stdin/stdout on
+    null and stderr in an unnamed `tempfile` (nothing left behind, and no broken pipe if the opener
+    outlives the TUI; `tempfile` moved from dev- to normal dependencies). A background thread waits
+    for it and, on a non-zero exit, passes `` `xdg-open` failed (exit status: 4): `` plus its error
+    output. An opener that cannot start at all is returned as an error. Other Unix-likes now use
+    `xdg-open` too (only Linux did before).
+  - New `App::error_popup` with a queue (`show_error`, `poll_errors` each loop, `close_error_popup`)
+    that background threads can also post to; `modal_open` includes it. `render_error_popup` draws
+    it on top of everything with `render_modal` in the danger color, with the error lines, the URL
+    and a close hint. Scroll keys scroll a long message; any other key closes it and the next queued
+    error follows.
+  - `open_selected_pr` sends both kinds of opener failure to the popup. "Cannot list worktrees"
+    moved from the footer `flash` to the popup too.
+  - The other `Command`s were already safe: `git` and `gh` run with `.output()` and the clipboard
+    nulls its stdio. Writing the error to a log file is left to TUI-30.
+  - Tests: opener failure output and exit status, a quiet successful opener, a missing opener, and
+    the popup queue rendering. Documented in the usage guide; manual check in `TESTING.md`.
+- **Commit:** `fix(tui): Show browser opener errors in a popup instead of over the screen`
+
+---
 
 ### Issue #28: Show the active filter in the header
 
@@ -1200,3 +1212,4 @@ _No open performance issues._
 | 25-11-2026 | 18:02 | #26   | Resolved: Action log scrolls with the wheel and `]` / `[`              |
 | 25-11-2026 | 18:08 | #27   | Resolved: Legend is a full-width box above the footer                  |
 | 25-11-2026 | 18:11 | #28   | Resolved: Header shows the active filter (`▽ SAFE MERGED`)             |
+| 25-11-2026 | 18:16 | #29   | Resolved: Opener errors go to a popup, not over the screen             |

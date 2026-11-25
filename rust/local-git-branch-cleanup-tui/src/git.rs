@@ -648,23 +648,79 @@ pub fn delete_branch_with_mode(branch_name: &str, force: bool) -> Result<()> {
     Ok(())
 }
 
-/// Open a URL in the default browser
-pub fn open_url_in_browser(url: &str) -> Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open").arg(url).spawn()?;
-    }
-
+/// The platform's "open this URL" command
+fn browser_command(url: &str) -> Command {
     #[cfg(target_os = "macos")]
-    {
-        Command::new("open").arg(url).spawn()?;
-    }
-
+    let command = {
+        let mut command = Command::new("open");
+        command.arg(url);
+        command
+    };
     #[cfg(target_os = "windows")]
-    {
-        Command::new("cmd").args(["/C", "start", "", url]).spawn()?;
-    }
+    let command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", url]);
+        command
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+    command
+}
 
+/// Open `url` in the default browser without blocking.
+///
+/// The TUI owns the terminal, so the opener must never write to it: its
+/// stdin and stdout go to null and its stderr to an anonymous temporary
+/// file. A background thread waits for it, and when it exits with an error
+/// calls `on_failure` with a description including its error output. An
+/// opener that cannot be started at all is returned as an error instead.
+pub fn open_url_in_browser(
+    url: &str,
+    on_failure: impl FnOnce(String) + Send + 'static,
+) -> Result<()> {
+    spawn_opener(browser_command(url), on_failure)
+}
+
+/// [`open_url_in_browser`] with the command given, so tests can stand in
+/// a failing one
+fn spawn_opener(
+    mut command: Command,
+    on_failure: impl FnOnce(String) + Send + 'static,
+) -> Result<()> {
+    use color_eyre::eyre::WrapErr;
+    use std::io::{Read, Seek};
+    use std::process::Stdio;
+
+    let program = command.get_program().to_string_lossy().into_owned();
+    // Unnamed, so nothing is left behind even if the opener outlives the TUI
+    let mut stderr =
+        tempfile::tempfile().wrap_err("Cannot create a file for the opener's output")?;
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(stderr.try_clone()?)
+        .spawn()
+        .wrap_err_with(|| format!("Cannot run `{program}`"))?;
+    std::thread::spawn(move || {
+        let status = match child.wait() {
+            Ok(status) if status.success() => return,
+            Ok(status) => status.to_string(),
+            Err(e) => e.to_string(),
+        };
+        let mut output = String::new();
+        let _ = stderr.rewind();
+        let _ = stderr.read_to_string(&mut output);
+        let output = output.trim();
+        on_failure(if output.is_empty() {
+            format!("`{program}` failed ({status}).")
+        } else {
+            format!("`{program}` failed ({status}):\n{output}")
+        });
+    });
     Ok(())
 }
 
@@ -810,6 +866,40 @@ pub fn refs_fingerprint_in(dir: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Run `script` with `sh` as the opener and return what `on_failure`
+    /// got, if it was called
+    #[cfg(unix)]
+    fn opener_failure(script: &str) -> Option<String> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut command = Command::new("sh");
+        command.args(["-c", script]);
+        spawn_opener(command, move |message| tx.send(message).unwrap()).unwrap();
+        rx.recv_timeout(std::time::Duration::from_secs(10)).ok()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failing_opener_reports_its_error_output() {
+        let message = opener_failure("echo 'rundll32.exe: not found' >&2; exit 3").unwrap();
+        assert!(message.contains("`sh` failed"), "{message}");
+        assert!(message.contains("3"), "{message}");
+        assert!(message.contains("rundll32.exe: not found"), "{message}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn successful_opener_reports_nothing() {
+        // Its output is swallowed too: nothing reaches the terminal
+        assert_eq!(opener_failure("echo noise >&2; echo more"), None);
+    }
+
+    #[test]
+    fn missing_opener_is_an_error() {
+        let command = Command::new("no-such-opener-for-tests");
+        let err = spawn_opener(command, |_| panic!("not started")).unwrap_err();
+        assert!(err.to_string().contains("no-such-opener-for-tests"));
+    }
 
     fn git_in(dir: &Path, args: &[&str]) {
         let status = Command::new("git")

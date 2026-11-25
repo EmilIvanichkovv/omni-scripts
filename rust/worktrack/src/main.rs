@@ -7,6 +7,7 @@ mod cli;
 mod config;
 mod discovery;
 mod lgbc;
+mod localgit;
 mod logging;
 mod model;
 mod refresh;
@@ -16,6 +17,7 @@ mod store;
 mod summary;
 mod todos;
 mod ui;
+mod workitems;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;

@@ -2,6 +2,7 @@
 members = [
     "omni-lib",
     "local-git-branch-cleanup-tui",
+    "worktrack",
 ]
 resolver = "2"
 
@@ -38,11 +39,25 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 url = "2"
 
+# worktrack
+toml = "0.9"
+sha2 = "0.10"
+ulid = "1"
+regex = "1"
+globset = "0.4"
+notify = "8"
+notify-debouncer-full = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+shell-words = "1"
+
 # Testing dependencies
 tempfile = "3.17"
 assert_cmd = "2.0"
 predicates = "3.1"
 wiremock = "0.6"
+proptest = "1"
+insta = "1"
 
 # Internal crates
 omni-lib = { path = "omni-lib" }

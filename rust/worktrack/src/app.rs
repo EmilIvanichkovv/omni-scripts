@@ -107,13 +107,6 @@ impl Tab {
         }
     }
 
-    /// Parse the `--tab` CLI value.
-    pub fn parse(s: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|t| t.title().eq_ignore_ascii_case(s))
-    }
-
     fn next(self) -> Self {
         Self::ALL[(self.index() + 1) % Self::ALL.len()]
     }
@@ -421,30 +414,11 @@ pub struct App {
     pub feedback: RenderFeedback,
 }
 
-/// POSIX single-quote escaping (spec 11.3).
-pub fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
+pub use crate::sessions::resume::shell_quote;
 
 /// `cd '<path>' && claude --resume <id>` (spec 6.5).
 pub fn resume_command(path: &Path, session_id: &str) -> String {
-    format!(
-        "cd {} && claude --resume {}",
-        shell_quote(&path.to_string_lossy()),
-        shell_quote_if_needed(session_id)
-    )
-}
-
-/// Session ids are UUIDs; quote anything else so it cannot break the command.
-fn shell_quote_if_needed(s: &str) -> String {
-    if !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-    {
-        s.to_string()
-    } else {
-        shell_quote(s)
-    }
+    crate::sessions::resume::resume_command_text(path, session_id)
 }
 
 /// The latest workday strictly before `date` (spec 8.1). With no workdays: the day before.

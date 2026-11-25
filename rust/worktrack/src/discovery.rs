@@ -597,7 +597,6 @@ pub(crate) mod testutil {
     /// A bare "server" repo plus a clone at `<root>/work` whose `origin` URL is a fake Bitbucket
     /// URL. Remote-tracking refs are maintained with [`sync`].
     pub struct Fixture {
-        pub root: PathBuf,
         pub server: PathBuf,
         pub work: PathBuf,
     }
@@ -621,11 +620,7 @@ pub(crate) mod testutil {
             commit(&work, "README", "init");
             git(&work, &["push", "-q", "origin", "main"]);
             git(&work, &["remote", "set-url", "origin", FAKE_ORIGIN]);
-            let f = Self {
-                root: root.to_path_buf(),
-                server,
-                work,
-            };
+            let f = Self { server, work };
             f.sync();
             git(
                 &f.work,

@@ -40,6 +40,7 @@ pub fn open_for_hook(path: &Path) -> Result<Connection> {
 }
 
 /// In-memory database with the schema applied, for tests.
+#[cfg(test)]
 pub fn open_in_memory() -> Result<Connection> {
     let mut conn = Connection::open_in_memory()?;
     migrate(&mut conn)?;
@@ -126,24 +127,8 @@ impl DbWriter {
             .map_err(|_| eyre!("db writer dropped the request"))?
     }
 
-    /// Blocking variant for non-async callers (UI actions run on the main thread must NOT use
-    /// this; it is for CLI subcommands and tests).
-    pub fn write_blocking<T, F>(&self, f: F) -> Result<T>
-    where
-        T: Send + 'static,
-        F: FnOnce(&mut Connection) -> Result<T> + Send + 'static,
-    {
-        let (otx, orx) = std::sync::mpsc::channel();
-        self.tx
-            .send(Box::new(move |c| {
-                let _ = otx.send(f(c));
-            }))
-            .map_err(|_| eyre!("db writer stopped"))?;
-        orx.recv()
-            .map_err(|_| eyre!("db writer dropped the request"))?
-    }
-
     /// Open a separate read connection to the same database.
+    #[cfg(test)]
     pub fn reader(&self) -> Result<Connection> {
         let conn = Connection::open(&self.path)?;
         conn.busy_timeout(Duration::from_secs(5))?;

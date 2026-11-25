@@ -726,6 +726,7 @@ pub fn load_sessions(conn: &Connection) -> Result<Vec<Session>> {
 }
 
 /// One session with its links.
+#[cfg(test)]
 pub fn load_session(conn: &Connection, id: &str) -> Result<Option<Session>> {
     let mut s = conn
         .query_row(

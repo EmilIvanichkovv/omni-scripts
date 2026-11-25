@@ -378,6 +378,7 @@ pub fn set_abandoned_manual(
 }
 
 /// State events with `at >= since`, oldest first.
+#[cfg(test)]
 pub fn load_transitions(conn: &Connection, since: i64) -> Result<Vec<Transition>> {
     let mut stmt = conn.prepare(
         "SELECT repo_id, branch, from_state, to_state, at, detail FROM state_events \

@@ -51,7 +51,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Local, NaiveDate, TimeZone, Utc};
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::Result;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -884,6 +884,7 @@ pub fn list_pending(conn: &Connection) -> Result<Vec<Suggestion>> {
     )
 }
 
+#[cfg(test)]
 pub fn pending_count(conn: &Connection) -> Result<usize> {
     let n: i64 = conn.query_row(
         "SELECT COUNT(*) FROM suggestions WHERE status = 'pending'",
@@ -901,6 +902,7 @@ pub fn get(conn: &Connection, id: i64) -> Result<Option<Suggestion>> {
 
 /// Pending `pr_declined` and `worktree_removed_unfinished` suggestions, oldest first
 /// (Blockers in the daily summary).
+#[cfg(test)]
 pub fn list_unresolved_keep_or_abandon(conn: &Connection) -> Result<Vec<Suggestion>> {
     query_suggestions(
         conn,
@@ -991,11 +993,6 @@ pub fn reject_all(conn: &Connection, now: i64) -> Result<usize> {
         "UPDATE suggestions SET status = 'rejected', decided_at = ?1 WHERE status = 'pending'",
         [now],
     )?)
-}
-
-/// Error helper for callers that need the suggestion to exist.
-pub fn require(conn: &Connection, id: i64) -> Result<Suggestion> {
-    get(conn, id)?.ok_or_else(|| eyre!("suggestion {id} not found"))
 }
 
 #[cfg(test)]

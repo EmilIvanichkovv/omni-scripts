@@ -14,7 +14,7 @@
 //! - [`compute_reused`]: the branch-reuse rule of spec 4.3 for branches whose latest PR is
 //!   MERGED (`merged_head..tip` non-empty and tip != merged head); feed the result to
 //!   `workitems::assemble`.
-//! - Cleanup (`X`, spec 11.3): [`cleanup_plan`] -> show [`CleanupPlan::confirmation_text`] ->
+//! - Cleanup (`X`, spec 11.3): [`cleanup_plan`] (log [`CleanupPlan::commands`]) ->
 //!   [`run_cleanup`]. Uses `git worktree remove` (never `--force`, refuses dirty worktrees) and
 //!   `git branch -d` (never `-D`, only for `Merged` / `MergedNoPr`).
 
@@ -583,18 +583,6 @@ impl CleanupPlan {
         }
         v
     }
-
-    /// Confirmation dialog text listing both commands (sanitized).
-    pub fn confirmation_text(&self) -> String {
-        let mut s = String::from("Clean up? This runs:\n");
-        for c in self.commands() {
-            s.push_str("  ");
-            s.push_str(&crate::sanitize::clean_line(&c));
-            s.push('\n');
-        }
-        s.push_str("Dirty worktrees and unmerged branches are refused. [y/N]");
-        s
-    }
 }
 
 /// Plan the cleanup of a `cleanup`-flagged item. `None` when there is nothing safe to do. The
@@ -973,7 +961,7 @@ mod tests {
         assert!(!cmds
             .iter()
             .any(|c| c.contains("--force") || c.contains(" -D")));
-        assert!(plan.confirmation_text().contains("branch -d done"));
+        assert!(plan.commands().iter().any(|c| c.contains("branch -d done")));
 
         std::fs::write(wt.join("junk"), "x").unwrap();
         let err = run_cleanup(&plan, item.state).unwrap_err();

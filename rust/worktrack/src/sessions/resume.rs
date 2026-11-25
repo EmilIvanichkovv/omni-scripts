@@ -1,14 +1,10 @@
 //! Resume command for a session (spec 6.5, 11.3).
 //!
 //! Public API:
-//! - [`resume_command`]: `cd '<path>' && claude --resume <id>`, or an error when the directory
-//!   no longer exists (the status line shows the error; nothing is copied).
-//! - [`resume_command_for`]: same, taking the directory from a [`Session`]: its `cwd`, which is
-//!   the project directory Claude Code resolves the session under (inside the worktree).
+//! - [`resume_command_text`]: `cd '<path>' && claude --resume <id>`. The App picks the path from
+//!   the known worktrees, so a worktree that no longer exists has no command (spec 6.5).
 //! - [`shell_quote`]: POSIX single-quote escaping.
 
-use super::Session;
-use color_eyre::eyre::{eyre, Result};
 use std::path::Path;
 
 /// Quote `s` for a POSIX shell: wrap in `'...'`, each `'` becomes `'\''`.
@@ -29,33 +25,13 @@ fn quote_id(id: &str) -> String {
     }
 }
 
-/// The command text, without checking the filesystem.
+/// `cd '<path>' && claude --resume <id>`, without checking the filesystem.
 pub fn resume_command_text(worktree_path: &Path, session_id: &str) -> String {
     format!(
         "cd {} && claude --resume {}",
         shell_quote(&worktree_path.to_string_lossy()),
         quote_id(session_id)
     )
-}
-
-/// `cd '<path>' && claude --resume <id>`; error if `worktree_path` no longer exists.
-pub fn resume_command(worktree_path: &Path, session_id: &str) -> Result<String> {
-    if !worktree_path.is_dir() {
-        return Err(eyre!(
-            "{} no longer exists; nothing copied",
-            crate::config::tildify(worktree_path)
-        ));
-    }
-    Ok(resume_command_text(worktree_path, session_id))
-}
-
-/// [`resume_command`] for a session, using its `cwd`.
-pub fn resume_command_for(session: &Session) -> Result<String> {
-    let cwd = session
-        .cwd
-        .as_deref()
-        .ok_or_else(|| eyre!("session has no working directory; nothing copied"))?;
-    resume_command(Path::new(cwd), &session.id)
 }
 
 #[cfg(test)]
@@ -83,17 +59,5 @@ mod tests {
         let words = shell_words::split(&cmd).unwrap();
         assert_eq!(words[0], "cd");
         assert_eq!(words[1], path);
-    }
-
-    #[test]
-    fn missing_dir_is_an_error() {
-        let dir = tempfile::tempdir().unwrap();
-        let sub = dir.path().join("it's here");
-        std::fs::create_dir(&sub).unwrap();
-        let cmd = resume_command(&sub, "abc").unwrap();
-        assert!(cmd.contains(r"it'\''s here"));
-        std::fs::remove_dir(&sub).unwrap();
-        let err = resume_command(&sub, "abc").unwrap_err().to_string();
-        assert!(err.contains("no longer exists"), "{err}");
     }
 }

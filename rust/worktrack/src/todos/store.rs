@@ -14,9 +14,6 @@
 //!
 //! Hand-written items have no `id` until the app writes the file once; call
 //! [`TodoFile::normalize_now`] to assign ids/dates (and archive old items) without an operation.
-//!
-//! Also here: dedupe and linking helpers ([`find_by_link`], [`normalized_title`],
-//! [`has_title`]) and Jira key derivation ([`jira_key`]).
 
 use std::fmt;
 use std::fs;
@@ -25,7 +22,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use chrono::NaiveDate;
-use regex::Regex;
 use sha2::{Digest, Sha256};
 
 use super::markdown::{self, ParseError, TodoDoc};
@@ -343,49 +339,6 @@ pub fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
     result
 }
 
-/// Lowercase, whitespace collapsed to single spaces (dedupe, spec 7.5).
-pub fn normalized_title(s: &str) -> String {
-    s.split_whitespace()
-        .map(str::to_lowercase)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Whether any todo's normalized title equals `text`'s.
-pub fn has_title(todos: &[Todo], text: &str) -> bool {
-    let n = normalized_title(text);
-    todos.iter().any(|t| normalized_title(&t.title) == n)
-}
-
-/// Todos linked to `link` (`<PROJECT>/<repo>:<branch>`).
-pub fn find_by_link<'a>(todos: &'a [Todo], link: &'a str) -> impl Iterator<Item = &'a Todo> + 'a {
-    todos
-        .iter()
-        .filter(move |t| t.link.as_deref() == Some(link))
-}
-
-/// Jira key from a link's branch part (`feature/PROJ-123-x` → `PROJ-123`), else the whole link.
-pub fn jira_from_link(link: &str, pattern: &Regex) -> Option<String> {
-    let branch = link.rsplit_once(':').map_or(link, |(_, b)| b);
-    pattern
-        .find(branch)
-        .or_else(|| pattern.find(link))
-        .map(|m| m.as_str().to_string())
-}
-
-/// Effective Jira key: explicit `jira`, else derived from the link, else from the title.
-pub fn jira_key(todo: &Todo, pattern: &Regex) -> Option<String> {
-    todo.jira
-        .clone()
-        .filter(|j| !j.is_empty())
-        .or_else(|| {
-            todo.link
-                .as_deref()
-                .and_then(|l| jira_from_link(l, pattern))
-        })
-        .or_else(|| pattern.find(&todo.title).map(|m| m.as_str().to_string()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,23 +625,5 @@ mod tests {
         assert!(fs::read_to_string(&real).unwrap().contains("- [ ] x"));
         let mode = fs::metadata(&real).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
-    }
-
-    #[test]
-    fn helpers() {
-        let re = Regex::new("[A-Z][A-Z0-9]+-[0-9]+").unwrap();
-        let mut t = Todo::new("Review  PROJ-9 thing");
-        assert_eq!(jira_key(&t, &re).as_deref(), Some("PROJ-9"));
-        t.link = Some("API/upload-svc:feature/PROJ-123-retry".into());
-        assert_eq!(jira_key(&t, &re).as_deref(), Some("PROJ-123"));
-        t.jira = Some("OPS-1".into());
-        assert_eq!(jira_key(&t, &re).as_deref(), Some("OPS-1"));
-        assert_eq!(jira_from_link("API/upload-svc:main", &re), None);
-
-        assert_eq!(normalized_title("  Fix   THE\tbug \n"), "fix the bug");
-        assert!(has_title(&[t.clone()], "review proj-9   THING"));
-        let todos = vec![t.clone(), Todo::new("other")];
-        let found: Vec<_> = find_by_link(&todos, "API/upload-svc:feature/PROJ-123-retry").collect();
-        assert_eq!(found.len(), 1);
     }
 }

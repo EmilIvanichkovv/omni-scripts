@@ -231,6 +231,9 @@ pub struct Refresher {
     queued: Option<RefreshKind>,
     /// Finished result held back while the app cannot apply it
     pending: Option<JobResult>,
+    /// Outcome (`fetch_error`, `automatic`) of a fetch whose reload was
+    /// dropped as out of date; the next reload returned carries it
+    unreported_fetch: Option<(Option<String>, bool)>,
     tx: Sender<JobResult>,
     rx: Receiver<JobResult>,
     launcher: Launcher,
@@ -266,6 +269,7 @@ impl Refresher {
             stage: None,
             queued: None,
             pending: None,
+            unreported_fetch: None,
             tx,
             rx,
             launcher,
@@ -305,7 +309,7 @@ impl Refresher {
         self.in_flight.map(|(_, kind)| kind)
     }
 
-    /// Latest progress message of the running full sync
+    /// Latest progress message of the running full sync or fetch
     pub fn stage(&self) -> Option<&str> {
         self.stage.as_deref()
     }
@@ -394,6 +398,7 @@ impl Refresher {
                 self.stage = None;
             }
             if generation != self.generation {
+                self.keep_fetch_outcome(&result);
                 continue;
             }
             match result {
@@ -419,12 +424,30 @@ impl Refresher {
             .as_ref()
             .is_some_and(|p| p.generation() != self.generation)
         {
-            self.pending = None;
+            if let Some(stale) = self.pending.take() {
+                self.keep_fetch_outcome(&stale);
+            }
         }
         if hold {
             return None;
         }
-        let result = self.pending.take();
+        let mut result = self.pending.take();
+        if let Some(JobResult::Reloaded {
+            full_sync,
+            fetch_error,
+            automatic,
+            ..
+        }) = &mut result
+        {
+            // A reload that fetched itself has the newer outcome
+            if let Some((error, was_automatic)) = self.unreported_fetch.take() {
+                if !*full_sync {
+                    *full_sync = true;
+                    *fetch_error = error;
+                    *automatic = was_automatic;
+                }
+            }
+        }
         if let Some(
             JobResult::Reloaded { fingerprint, .. } | JobResult::Failed { fingerprint, .. },
         ) = &result
@@ -432,6 +455,21 @@ impl Refresher {
             self.fingerprint = fingerprint.clone();
         }
         result
+    }
+
+    /// Keep the fetch outcome of a dropped full sync or fetch (a reload
+    /// started after it, e.g. `r` pressed during the startup fetch), so a
+    /// failed fetch is still reported
+    fn keep_fetch_outcome(&mut self, result: &JobResult) {
+        if let JobResult::Reloaded {
+            full_sync: true,
+            fetch_error,
+            automatic,
+            ..
+        } = result
+        {
+            self.unreported_fetch = Some((fetch_error.clone(), *automatic));
+        }
     }
 
     /// Whether an automatic full sync should start now: on, nothing
@@ -752,6 +790,50 @@ mod tests {
         finish(&jobs, 0);
         poll(&mut refresher, false);
         assert_eq!(jobs.borrow()[1].0.kind, RefreshKind::Full);
+    }
+
+    #[test]
+    fn a_reload_queued_behind_a_failed_fetch_reports_the_fetch_error() {
+        let (mut refresher, jobs) = recording();
+        request(&mut refresher, RefreshKind::Fetch, "main");
+        request(&mut refresher, RefreshKind::Local, "main");
+        send(&jobs, 0, |generation| JobResult::Reloaded {
+            generation,
+            branches: Vec::new(),
+            fingerprint: None,
+            full_sync: true,
+            fetch_error: Some("unreachable".to_string()),
+            prs_refetched: false,
+            pr_failed: Vec::new(),
+            pr_cache: None,
+            automatic: false,
+        });
+        // The fetch's branches are superseded by the queued r
+        assert!(poll(&mut refresher, false).is_none());
+        assert_eq!(jobs.borrow()[1].0.kind, RefreshKind::Local);
+
+        finish(&jobs, 1);
+        match poll(&mut refresher, false) {
+            Some(JobResult::Reloaded {
+                full_sync,
+                fetch_error,
+                ..
+            }) => {
+                assert!(full_sync);
+                assert_eq!(fetch_error.as_deref(), Some("unreachable"));
+            }
+            _ => panic!("expected the r reload"),
+        }
+        // Reported once
+        request(&mut refresher, RefreshKind::Local, "main");
+        finish(&jobs, 2);
+        assert!(matches!(
+            poll(&mut refresher, false),
+            Some(JobResult::Reloaded {
+                full_sync: false,
+                ..
+            })
+        ));
     }
 
     #[test]

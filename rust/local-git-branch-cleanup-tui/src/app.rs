@@ -1184,7 +1184,9 @@ impl App {
                 if full_sync {
                     let fetch_failed = fetch_error.is_some();
                     self.report_fetch_error(fetch_error, automatic);
-                    if !fetch_failed {
+                    // The startup fetch looks up no PRs: keep the count the
+                    // last full sync left
+                    if !fetch_failed && prs_refetched {
                         self.report_pr_failures(pr_failed.len(), automatic);
                     }
                 }
@@ -2619,6 +2621,18 @@ mod tests {
             pr_cache: None,
             automatic: true,
         }
+    }
+
+    #[test]
+    fn the_startup_fetch_does_not_reset_the_pr_failure_count() {
+        let mut app = create_test_app();
+        app.report_pr_failures(3, true);
+        app.flash = None;
+
+        // A Fetch result: git fetch ran, no PR lookup
+        app.apply_refresh_result(reloaded(&app, true, None));
+        app.report_pr_failures(3, true);
+        assert!(app.flash.is_none(), "the same count is not repeated");
     }
 
     #[test]

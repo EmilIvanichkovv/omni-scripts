@@ -104,6 +104,8 @@ Compare behavior with the original bash script:
 - [ ] `4` or F4 - Show all branches
 - [ ] Tab - cycle through filters
 - [ ] Filter counts update correctly
+- [ ] With the filter bar hidden (default), `1`-`3` / `Tab` show `▽ <FILTER>` in the header; `4`
+      (ALL) removes it; the same in the worktree view with its filters
 - [ ] Selection index resets when changing filters
 - [ ] `/` → `@author:` → accept `me` (or a single-word name): dropdown closes and `↓` browses the
       filtered branches

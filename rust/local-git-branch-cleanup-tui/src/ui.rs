@@ -292,6 +292,23 @@ fn header_lines(app: &App, width: u16) -> Vec<Line<'static>> {
             Style::default().fg(COLOR_WARNING),
         )]);
     }
+    // Filter indicator - show when a filter other than ALL is active, so a
+    // filtered list is recognisable with the filter bar hidden too
+    let filter = match (app.view, &app.worktrees) {
+        (ViewMode::Worktrees, Some(wt)) => {
+            (wt.filter != WorktreeFilter::All).then(|| wt.filter.label())
+        }
+        (ViewMode::Worktrees, None) => None,
+        (ViewMode::Branches, _) => {
+            (app.current_filter != FilterMode::All).then(|| app.current_filter.label())
+        }
+    };
+    if let Some(label) = filter {
+        groups.push(vec![Span::styled(
+            format!("▽ {label}"),
+            Style::default().fg(COLOR_ACCENT),
+        )]);
+    }
     // Sort indicator - show when not using default sort
     if app.sort_mode != SortMode::Status && app.view == ViewMode::Branches {
         groups.push(vec![Span::styled(
@@ -3846,6 +3863,22 @@ mod tests {
         let text = screen_at(&mut app, 80, 16);
         assert!(!text.contains(" Details "));
         assert!(text.contains("details hidden"));
+    }
+
+    #[test]
+    fn header_shows_the_active_filter() {
+        let mut app = many_branches_app(5);
+        assert!(!screen_at(&mut app, 200, 60).contains('▽'));
+        app.set_filter(FilterMode::SafeMerged);
+        assert!(!app.show_filter);
+        assert!(screen_at(&mut app, 200, 60).contains("▽ SAFE MERGED"));
+        app.set_filter(FilterMode::All);
+        assert!(!screen_at(&mut app, 200, 60).contains('▽'));
+
+        let mut app = worktree_app();
+        assert!(!screen_at(&mut app, 200, 60).contains('▽'));
+        app.set_worktree_filter(WorktreeFilter::Dirty);
+        assert!(screen_at(&mut app, 200, 60).contains("▽ DIRTY"));
     }
 
     #[test]

@@ -90,7 +90,9 @@ iTerm2).
 | `Tab`      | Cycle through filters                                        |
 
 The active filter tab is highlighted in cyan, and each tab displays the branch count for that
-category.
+category. The filter bar is hidden by default (`F` shows it); whenever a filter other than ALL is
+active, the header shows it too (`▽ SAFE MERGED`), so a filtered list is never mistaken for the
+whole repository.
 
 ### Search
 

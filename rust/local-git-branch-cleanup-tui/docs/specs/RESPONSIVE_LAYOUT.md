@@ -98,10 +98,10 @@ success/failure counts) and shows only the newest entry.
 
 ### Legend
 
-The legend has its own bordered box (`Legend`) at the bottom of the list column, so in the side by
-side arrangement the details pane keeps the full height. It gives up space before the list does: it
-shrinks to one line, then disappears (its items are in `i` about), before the list pane gets fewer
-than 5 rows (borders, table header and 2 rows).
+The legend has its own full-width bordered box (`Legend`) at the bottom of the screen, between the
+action log and the footer, in every arrangement and in both views. It gives up space before the
+content does: it shrinks to one line, then disappears (its items are in `i` about), before the
+content area gets fewer than 5 rows (borders, table header and 2 rows).
 
 ### Responsive table columns
 

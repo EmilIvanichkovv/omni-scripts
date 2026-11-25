@@ -324,6 +324,9 @@ directory was deleted (prunable).
 - [ ] 120x40 (medium) - comfortable
 - [ ] 200x60 (large) - utilizes space well
 - [ ] Resize during operation - adapts correctly
+- [ ] The legend is a full-width box right above the footer (below the action log) in side by side,
+      stacked and list-only layouts (`v`) and in the worktree view; on short terminals it shrinks to
+      one line, then disappears, before the list does
 
 #### 6.2 Color Support
 

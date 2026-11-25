@@ -59,7 +59,28 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let footer_rows = footer_lines(app, inner_width, compact).len() as u16;
     let log_rows = app.action_log.len().min(if compact { 1 } else { 4 }) as u16;
 
-    // Header, [Search], [Filters], Content, [Action Log], Footer
+    // The legend gets at most 2 lines, fewer (then none) before the content
+    // area gets less than `CONTENT_MIN_HEIGHT` rows
+    let fixed_rows = header_rows
+        + border
+        + if show_search { 1 + border } else { 0 }
+        + if show_filter { filter_rows + border } else { 0 }
+        + if has_log { log_rows + 2 } else { 0 }
+        + footer_rows
+        + border;
+    let legend_max = area
+        .height
+        .saturating_sub(fixed_rows + CONTENT_MIN_HEIGHT + border)
+        .min(2) as usize;
+    let legend_groups = if app.view == ViewMode::Worktrees {
+        worktree_legend_groups()
+    } else {
+        branch_legend_groups(app)
+    };
+    let legend = legend_lines(legend_groups, inner_width, legend_max, compact);
+    let legend_rows = legend.len() as u16;
+
+    // Header, [Search], [Filters], Content, [Action Log], [Legend], Footer
     let mut constraints = vec![Constraint::Length(header_rows + border)];
     if show_search {
         constraints.push(Constraint::Length(1 + border));
@@ -70,6 +91,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     constraints.push(Constraint::Min(5)); // Main content
     if has_log {
         constraints.push(Constraint::Length(log_rows + 2));
+    }
+    if legend_rows > 0 {
+        constraints.push(Constraint::Length(legend_rows + border));
     }
     constraints.push(Constraint::Length(footer_rows + border));
 
@@ -103,9 +127,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     app.details_area = details_area;
 
     if app.view == ViewMode::Worktrees {
-        render_worktree_list(frame, app, list_area, details_hidden, compact);
+        render_worktree_list(frame, app, list_area, details_hidden);
     } else {
-        render_branch_list(frame, app, list_area, details_hidden, compact);
+        render_branch_list(frame, app, list_area, details_hidden);
     }
     if let Some(details_area) = details_area {
         let scroll = app.details_scroll_for_cursor();
@@ -121,6 +145,10 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         idx += 1;
     } else {
         app.action_log_area = None;
+    }
+    if legend_rows > 0 {
+        render_legend(frame, chunks[idx], legend, compact);
+        idx += 1;
     }
     render_footer(frame, app, chunks[idx], compact);
 
@@ -711,29 +739,21 @@ fn list_block(title: String, details_hidden: bool) -> Block<'static> {
     block
 }
 
-/// Rows a list pane keeps before the legend gives up space: its borders,
-/// the table header and 2 rows
-const LIST_PANE_MIN_HEIGHT: u16 = 5;
+/// Rows the content area (list and details) keeps before the legend gives
+/// up space: a list pane's borders, the table header and 2 rows
+const CONTENT_MIN_HEIGHT: u16 = 5;
 
-/// Draw the legend `groups` in their own box at the bottom of the list
-/// column `area` and return what is left for the list pane. The legend
-/// wraps onto at most 2 lines and ends in `… i about` when they are not
-/// enough; it gets fewer lines, then none, before the list pane gets less
-/// than `LIST_PANE_MIN_HEIGHT` rows. Compact: no border, a `Legend:` prefix
-/// in place of the title.
-fn render_legend(
-    frame: &mut Frame,
-    area: Rect,
+/// The legend `groups` flowed onto at most `max_lines` lines of `width`
+/// columns, ending in `… i about` when they do not fit. Compact: a
+/// `Legend:` prefix in place of the box title.
+fn legend_lines(
     mut groups: Vec<Vec<Span<'static>>>,
+    width: u16,
+    max_lines: usize,
     compact: bool,
-) -> Rect {
-    let border = if compact { 0 } else { 2 };
-    let max_lines = area
-        .height
-        .saturating_sub(LIST_PANE_MIN_HEIGHT + border)
-        .min(2) as usize;
+) -> Vec<Line<'static>> {
     if max_lines == 0 {
-        return area;
+        return Vec::new();
     }
     if compact {
         groups.insert(
@@ -741,19 +761,19 @@ fn render_legend(
             vec![Span::styled("Legend:", Style::default().fg(COLOR_MUTED))],
         );
     }
-    let lines = responsive::flow_lines(
+    responsive::flow_lines(
         groups,
-        area.width.saturating_sub(border),
+        width,
         0,
         Span::raw("  "),
         max_lines,
         key_hint("…", "i about", COLOR_ACCENT),
-    );
-    let [list, legend] = Layout::vertical([
-        Constraint::Min(0),
-        Constraint::Length(lines.len() as u16 + border),
-    ])
-    .areas(area);
+    )
+}
+
+/// Draw the legend `lines` in their full-width box above the footer.
+/// Compact: no border.
+fn render_legend(frame: &mut Frame, area: Rect, lines: Vec<Line<'static>>, compact: bool) {
     let block = chrome_block(
         compact,
         Some(Line::from(Span::styled(
@@ -762,8 +782,7 @@ fn render_legend(
         ))),
         COLOR_MUTED,
     );
-    frame.render_widget(Paragraph::new(lines).block(block), legend);
-    list
+    frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
 /// The table area inside a list pane's border
@@ -853,14 +872,7 @@ fn branch_legend_groups(app: &App) -> Vec<Vec<Span<'static>>> {
 }
 
 /// Render the branch list as a table
-fn render_branch_list(
-    frame: &mut Frame,
-    app: &mut App,
-    area: Rect,
-    details_hidden: bool,
-    compact: bool,
-) {
-    let area = render_legend(frame, area, branch_legend_groups(app), compact);
+fn render_branch_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
     app.list_area = area;
     let table_area = list_table_area(area);
 
@@ -2543,14 +2555,7 @@ fn worktree_legend_groups() -> Vec<Vec<Span<'static>>> {
 }
 
 /// Render the worktree list as a table
-fn render_worktree_list(
-    frame: &mut Frame,
-    app: &mut App,
-    area: Rect,
-    details_hidden: bool,
-    compact: bool,
-) {
-    let area = render_legend(frame, area, worktree_legend_groups(), compact);
+fn render_worktree_list(frame: &mut Frame, app: &mut App, area: Rect, details_hidden: bool) {
     app.list_area = area;
     let table_area = list_table_area(area);
     // Rows that fit, for page up / down
@@ -4053,15 +4058,32 @@ mod tests {
     }
 
     #[test]
-    fn legend_has_its_own_box_below_the_list() {
+    fn legend_is_a_full_width_box_above_the_footer() {
         let mut app = many_branches_app(3);
-        let rows = screen_rows(&mut app, 140, 40);
-        let legend_row = rows.iter().position(|r| r.contains(" Legend ")).unwrap();
-        // Its top border sits right below the list pane's bottom border
-        assert!(rows[legend_row].starts_with('┌'));
-        assert!(rows[legend_row - 1].starts_with('└'));
-        assert!(rows[legend_row + 1].contains("✓ merged"));
-        assert!(!rows.iter().any(|r| r.contains("Legend:")));
+        for mode in [
+            LayoutMode::SideBySide,
+            LayoutMode::Stacked,
+            LayoutMode::ListOnly,
+        ] {
+            app.layout_mode = mode;
+            let rows = screen_rows(&mut app, 140, 40);
+            let legend_row = rows.iter().position(|r| r.contains(" Legend ")).unwrap();
+            // Full width: its top border runs from the first to the last column
+            assert!(rows[legend_row].starts_with('┌'), "{mode:?}");
+            assert!(rows[legend_row].ends_with('┐'), "{mode:?}");
+            assert!(rows[legend_row + 1].contains("✓ merged"), "{mode:?}");
+            // Right above the footer's box, below everything else
+            let footer_row = legend_row
+                + 1
+                + rows[legend_row + 1..]
+                    .iter()
+                    .position(|r| r.starts_with('└'))
+                    .unwrap()
+                + 1;
+            assert!(rows[footer_row].starts_with('┌'), "{mode:?}");
+            assert_eq!(footer_row, rows.len() - 3, "{mode:?}");
+            assert!(!rows.iter().any(|r| r.contains("Legend:")));
+        }
 
         // Compact (borderless) chrome: a plain line with a prefix instead
         let text = screen_at(&mut app, 80, 24);
@@ -4070,22 +4092,41 @@ mod tests {
     }
 
     #[test]
-    fn legend_gives_way_before_the_list_does() {
-        // List pane keeps 5 rows; a boxed legend needs 2 border rows + 1 line
-        let list_height = |height: u16, compact: bool| {
-            let mut terminal = Terminal::new(TestBackend::new(60, height)).unwrap();
-            let mut list = Rect::default();
-            terminal
-                .draw(|frame| {
-                    list = render_legend(frame, frame.area(), worktree_legend_groups(), compact)
-                })
-                .unwrap();
-            list.height
-        };
-        assert_eq!(list_height(7, false), 7); // no room: no legend
-        assert_eq!(list_height(8, false), 5); // box with 1 line
-        assert_eq!(list_height(20, false), 16); // box with 2 lines
-        assert_eq!(list_height(6, true), 5); // compact: 1 line, no border
+    fn legend_lines_flow_and_give_up_with_no_room() {
+        let groups = worktree_legend_groups;
+        assert!(legend_lines(groups(), 60, 0, false).is_empty());
+        assert_eq!(legend_lines(groups(), 200, 2, false).len(), 1);
+        assert_eq!(legend_lines(groups(), 30, 2, false).len(), 2);
+        let compact = legend_lines(groups(), 200, 1, true);
+        assert!(compact[0].to_string().starts_with("Legend:"));
+    }
+
+    #[test]
+    fn legend_gives_way_before_the_content_does() {
+        let mut app = many_branches_app(3);
+        app.log_actions([crate::app::ActionLogEntry {
+            branch_name: "old".to_string(),
+            success: true,
+            message: "Deleted (-d)".to_string(),
+        }]);
+        app.layout_mode = LayoutMode::ListOnly;
+        let mut shown = 0;
+        for height in 10..=40 {
+            let rows = screen_rows(&mut app, 140, height);
+            if rows.iter().any(|r| r.contains("Legend")) {
+                shown += 1;
+                // Whenever the legend is drawn, the list keeps its minimum
+                assert!(
+                    app.list_area.height >= CONTENT_MIN_HEIGHT,
+                    "height {height}"
+                );
+            }
+        }
+        // It is dropped on the shortest terminals but shown on most
+        assert!(shown > 0 && shown < 31);
+        assert!(!screen_rows(&mut app, 140, 10)
+            .iter()
+            .any(|r| r.contains("Legend")));
     }
 
     #[test]

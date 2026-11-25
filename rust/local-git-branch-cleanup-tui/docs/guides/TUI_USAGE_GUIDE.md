@@ -16,10 +16,10 @@ The TUI is divided into several sections:
 │            Branch List                    │    Details Pane             │
 │   (PR column with --github/--bitbucket)   │    (includes PR info)       │
 │                                           │                             │
-├───────────────────────────────────────────┤                             │
-│ Legend: status icons                      │                             │
 ├───────────────────────────────────────────┴─────────────────────────────┤
 │ Action Log: Deletion results (appears after deletions)                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Legend: status icons                                                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ Footer: Keyboard shortcuts                                              │
 └──────────────────────────────── Update available: X.Y.Z (when there is) ┘

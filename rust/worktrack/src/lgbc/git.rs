@@ -224,3 +224,116 @@ pub fn refs_fingerprint_in(dir: &Path) -> Result<String> {
     fingerprint.push_str(&String::from_utf8_lossy(&worktrees.stdout));
     Ok(fingerprint)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn git_in(dir: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .output()
+            .expect("run git")
+            .status;
+        assert!(status.success(), "git {:?} failed", args);
+    }
+
+    fn temp_repo() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().unwrap();
+        git_in(dir.path(), &["init", "-q"]);
+        git_in(dir.path(), &["config", "user.name", "Test User"]);
+        git_in(dir.path(), &["config", "user.email", "test@example.com"]);
+        git_in(
+            dir.path(),
+            &["commit", "-q", "--allow-empty", "-m", "initial"],
+        );
+        dir
+    }
+
+    #[test]
+    fn refs_fingerprint_changes_only_when_refs_change() {
+        let repo = temp_repo();
+        let first = refs_fingerprint_in(repo.path()).unwrap();
+        assert_eq!(refs_fingerprint_in(repo.path()).unwrap(), first);
+
+        git_in(repo.path(), &["branch", "feature/new"]);
+        let with_branch = refs_fingerprint_in(repo.path()).unwrap();
+        assert_ne!(with_branch, first);
+
+        git_in(repo.path(), &["checkout", "-q", "feature/new"]);
+        let checked_out = refs_fingerprint_in(repo.path()).unwrap();
+        assert_ne!(checked_out, with_branch);
+
+        git_in(
+            repo.path(),
+            &["commit", "-q", "--allow-empty", "-m", "more"],
+        );
+        assert_ne!(refs_fingerprint_in(repo.path()).unwrap(), checked_out);
+    }
+
+    #[test]
+    fn fetch_remote_prunes_branches_deleted_on_the_remote() {
+        let remote = tempfile::TempDir::new().unwrap();
+        git_in(remote.path(), &["init", "-q", "--bare"]);
+        let repo = temp_repo();
+        let remote_path = remote.path().to_str().unwrap();
+        git_in(repo.path(), &["remote", "add", "origin", remote_path]);
+        git_in(repo.path(), &["branch", "feature/x"]);
+        git_in(repo.path(), &["push", "-q", "origin", "feature/x"]);
+        git_in(repo.path(), &["fetch", "-q", "origin"]);
+
+        git_in(remote.path(), &["branch", "-D", "feature/x"]);
+        fetch_remote_in(repo.path(), "origin").unwrap();
+
+        let refs = Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args(["for-each-ref", "refs/remotes/origin/feature/x"])
+            .output()
+            .unwrap();
+        assert!(refs.stdout.is_empty(), "the remote-tracking ref is pruned");
+    }
+
+    #[test]
+    fn fetch_remote_reports_a_missing_remote() {
+        let repo = temp_repo();
+        let error = fetch_remote_in(repo.path(), "nowhere").unwrap_err();
+        assert!(!error.to_string().is_empty());
+    }
+
+    #[test]
+    fn fetch_errors_that_need_credentials_say_so() {
+        let stderr =
+            "fatal: could not read Username for 'https://example.com': terminal prompts disabled\n";
+        assert_eq!(
+            describe_fetch_error(stderr),
+            "authentication required (run git fetch in a terminal)"
+        );
+        assert_eq!(
+            describe_fetch_error("git@example.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n"),
+            "authentication required (run git fetch in a terminal)"
+        );
+        assert_eq!(
+            describe_fetch_error("\nfatal: 'nowhere' does not appear to be a git repository\n"),
+            "fatal: 'nowhere' does not appear to be a git repository"
+        );
+    }
+
+    #[test]
+    fn refs_fingerprint_fails_outside_a_repository() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert!(refs_fingerprint_in(dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_is_protected_branch() {
+        assert!(is_protected_branch("main"));
+        assert!(is_protected_branch("master"));
+        assert!(is_protected_branch("develop"));
+        assert!(is_protected_branch("development"));
+        assert!(!is_protected_branch("feature/test"));
+        assert!(!is_protected_branch("bugfix/something"));
+    }
+}

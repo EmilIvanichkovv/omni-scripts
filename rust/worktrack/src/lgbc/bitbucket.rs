@@ -45,7 +45,7 @@ pub struct BitbucketRepository {
     pub repository_slug: String,
 }
 
-/// Raw configuration candidates for `resolve_repository`.
+/// Raw configuration candidates for `resolve_repository_input`.
 ///
 /// Pure input model: the caller reads CLI flags, environment variables, and
 /// the `origin`-derived values; this module only applies precedence and
@@ -159,13 +159,45 @@ fn normalize_base_url(raw: &str) -> Result<Url, PrProviderError> {
     Ok(url)
 }
 
+/// Resolve the Bitbucket identity of the repository at `repo`.
+///
+/// worktrack local change: the derived candidates come from the `origin`
+/// remote of `repo` (via `remote::read_origin_in`) instead of the process's
+/// current directory. `origin` is read only when some component has neither a
+/// CLI nor an environment value and the caller left the derived candidates
+/// empty; an unreadable or non-Bitbucket `origin` just leaves them empty, so
+/// the error names the missing component. All precedence and normalization
+/// rules live in the pure [`resolve_repository_input`].
+pub fn resolve_repository(
+    repo: &std::path::Path,
+    mut input: BitbucketConfigInput,
+) -> Result<BitbucketRepository, PrProviderError> {
+    let needs_derived = (input.cli_base_url.is_none() && input.env_base_url.is_none())
+        || (input.cli_project.is_none() && input.env_project.is_none())
+        || (input.cli_repo.is_none() && input.env_repo.is_none());
+    let has_derived = input.derived_base_url.is_some()
+        || input.derived_project.is_some()
+        || input.derived_repo.is_some();
+    if needs_derived && !has_derived {
+        if let Some(inferred) = super::remote::read_origin_in(repo)
+            .ok()
+            .and_then(|remote| super::remote::infer_bitbucket_repository(&remote).ok())
+        {
+            input.derived_base_url = Some(inferred.base_url);
+            input.derived_project = Some(inferred.project_key);
+            input.derived_repo = Some(inferred.repository_slug);
+        }
+    }
+    resolve_repository_input(input)
+}
+
 /// Resolve and normalize the Bitbucket repository identity.
 ///
 /// Pure function: reads no environment and performs no I/O. Precedence per
 /// value is CLI > environment > derived-from-`origin` (spec 4.2). The project
 /// key is uppercased only when it came from the derived source; explicit
 /// CLI/env values are preserved apart from whitespace trimming (spec 6.2).
-pub fn resolve_repository(
+pub fn resolve_repository_input(
     input: BitbucketConfigInput,
 ) -> Result<BitbucketRepository, PrProviderError> {
     let (base_raw, _) = required(
@@ -646,42 +678,7 @@ impl BitbucketProvider {
         connect_timeout: Duration,
         total_timeout: Duration,
     ) -> Result<Self, PrProviderError> {
-        let token = token.trim();
-        if token.is_empty() {
-            return Err(PrProviderError::Configuration(
-                "BITBUCKET_TOKEN is empty; export a Bitbucket Data Center HTTP access token"
-                    .to_string(),
-            ));
-        }
-
-        let mut auth = HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| {
-            // Never echo the token itself.
-            PrProviderError::Configuration(
-                "BITBUCKET_TOKEN contains characters that cannot be sent in an HTTP header"
-                    .to_string(),
-            )
-        })?;
-        auth.set_sensitive(true);
-
-        let mut headers = HeaderMap::new();
-        headers.insert(AUTHORIZATION, auth);
-        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
-
-        // Redirects stay disabled on purpose: a REST endpoint redirecting to
-        // an SSO/login page must surface as a configuration/authentication
-        // error, not be followed as if it were API JSON (spec 8.1).
-        crate::lgbc::tls::install_crypto_provider();
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .user_agent(concat!("worktrack/", env!("CARGO_PKG_VERSION")))
-            .connect_timeout(connect_timeout)
-            .timeout(total_timeout)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|e| {
-                PrProviderError::Configuration(format!("failed to construct the HTTP client: {e}"))
-            })?;
-
+        let client = build_client(&token, connect_timeout, total_timeout)?;
         Ok(Self { repository, client })
     }
 
@@ -689,35 +686,95 @@ impl BitbucketProvider {
     /// attempts, only for 429/502/503/504 and transient connect errors, with
     /// ~250 ms / ~500 ms backoff or a longer valid server `Retry-After`.
     async fn execute_with_retry(&self, url: Url) -> Result<reqwest::Response, PrProviderError> {
-        let mut attempt: u32 = 1;
-        loop {
-            match self.client.get(url.clone()).send().await {
-                Ok(response) => {
-                    let status = response.status();
-                    if is_retryable_status(status) && attempt < MAX_ATTEMPTS {
-                        let retry_after = parse_retry_after(response.headers());
-                        tokio::time::sleep(backoff_delay(attempt, retry_after)).await;
-                        attempt += 1;
-                        continue;
-                    }
-                    if status.is_success() {
-                        return Ok(response);
-                    }
-                    return Err(error_from_response(response).await);
+        send_with_retry(&self.client, url, true).await
+    }
+}
+
+/// The retry loop of `BitbucketProvider::execute_with_retry`, shared with
+/// [`BitbucketHostClient`] (worktrack local change). With
+/// `retry_rate_limited = false` an HTTP 429 is returned at once as
+/// `RateLimited`, so the caller can pause every request to that host
+/// instead of only this one.
+async fn send_with_retry(
+    client: &reqwest::Client,
+    url: Url,
+    retry_rate_limited: bool,
+) -> Result<reqwest::Response, PrProviderError> {
+    let mut attempt: u32 = 1;
+    loop {
+        match client.get(url.clone()).send().await {
+            Ok(response) => {
+                let status = response.status();
+                let retry_this =
+                    is_retryable_status(status) && (retry_rate_limited || status.as_u16() != 429);
+                if retry_this && attempt < MAX_ATTEMPTS {
+                    let retry_after = parse_retry_after(response.headers());
+                    tokio::time::sleep(backoff_delay(attempt, retry_after)).await;
+                    attempt += 1;
+                    continue;
                 }
-                Err(err) => {
-                    // TLS failures also surface as connect errors; never
-                    // retry those (spec 8.5). Timeouts are not retried.
-                    if err.is_connect() && !is_tls_error(&err) && attempt < MAX_ATTEMPTS {
-                        tokio::time::sleep(backoff_delay(attempt, None)).await;
-                        attempt += 1;
-                        continue;
-                    }
-                    return Err(classify_transport_error(&err));
+                if status.is_success() {
+                    return Ok(response);
                 }
+                return Err(error_from_response(response).await);
+            }
+            Err(err) => {
+                // TLS failures also surface as connect errors; never
+                // retry those (spec 8.5). Timeouts are not retried.
+                if err.is_connect() && !is_tls_error(&err) && attempt < MAX_ATTEMPTS {
+                    tokio::time::sleep(backoff_delay(attempt, None)).await;
+                    attempt += 1;
+                    continue;
+                }
+                return Err(classify_transport_error(&err));
             }
         }
     }
+}
+
+/// Build the reusable HTTP client: Bearer token in a sensitive default
+/// header, JSON accept, worktrack User-Agent, timeouts, no redirects.
+/// Extracted from `BitbucketProvider::with_timeouts` (worktrack local change)
+/// so [`BitbucketHostClient`] shares it.
+fn build_client(
+    token: &str,
+    connect_timeout: Duration,
+    total_timeout: Duration,
+) -> Result<reqwest::Client, PrProviderError> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err(PrProviderError::Configuration(
+            "BITBUCKET_TOKEN is empty; export a Bitbucket Data Center HTTP access token"
+                .to_string(),
+        ));
+    }
+
+    let mut auth = HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| {
+        // Never echo the token itself.
+        PrProviderError::Configuration(
+            "BITBUCKET_TOKEN contains characters that cannot be sent in an HTTP header".to_string(),
+        )
+    })?;
+    auth.set_sensitive(true);
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, auth);
+    headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
+
+    // Redirects stay disabled on purpose: a REST endpoint redirecting to
+    // an SSO/login page must surface as a configuration/authentication
+    // error, not be followed as if it were API JSON (spec 8.1).
+    crate::lgbc::tls::install_crypto_provider();
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .user_agent(concat!("worktrack/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(connect_timeout)
+        .timeout(total_timeout)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| {
+            PrProviderError::Configuration(format!("failed to construct the HTTP client: {e}"))
+        })
 }
 
 #[async_trait::async_trait]
@@ -786,6 +843,465 @@ impl PullRequestProvider for BitbucketProvider {
 }
 
 // ---------------------------------------------------------------------------
+// worktrack milestone 2: host-level requests (worktrack spec 5.1)
+//
+// Everything below this line up to the tests is new in worktrack, not copied.
+// Requests are single pages; the caller drives paging so that every request
+// passes its per-host concurrency gate. An HTTP 429 is never retried here:
+// it comes back as `RateLimited` so the caller can pause the whole host.
+// ---------------------------------------------------------------------------
+
+/// Response header carrying the authenticated user's name.
+const X_AUSERNAME: &str = "X-AUSERNAME";
+/// Page size for the dashboard and build-status requests.
+const HOST_PAGE_LIMIT: u32 = 100;
+
+/// `{base}/{segments...}` with every segment percent-encoded.
+fn host_url(base: &Url, segments: &[&str]) -> Url {
+    let mut url = base.clone();
+    {
+        let mut path = url
+            .path_segments_mut()
+            .expect("http(s) base URL always has path segments");
+        path.pop_if_empty();
+        path.extend(segments);
+    }
+    url
+}
+
+/// `GET /rest/api/1.0/dashboard/pull-requests?role=AUTHOR&state=OPEN&limit=100&start=N`.
+fn dashboard_url(base: &Url, start: u64) -> Url {
+    let mut url = host_url(base, &["rest", "api", "1.0", "dashboard", "pull-requests"]);
+    url.query_pairs_mut()
+        .append_pair("role", "AUTHOR")
+        .append_pair("state", "OPEN")
+        .append_pair("limit", &HOST_PAGE_LIMIT.to_string())
+        .append_pair("start", &start.to_string());
+    url
+}
+
+/// Newest PR of one branch in any state:
+/// `GET /rest/api/1.0/projects/{p}/repos/{r}/pull-requests?at=refs/heads/{branch}&direction=OUTGOING&state=ALL&order=NEWEST&limit=1`.
+fn latest_pr_url(repository: &BitbucketRepository, branch_name: &str) -> Url {
+    let mut url = host_url(
+        &repository.base_url,
+        &[
+            "rest",
+            "api",
+            "1.0",
+            "projects",
+            &repository.project_key,
+            "repos",
+            &repository.repository_slug,
+            "pull-requests",
+        ],
+    );
+    url.query_pairs_mut()
+        .append_pair("at", &format!("refs/heads/{branch_name}"))
+        .append_pair("direction", "OUTGOING")
+        .append_pair("state", "ALL")
+        .append_pair("order", "NEWEST")
+        .append_pair("limit", "1");
+    url
+}
+
+/// `GET /rest/build-status/1.0/commits/{sha}?limit=100&start=N`.
+fn build_status_url(base: &Url, sha: &str, start: u64) -> Url {
+    let mut url = host_url(base, &["rest", "build-status", "1.0", "commits", sha]);
+    url.query_pairs_mut()
+        .append_pair("limit", &HOST_PAGE_LIMIT.to_string())
+        .append_pair("start", &start.to_string());
+    url
+}
+
+/// `GET /rest/api/1.0/application-properties`: a cheap authenticated request
+/// whose only use is its `X-AUSERNAME` response header.
+fn application_properties_url(base: &Url) -> Url {
+    host_url(base, &["rest", "api", "1.0", "application-properties"])
+}
+
+/// A lenient page: `isLastPage` defaults to true and `size`/`limit` are not
+/// required, since only `values` and the paging cursor are read.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PageV1<T> {
+    #[serde(default = "Vec::new")]
+    values: Vec<T>,
+    #[serde(default = "default_true")]
+    is_last_page: bool,
+    #[serde(default)]
+    next_page_start: Option<u64>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DetailedPullRequestDto {
+    id: u64,
+    #[serde(default)]
+    title: String,
+    state: String,
+    from_ref: DetailedRefDto,
+    to_ref: DetailedRefDto,
+    #[serde(default)]
+    author: Option<ParticipantDto>,
+    #[serde(default)]
+    reviewers: Vec<ParticipantDto>,
+    #[serde(default)]
+    properties: Option<PrPropertiesDto>,
+    #[serde(default)]
+    updated_date: Option<i64>,
+    #[serde(default)]
+    closed_date: Option<i64>,
+    #[serde(default)]
+    links: Option<BitbucketLinks>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DetailedRefDto {
+    id: String,
+    #[serde(default)]
+    display_id: Option<String>,
+    #[serde(default)]
+    latest_commit: Option<String>,
+    repository: BitbucketRepositoryDto,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParticipantDto {
+    user: UserDto,
+    #[serde(default)]
+    status: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserDto {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    slug: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PrPropertiesDto {
+    #[serde(default)]
+    open_task_count: Option<u32>,
+    #[serde(default)]
+    comment_count: Option<u32>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct BuildStatusDto {
+    state: String,
+}
+
+/// Project key + slug of a repository as reported in a PR ref.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoRef {
+    pub project_key: String,
+    pub slug: String,
+}
+
+impl RepoRef {
+    /// Same repository, compared ASCII case-insensitively.
+    pub fn same_repo(&self, project_key: &str, slug: &str) -> bool {
+        self.project_key.eq_ignore_ascii_case(project_key) && self.slug.eq_ignore_ascii_case(slug)
+    }
+}
+
+/// One reviewer of a PR, raw from the payload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewerDetails {
+    /// User `name` (login).
+    pub name: String,
+    /// User `slug`; falls back to `name`.
+    pub slug: String,
+    /// User `displayName`; falls back to `name`.
+    pub display_name: String,
+    /// `APPROVED`, `NEEDS_WORK`, `UNAPPROVED`, or whatever the server sent.
+    pub status: String,
+}
+
+/// A pull request with the fields worktrack needs (spec 5.1). Text is raw
+/// server text; callers sanitize before display.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullRequestDetails {
+    pub id: u64,
+    pub title: String,
+    pub state: PrState,
+    /// First non-empty self link, or the fallback overview URL.
+    pub url: String,
+    /// Author user slug (falls back to the user name); empty when absent.
+    pub author_slug: String,
+    pub reviewers: Vec<ReviewerDetails>,
+    pub open_task_count: u32,
+    pub comment_count: u32,
+    /// `fromRef.id`, e.g. `refs/heads/feature/x`.
+    pub from_ref_id: String,
+    /// `fromRef.displayId`, e.g. `feature/x`.
+    pub from_branch: String,
+    pub from_latest_commit: Option<String>,
+    pub from_repo: RepoRef,
+    pub to_repo: RepoRef,
+    /// Milliseconds since the epoch, as sent by the server.
+    pub updated_date_ms: Option<i64>,
+    pub closed_date_ms: Option<i64>,
+}
+
+impl PullRequestDetails {
+    /// A PR whose source repository differs from its target (spec 5.1: ignored).
+    pub fn is_from_fork(&self) -> bool {
+        !self
+            .from_repo
+            .same_repo(&self.to_repo.project_key, &self.to_repo.slug)
+    }
+}
+
+/// One page of a host-level listing plus the `X-AUSERNAME` header of the
+/// response that carried it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostPage<T> {
+    pub values: Vec<T>,
+    /// `Some(start)` of the next page, `None` on the last page.
+    pub next_start: Option<u64>,
+    pub username: Option<String>,
+}
+
+fn username_header(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(X_AUSERNAME)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+}
+
+fn repo_ref(dto: &BitbucketRepositoryDto) -> RepoRef {
+    RepoRef {
+        project_key: dto.project.key.clone(),
+        slug: dto.slug.clone(),
+    }
+}
+
+/// Map a detailed PR DTO; an unknown state is `InvalidResponse`.
+fn details_from_dto(
+    dto: DetailedPullRequestDto,
+    base_url: &Url,
+) -> Result<PullRequestDetails, PrProviderError> {
+    let state = map_pr_state(&dto.state)?;
+    let to_repo = repo_ref(&dto.to_ref.repository);
+    let from_repo = repo_ref(&dto.from_ref.repository);
+    let url = dto
+        .links
+        .as_ref()
+        .and_then(|l| {
+            l.self_links
+                .iter()
+                .map(|link| link.href.trim())
+                .find(|href| !href.is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| {
+            fallback_pr_url(
+                &BitbucketRepository {
+                    base_url: base_url.clone(),
+                    project_key: to_repo.project_key.clone(),
+                    repository_slug: to_repo.slug.clone(),
+                },
+                dto.id,
+            )
+        });
+    let from_branch = dto.from_ref.display_id.clone().unwrap_or_else(|| {
+        dto.from_ref
+            .id
+            .strip_prefix("refs/heads/")
+            .unwrap_or(&dto.from_ref.id)
+            .to_string()
+    });
+    let author_slug = dto
+        .author
+        .as_ref()
+        .map(|a| a.user.slug.clone().unwrap_or_else(|| a.user.name.clone()))
+        .unwrap_or_default();
+    let reviewers = dto
+        .reviewers
+        .into_iter()
+        .map(|r| ReviewerDetails {
+            slug: r.user.slug.clone().unwrap_or_else(|| r.user.name.clone()),
+            display_name: r
+                .user
+                .display_name
+                .clone()
+                .unwrap_or_else(|| r.user.name.clone()),
+            name: r.user.name,
+            status: r.status.unwrap_or_default(),
+        })
+        .collect();
+    let (open_task_count, comment_count) = dto
+        .properties
+        .map(|p| (p.open_task_count.unwrap_or(0), p.comment_count.unwrap_or(0)))
+        .unwrap_or((0, 0));
+    Ok(PullRequestDetails {
+        id: dto.id,
+        title: dto.title,
+        state,
+        url,
+        author_slug,
+        reviewers,
+        open_task_count,
+        comment_count,
+        from_ref_id: dto.from_ref.id,
+        from_branch,
+        from_latest_commit: dto.from_ref.latest_commit,
+        from_repo,
+        to_repo,
+        updated_date_ms: dto.updated_date,
+        closed_date_ms: dto.closed_date,
+    })
+}
+
+fn next_start<T>(page: &PageV1<T>) -> Option<u64> {
+    if page.is_last_page {
+        None
+    } else {
+        page.next_page_start
+    }
+}
+
+/// Bitbucket Data Center client for host-level requests (dashboard, build
+/// status, current user) and detailed per-branch PR lookups.
+///
+/// Like `BitbucketProvider`, deliberately does NOT implement `Debug`: the
+/// client carries the Bearer token in its default headers.
+pub struct BitbucketHostClient {
+    base_url: Url,
+    client: reqwest::Client,
+}
+
+impl BitbucketHostClient {
+    /// Client for the server at `base_url` (normalized like the provider's
+    /// base URL), with the 5 s connect / 15 s total timeouts.
+    pub fn new(base_url: &str, token: &str) -> Result<Self, PrProviderError> {
+        Self::with_timeouts(
+            base_url,
+            token,
+            DEFAULT_CONNECT_TIMEOUT,
+            DEFAULT_TOTAL_TIMEOUT,
+        )
+    }
+
+    pub fn with_timeouts(
+        base_url: &str,
+        token: &str,
+        connect_timeout: Duration,
+        total_timeout: Duration,
+    ) -> Result<Self, PrProviderError> {
+        let base_url = normalize_base_url(base_url)?;
+        let client = build_client(token, connect_timeout, total_timeout)?;
+        Ok(Self { base_url, client })
+    }
+
+    pub fn base_url(&self) -> &Url {
+        &self.base_url
+    }
+
+    async fn get(&self, url: Url) -> Result<reqwest::Response, PrProviderError> {
+        send_with_retry(&self.client, url, false).await
+    }
+
+    /// The authenticated user's name from the `X-AUSERNAME` header.
+    /// `Ok(None)` when the server did not send it.
+    pub async fn current_user(&self) -> Result<Option<String>, PrProviderError> {
+        let response = self.get(application_properties_url(&self.base_url)).await?;
+        Ok(username_header(response.headers()))
+    }
+
+    /// One page of my open PRs across all repositories (role AUTHOR).
+    /// Any PR with an unknown state fails the page.
+    pub async fn dashboard_page(
+        &self,
+        start: u64,
+    ) -> Result<HostPage<PullRequestDetails>, PrProviderError> {
+        let response = self.get(dashboard_url(&self.base_url, start)).await?;
+        let username = username_header(response.headers());
+        let page: PageV1<DetailedPullRequestDto> = parse_json(response).await?;
+        let next_start = next_start(&page);
+        let values = page
+            .values
+            .into_iter()
+            .map(|dto| details_from_dto(dto, &self.base_url))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(HostPage {
+            values,
+            next_start,
+            username,
+        })
+    }
+
+    /// Newest PR in any state whose source is `refs/heads/<branch_name>` in
+    /// `repository`. `Ok(None)` = no PR. A PR for another ref or source
+    /// repository is `InvalidResponse`, never "no PR".
+    pub async fn latest_pull_request_for_branch(
+        &self,
+        repository: &BitbucketRepository,
+        branch_name: &str,
+    ) -> Result<Option<PullRequestDetails>, PrProviderError> {
+        let response = self.get(latest_pr_url(repository, branch_name)).await?;
+        let page: PageV1<DetailedPullRequestDto> = parse_json(response).await?;
+        let Some(dto) = page.values.into_iter().next() else {
+            return Ok(None);
+        };
+        let expected_ref = format!("refs/heads/{branch_name}");
+        if dto.from_ref.id != expected_ref {
+            return Err(PrProviderError::InvalidResponse(format!(
+                "pull request source ref '{}' does not match the requested ref '{expected_ref}'",
+                dto.from_ref.id
+            )));
+        }
+        let pr = details_from_dto(dto, &repository.base_url)?;
+        if !pr
+            .from_repo
+            .same_repo(&repository.project_key, &repository.repository_slug)
+        {
+            return Err(PrProviderError::InvalidResponse(format!(
+                "pull request belongs to repository '{}', expected '{}'",
+                pr.from_repo.slug, repository.repository_slug
+            )));
+        }
+        Ok(Some(pr))
+    }
+
+    /// One page of the raw build states (`SUCCESSFUL`, `FAILED`,
+    /// `INPROGRESS`, ...) reported for commit `sha`.
+    pub async fn build_status_page(
+        &self,
+        sha: &str,
+        start: u64,
+    ) -> Result<HostPage<String>, PrProviderError> {
+        let response = self
+            .get(build_status_url(&self.base_url, sha, start))
+            .await?;
+        let username = username_header(response.headers());
+        let page: PageV1<BuildStatusDto> = parse_json(response).await?;
+        let next_start = next_start(&page);
+        Ok(HostPage {
+            values: page.values.into_iter().map(|s| s.state).collect(),
+            next_start,
+            username,
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -798,7 +1314,7 @@ mod tests {
     const FAKE_TOKEN: &str = "fake-test-token-not-real";
 
     fn resolved(base: &str, project: &str, repo: &str) -> BitbucketRepository {
-        resolve_repository(BitbucketConfigInput {
+        resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some(base.to_string()),
             cli_project: Some(project.to_string()),
             cli_repo: Some(repo.to_string()),
@@ -815,7 +1331,7 @@ mod tests {
 
     #[test]
     fn cli_beats_env_and_derived_for_every_field() {
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://cli.example.com".to_string()),
             cli_project: Some("CLIPROJ".to_string()),
             cli_repo: Some("cli-repo".to_string()),
@@ -834,7 +1350,7 @@ mod tests {
 
     #[test]
     fn env_beats_derived_for_every_field() {
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             env_base_url: Some("https://env.example.com".to_string()),
             env_project: Some("ENVPROJ".to_string()),
             env_repo: Some("env-repo".to_string()),
@@ -851,7 +1367,7 @@ mod tests {
 
     #[test]
     fn derived_values_used_when_nothing_else_is_set() {
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             derived_base_url: Some("https://bitbucket.example.com".to_string()),
             derived_project: Some("proj".to_string()),
             derived_repo: Some("demo-repo.git".to_string()),
@@ -866,7 +1382,7 @@ mod tests {
     #[test]
     fn precedence_is_per_value_not_per_source() {
         // CLI supplies only the project; base URL falls to env, repo to derived.
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             cli_project: Some("CLIPROJ".to_string()),
             env_base_url: Some("https://env.example.com".to_string()),
             derived_repo: Some("derived-repo".to_string()),
@@ -882,7 +1398,7 @@ mod tests {
 
     #[test]
     fn derived_project_key_is_uppercased() {
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             derived_base_url: Some("https://host.example.com".to_string()),
             derived_project: Some("proj".to_string()),
             derived_repo: Some("repo".to_string()),
@@ -947,7 +1463,7 @@ mod tests {
     #[test]
     fn non_http_scheme_is_rejected() {
         for base in ["ssh://git@host.example.com:7999", "ftp://host.example.com"] {
-            let err = resolve_repository(BitbucketConfigInput {
+            let err = resolve_repository_input(BitbucketConfigInput {
                 cli_base_url: Some(base.to_string()),
                 cli_project: Some("PROJ".to_string()),
                 cli_repo: Some("repo".to_string()),
@@ -965,7 +1481,7 @@ mod tests {
 
     #[test]
     fn malformed_base_url_is_rejected() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("not a url".to_string()),
             cli_project: Some("PROJ".to_string()),
             cli_repo: Some("repo".to_string()),
@@ -977,7 +1493,7 @@ mod tests {
 
     #[test]
     fn missing_base_url_error_names_the_flag() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_project: Some("PROJ".to_string()),
             cli_repo: Some("repo".to_string()),
             ..Default::default()
@@ -997,7 +1513,7 @@ mod tests {
 
     #[test]
     fn missing_project_error_names_the_flag() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://host.example.com".to_string()),
             cli_repo: Some("repo".to_string()),
             ..Default::default()
@@ -1017,7 +1533,7 @@ mod tests {
 
     #[test]
     fn missing_repo_error_names_the_flag() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://host.example.com".to_string()),
             cli_project: Some("PROJ".to_string()),
             ..Default::default()
@@ -1037,7 +1553,7 @@ mod tests {
 
     #[test]
     fn whitespace_only_explicit_component_is_rejected() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://host.example.com".to_string()),
             cli_project: Some("   ".to_string()),
             cli_repo: Some("repo".to_string()),
@@ -1049,7 +1565,7 @@ mod tests {
 
     #[test]
     fn blank_derived_component_is_treated_as_missing() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://host.example.com".to_string()),
             cli_repo: Some("repo".to_string()),
             derived_project: Some("  ".to_string()),
@@ -1069,7 +1585,7 @@ mod tests {
 
     #[test]
     fn repo_slug_that_is_only_git_suffix_is_rejected() {
-        let err = resolve_repository(BitbucketConfigInput {
+        let err = resolve_repository_input(BitbucketConfigInput {
             cli_base_url: Some("https://host.example.com".to_string()),
             cli_project: Some("PROJ".to_string()),
             cli_repo: Some(".git".to_string()),
@@ -1084,7 +1600,7 @@ mod tests {
     #[test]
     fn cache_key_matches_the_documented_example_exactly() {
         // Derived values: lowercase project key gets canonicalized.
-        let repo = resolve_repository(BitbucketConfigInput {
+        let repo = resolve_repository_input(BitbucketConfigInput {
             derived_base_url: Some("https://bitbucket.example.com".to_string()),
             derived_project: Some("proj".to_string()),
             derived_repo: Some("demo-repo.git".to_string()),
@@ -1920,6 +2436,254 @@ mod tests {
                 }
                 other => panic!("expected InvalidResponse, got {other}"),
             }
+        }
+    }
+
+    // --- worktrack local change: resolve_repository takes the repo path ---
+
+    fn git_repo_with_origin(origin: Option<&str>) -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().unwrap();
+        let run = |args: &[&str]| {
+            let ok = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "git {args:?} failed");
+        };
+        run(&["init", "-q"]);
+        if let Some(url) = origin {
+            run(&["remote", "add", "origin", url]);
+        }
+        dir
+    }
+
+    #[test]
+    fn resolve_repository_derives_from_the_given_repo_origin() {
+        let dir = git_repo_with_origin(Some("https://bb.example.com/scm/proj/demo-repo.git"));
+        let repo = resolve_repository(dir.path(), BitbucketConfigInput::default()).unwrap();
+        assert_eq!(base_url_str(&repo), "https://bb.example.com");
+        assert_eq!(repo.project_key, "PROJ");
+        assert_eq!(repo.repository_slug, "demo-repo");
+    }
+
+    #[test]
+    fn resolve_repository_lets_explicit_values_override_origin() {
+        let dir = git_repo_with_origin(Some("https://bb.example.com/scm/proj/demo-repo.git"));
+        let repo = resolve_repository(
+            dir.path(),
+            BitbucketConfigInput {
+                cli_project: Some("LEG".to_string()),
+                cli_repo: Some("api".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(base_url_str(&repo), "https://bb.example.com");
+        assert_eq!(repo.project_key, "LEG");
+        assert_eq!(repo.repository_slug, "api");
+    }
+
+    #[test]
+    fn resolve_repository_without_origin_names_the_missing_value() {
+        let dir = git_repo_with_origin(None);
+        let err = resolve_repository(dir.path(), BitbucketConfigInput::default()).unwrap_err();
+        assert!(matches!(err, PrProviderError::Configuration(_)));
+    }
+
+    #[test]
+    fn resolve_repository_skips_origin_when_everything_is_explicit() {
+        // Not a git repository at all: origin must not be read.
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo = resolve_repository(
+            dir.path(),
+            BitbucketConfigInput {
+                cli_base_url: Some("https://host.example.com".to_string()),
+                cli_project: Some("PROJ".to_string()),
+                cli_repo: Some("repo".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(repo.repository_slug, "repo");
+    }
+
+    // --- worktrack milestone 2: host client ---
+
+    mod host {
+        use super::*;
+        use wiremock::matchers::{header, method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        const USER_AGENT: &str = concat!("worktrack/", env!("CARGO_PKG_VERSION"));
+
+        fn client_for(server: &MockServer) -> BitbucketHostClient {
+            BitbucketHostClient::new(&server.uri(), FAKE_TOKEN).unwrap()
+        }
+
+        fn pr_json(id: u64, state: &str, branch: &str, from_slug: &str) -> serde_json::Value {
+            json!({
+                "id": id,
+                "title": "T",
+                "state": state,
+                "fromRef": {
+                    "id": format!("refs/heads/{branch}"),
+                    "displayId": branch,
+                    "latestCommit": "abc123",
+                    "repository": { "slug": from_slug, "project": { "key": "PROJ" } }
+                },
+                "toRef": {
+                    "id": "refs/heads/main",
+                    "displayId": "main",
+                    "repository": { "slug": "demo-repo", "project": { "key": "PROJ" } }
+                },
+                "author": { "user": { "name": "jdoe", "slug": "jdoe", "displayName": "J Doe" } },
+                "reviewers": [
+                    { "user": { "name": "rev", "displayName": "Rev Iewer" }, "status": "NEEDS_WORK" }
+                ],
+                "properties": { "openTaskCount": 2, "commentCount": 5 },
+                "updatedDate": 1_700_000_000_000_i64,
+                "links": { "self": [] }
+            })
+        }
+
+        #[test]
+        fn new_urls_use_api_1_0_and_encode_values() {
+            let repo = example_repository();
+            let url = latest_pr_url(&repo, "feature/x y");
+            assert_eq!(
+                url.path(),
+                "/rest/api/1.0/projects/PROJ/repos/demo-repo/pull-requests"
+            );
+            let q = url.query().unwrap();
+            assert!(q.contains("at=refs%2Fheads%2Ffeature%2Fx+y"), "{q}");
+            assert!(q.contains("direction=OUTGOING") && q.contains("state=ALL"));
+            assert!(q.contains("order=NEWEST") && q.contains("limit=1"));
+
+            let url = dashboard_url(&repo.base_url, 100);
+            assert_eq!(url.path(), "/rest/api/1.0/dashboard/pull-requests");
+            assert_eq!(
+                url.query(),
+                Some("role=AUTHOR&state=OPEN&limit=100&start=100")
+            );
+
+            let url = build_status_url(&repo.base_url, "deadbeef", 0);
+            assert_eq!(url.path(), "/rest/build-status/1.0/commits/deadbeef");
+        }
+
+        #[test]
+        fn empty_token_is_rejected_by_the_host_client() {
+            assert!(matches!(
+                BitbucketHostClient::new("https://h.example.com", " "),
+                Err(PrProviderError::Configuration(_))
+            ));
+        }
+
+        #[tokio::test]
+        async fn dashboard_page_sends_headers_and_maps_details() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/rest/api/1.0/dashboard/pull-requests"))
+                .and(query_param("role", "AUTHOR"))
+                .and(query_param("state", "OPEN"))
+                .and(query_param("limit", "100"))
+                .and(query_param("start", "0"))
+                .and(header(
+                    "Authorization",
+                    format!("Bearer {FAKE_TOKEN}").as_str(),
+                ))
+                .and(header("User-Agent", USER_AGENT))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .insert_header("X-AUSERNAME", "jdoe")
+                        .set_body_json(json!({
+                            "isLastPage": false,
+                            "nextPageStart": 100,
+                            "values": [pr_json(7, "OPEN", "feature/x", "demo-repo")]
+                        })),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let page = client_for(&server).dashboard_page(0).await.unwrap();
+            assert_eq!(page.username.as_deref(), Some("jdoe"));
+            assert_eq!(page.next_start, Some(100));
+            let pr = &page.values[0];
+            assert_eq!(pr.id, 7);
+            assert_eq!(pr.state, PrState::Open);
+            assert_eq!(pr.from_branch, "feature/x");
+            assert_eq!(pr.from_latest_commit.as_deref(), Some("abc123"));
+            assert_eq!(pr.author_slug, "jdoe");
+            assert_eq!(pr.open_task_count, 2);
+            assert_eq!(pr.comment_count, 5);
+            assert_eq!(pr.reviewers[0].slug, "rev");
+            assert_eq!(pr.reviewers[0].display_name, "Rev Iewer");
+            assert_eq!(pr.reviewers[0].status, "NEEDS_WORK");
+            assert_eq!(pr.updated_date_ms, Some(1_700_000_000_000));
+            assert!(!pr.is_from_fork());
+            assert_eq!(
+                pr.url,
+                format!(
+                    "{}/projects/PROJ/repos/demo-repo/pull-requests/7/overview",
+                    server.uri()
+                )
+            );
+        }
+
+        #[tokio::test]
+        async fn rate_limit_is_returned_at_once_not_retried() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "7"))
+                .expect(1)
+                .mount(&server)
+                .await;
+            let err = client_for(&server).dashboard_page(0).await.unwrap_err();
+            match err {
+                PrProviderError::RateLimited { retry_after } => {
+                    assert_eq!(retry_after, Some(Duration::from_secs(7)))
+                }
+                other => panic!("expected RateLimited, got {other}"),
+            }
+        }
+
+        #[tokio::test]
+        async fn latest_pr_for_branch_rejects_another_source_repository() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "values": [pr_json(1, "MERGED", "feature/x", "a-fork")]
+                })))
+                .mount(&server)
+                .await;
+            let repo = resolved(&server.uri(), "PROJ", "demo-repo");
+            let err = client_for(&server)
+                .latest_pull_request_for_branch(&repo, "feature/x")
+                .await
+                .unwrap_err();
+            assert!(matches!(err, PrProviderError::InvalidResponse(_)));
+        }
+
+        #[tokio::test]
+        async fn current_user_reads_the_header() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/rest/api/1.0/application-properties"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .insert_header("X-AUSERNAME", "jdoe")
+                        .set_body_json(json!({ "version": "8.9.0" })),
+                )
+                .mount(&server)
+                .await;
+            assert_eq!(
+                client_for(&server).current_user().await.unwrap().as_deref(),
+                Some("jdoe")
+            );
         }
     }
 }

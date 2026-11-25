@@ -5,8 +5,8 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   ┌ Keys ────────────────────────────────────────────────┐
 ┌ │Global                                                ▲ ┐
-│▌│  1–5  Tab  Shift-Tab                                 █ │
-│ │      switch tab                                      █ │
+│ │  1–5  Tab  Shift-Tab                                 █ │
+│▌│      switch tab                                      █ │
 │ │  j k ↓ ↑                                             ║ │
 │ │      move                                            ║ │
 │ │  g G  Home End                                       ║ │

@@ -104,6 +104,8 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
 | `1`–`5`, `Tab`                | Work, Todos, Sessions, Summary, Inbox                                                         |
 | `j` `k` / `↓` `↑`, `g` `G`    | move, top / bottom                                                                            |
+| `Enter` / `Space` on a header | fold / unfold the group (Work and Todos repos, Sessions days, Summary directories)            |
+| `z`, `Z`                      | fold / unfold the selected row's group, fold all (unfold all when all are folded)             |
 | `/`, `f`, `v`                 | search, cycle filter, cycle layout                                                            |
 | `Enter` / `Esc`               | details full screen in the list-only layout / back                                            |
 | `r` / `R`                     | local reload / full sync                                                                      |
@@ -120,6 +122,12 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | Summary: `o`, `Space`         | open the item's PR (or Jira), toggle done on a todo entry                                     |
 | Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file                                               |
 | Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                                                               |
+
+Lists are grouped (Work by repo, Todos by repo with `G`, Sessions by day, Summary by working
+directory), with a blank row between groups when the pane has room. The cursor stops on group
+headers too; there `Enter` / `Space` fold and the details pane sums up the group. Folded groups stay
+folded across refreshes; a search shows every group open. Keys that act on one item only show a hint
+on a header.
 
 The filter and section bars of Todos and Summary also take a mouse click.
 

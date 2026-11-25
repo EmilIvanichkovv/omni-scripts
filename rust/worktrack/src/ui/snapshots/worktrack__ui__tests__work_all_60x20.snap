@@ -5,20 +5,20 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
 ┌ Filter: All ▾  Sort: activity ────────────────── 9 items ┐
-│▌▾ API/upload-svc                                       4 │
+│▌▾ API/upload-svc ───────────────────────────────────── 4 │
 │   ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
 │   ◐ feature/PROJ-130-c… PR #47  …ci     ↓3 ∅          1h │
 │   ○ chore/bump-deps     —               * ↑2          3h │
 │   ↑ spike/s3-multipart  —               ∅ z          16d │
-│ ▾ API/auth                                             3 │
+│                                                          │
+│ ▾ API/auth ─────────────────────────────────────────── 3 │
 │   ✔ bugfix/flaky        PR #41          ⌫            20h │
 │   ✓ feature/PROJ-118-s… PR #39  ✓ci                   1d │
 │   ✕ feature/PROJ-101-l… PR #31                        4d │
-│ ▸ WEB/portal                                           2 │
 │                                                          │
-│                                                          │
+│ ▸ WEB/portal ───────────────────────────────────────── 2 │
 │                                                          │
 │                                                          │
 └─────────────────────────────────────────── enter details ┘
 
- enter details · o PR · c resume · ? help · q quit
+ enter/space toggle · z fold · ? help · q quit

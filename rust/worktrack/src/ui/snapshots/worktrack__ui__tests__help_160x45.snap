@@ -5,32 +5,37 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 S┌ Keys ────────────────────────────────────────────────────────────────────┐
 ┌ Filter: Unfinished ▾  Sort: activity ───│Global                                                                    ▲─────────────────────────────────────────┐
-│▌▾ API/upload-svc                        │  1–5  Tab  Shift-Tab   switch tab                                        █                                         │
-│   ✎ feature/PROJ-123-retry              │  j k ↓ ↑               move                                              █                                         │
-│   ◐ feature/PROJ-130-chunking           │  g G  Home End         top / bottom (G groups in Todos)                  █d-svc                                    │
-│   ○ chore/bump-deps                     │  Ctrl-d Ctrl-u         half page down / up                               █                                         │
-│   ↑ spike/s3-multipart                  │  J K                   scroll details                                    █ucket.example.com                        │
-│ ▾ API/auth                              │  /                     search (@repo: @state: in Work); esc clears       █                                         │
-│   ✓ feature/PROJ-118-sso                │  f                     cycle filter (Summary: section)                   █group.                                   │
-│   ✕ feature/PROJ-101-legacy             │  v                     cycle layout: auto / side / stacked / list        █                                         │
-│ ▾ WEB/portal                            │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
-│   ↑ feature/PROJ-140-webpack            │  r / R                 local reload / full sync                          █                                         │
-│                                         │  i                     diagnostics                                       █                                         │
-│                                         │  ? / q                 help / quit                                       █                                         │
+│ ▾ API/upload-svc ───────────────────────│  1–5  Tab  Shift-Tab   switch tab                                        █y                             PROJ-123 ↗ │
+│▌  ✎ feature/PROJ-123-retry              │  j k ↓ ↑               move                                              █ork (since 13:20)                        │
+│   ◐ feature/PROJ-130-chunking           │  g G  Home End         top / bottom (G groups in Todos)                  █vc                                       │
+│   ○ chore/bump-deps                     │  Ctrl-d Ctrl-u         half page down / up                               █d-svc-wt/retry                           │
+│   ↑ spike/s3-multipart                  │  J K                   scroll details                                    █d 1 · ci failed · 2 open tasks ·         │
+│                                         │  /                     search (@repo: @state: in Work); esc clears       █                                         │
+│ ▾ API/auth ─────────────────────────────│  f                     cycle filter (Summary: section)                   █th backoff to uploads                    │
+│   ✓ feature/PROJ-118-sso                │  v                     cycle layout: auto / side / stacked / list        █ work · maria ○ unapproved               │
+│   ✕ feature/PROJ-101-legacy             │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
+│                                         │  r / R                 local reload / full sync                          █runk · last 2m                           │
+│ ▾ WEB/portal ───────────────────────────│  i                     diagnostics                                       █                                         │
+│   ↑ feature/PROJ-140-webpack            │  ? / q                 help / quit                                       █                                         │
+│                                         │                                                                          █ad retry logic                           │
+│                                         │Groups (repos, days, directories)                                         █                                         │
+│                                         │  Enter / Space         on a group header: fold / unfold it               █                                         │
+│                                         │  z                     fold / unfold the group of the selected row       █to uploads                               │
+│                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
+│                                         │  /                     searching shows every group open                  █                                         │
 │                                         │                                                                          █                                         │
 │                                         │Work                                                                      █                                         │
-│                                         │  Enter                 collapse / expand group                           █                                         │
 │                                         │  o                     open PR in browser (Jira if no PR)                █                                         │
 │                                         │  y / Y                 copy branch name / worktree path                  █                                         │
 │                                         │  t                     add todo linked to this item                      █                                         │
 │                                         │  c                     copy resume command of latest session             █                                         │
-│                                         │  A / U                 mark abandoned (confirm) / unmark                 █                                         │
-│                                         │  X                     remove worktree, cleanup items only (confirm)     █                                         │
-│                                         │                                                                          █                                         │
-│                                         │Todos                                                                     █                                         │
-│                                         │  a / e / E             add / edit title / edit notes in editor           █                                         │
-│                                         │  Space                 toggle done                                       █                                         │
-│                                         │  s / p                 cycle status / cycle priority                     █                                         │
+│                                         │  A / U                 mark abandoned (confirm) / unmark                 ║                                         │
+│                                         │  X                     remove worktree, cleanup items only (confirm)     ║                                         │
+│                                         │                                                                          ║                                         │
+│                                         │Todos                                                                     ║                                         │
+│                                         │  a / e / E             add / edit title / edit notes in editor           ║                                         │
+│                                         │  Space                 toggle done                                       ║                                         │
+│                                         │  s / p                 cycle status / cycle priority                     ║                                         │
 │                                         │  L                     link to a work item                               ║                                         │
 │                                         │  h l  ← →              previous / next status filter (f cycles)          ║                                         │
 │                                         │  + / -                 move up / down                                    ║                                         │
@@ -38,12 +43,7 @@ expression: text
 │                                         │  G / O                 group by repo / open file in editor               ║                                         │
 │                                         │                                                                          ║                                         │
 │                                         │Sessions                                                                  ║                                         │
-│                                         │  c                     copy resume command                               ║                                         │
-│                                         │  s                     re-summarize                                      ║                                         │
-│                                         │  Enter                 jump to linked work item                          ║                                         │
-│                                         │                                                                          ║                                         │
-│                                         │Summary                                                                   ║                                         │
-│                                         │  h l  ← →  f           previous / next section                           ▼                                         │
-└─────────────────────────────────────────│  j k  g G              move in the section                               │─────────────────────────────────────────┘
+│                                         │  c                     copy resume command                               ▼                                         │
+└─────────────────────────────────────────│  s                     re-summarize                                      │─────────────────────────────────────────┘
                                           └──────────────────────────────────────────── ↑↓ scroll · other keys close ┘
- enter collapse · o PR · c resume · t todo · f filter · / search · ? help · q quit
+ o PR · c resume · t todo · f filter · / search · ? help · q quit

@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Sessions · 1 live ─────────────────────────────────────────────────────────────────── 5 sessions ┐
+│▌▾ Today ────────────────────────────────────────────────────────────────────────────────────── 2 │
+│ 13:59 ● upload-svc  feature/PROJ-123-retry     Add backoff to uploads                   14 turns │
+│ 09:00 ✓ auth        feature/PROJ-118-sso       Fix SAML redirect                        22 turns │
+│                                                                                                  │
+│ ▾ Yesterday ────────────────────────────────────────────────────────────────────────────────── 2 │
+│ 14:00 ✓ —           (no branch)                Explain webpack config                    3 turns │
+│ 12:00 ! upload-svc  spike/s3-multipart         Try multipart API · summary failed        8 turns │
+│                                                                                                  │
+│ ▾ Mon 23 Nov ───────────────────────────────────────────────────────────────────────────────── 1 │
+│ 14:00 … upload-svc  feature/PROJ-130-chunking  Chunk size experiments                    5 turns │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Day ─────────────────────────────────────────────────────────────────────────────────────────────┐
+│▾ Today · Wed 25 Nov                                                                              │
+│Sessions 2 sessions · 1 live                                                                      │
+│When     08:20 – 13:59 · 36 turns                                                                 │
+│Summary  1 ✓ summarized                                                                           │
+│Repos    upload-svc · auth                                                                        │
+│Latest   13:59 · Add backoff to uploads                                                           │
+│                                                                                                  │
+│enter/space or z collapses this group · Z folds / unfolds all                                     │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ enter/space toggle · z fold · Z fold all · / search · ? help · q quit

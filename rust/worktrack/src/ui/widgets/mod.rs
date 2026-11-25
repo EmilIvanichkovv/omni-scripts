@@ -13,8 +13,8 @@ use ratatui::widgets::{
 use ratatui::Frame;
 
 use super::theme;
-use crate::app::{BarHit, LineInput, Now};
-use crate::lgbc::responsive::{str_width, truncate_end, Scroll};
+use crate::app::{BarHit, LineInput, ListRow, Now};
+use crate::lgbc::responsive::{str_width, truncate_end, truncate_middle, Scroll};
 
 /// Sanitized single-line external text (spec 11.3).
 pub fn clean(s: &str) -> String {
@@ -204,24 +204,141 @@ pub fn cursor_line(line: Line<'static>, width: usize) -> Line<'static> {
     }
 }
 
-/// A group header row inside a list: bold `label` after the gutter, muted `right` (a
-/// count) flush right.
-pub fn header_row(label: &str, right: &str, width: usize) -> Line<'static> {
-    let right = if right.is_empty() {
-        String::new()
-    } else {
-        format!(" {right} ")
+/// Lists get a blank row before each group header (but the first) only when their
+/// viewport has at least this many rows; shorter panes keep every row for content.
+pub const GROUP_GAP_MIN_ROWS: usize = 8;
+
+/// Whether a list pane `viewport` rows tall spaces its groups apart.
+pub fn group_gap(viewport: usize) -> bool {
+    viewport >= GROUP_GAP_MIN_ROWS
+}
+
+/// Blank spacing rows `rows` add before their group headers (one per header but the first).
+pub fn gap_rows(rows: &[ListRow]) -> usize {
+    rows.iter()
+        .filter(|r| matches!(r, ListRow::Group(_)))
+        .count()
+        .saturating_sub(1)
+}
+
+/// How a group name is shortened when it does not fit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cut {
+    /// Names: cut at the end with `…`.
+    End,
+    /// Paths: keep both ends, `~/work/…/retry`.
+    Middle,
+}
+
+/// The group header row shared by every grouped list (see the UI conventions in `theme`):
+/// gutter, disclosure marker (`▾` open, `▸` collapsed) in the accent colour, the name bold
+/// in the accent colour, a muted thin rule, and the muted member count flush right. The
+/// name is cut (`cut`) so the count always shows; the rule disappears first.
+pub fn group_header(
+    name: &str,
+    count: usize,
+    collapsed: bool,
+    width: usize,
+    cut: Cut,
+) -> Line<'static> {
+    let marker = if collapsed { "▸" } else { "▾" };
+    let right = format!(" {count} ");
+    // " ▾ " + name + " " + rule + right
+    let fixed = 3 + str_width(&right);
+    let budget = width.saturating_sub(fixed + 1).max(1);
+    let name = match cut {
+        Cut::End => truncate_end(name, budget),
+        Cut::Middle => truncate_middle(name, budget),
     };
-    let label = truncate_end(
-        &format!(" {label}"),
-        width.saturating_sub(str_width(&right)).max(1),
-    );
-    let pad = width.saturating_sub(str_width(&label) + str_width(&right));
-    Line::from(vec![
-        Span::styled(label, theme::bold()),
-        Span::raw(" ".repeat(pad)),
-        Span::styled(right, theme::muted()),
-    ])
+    let rule = width.saturating_sub(fixed + str_width(&name) + 1);
+    let mut spans = vec![
+        Span::raw(" "),
+        Span::styled(marker, theme::accent()),
+        Span::raw(" "),
+        Span::styled(name, theme::heading()),
+    ];
+    if rule > 0 {
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled("─".repeat(rule), theme::muted()));
+    }
+    spans.push(Span::styled(right, theme::muted()));
+    cut_spans(spans, width).into()
+}
+
+/// Title line and folding hint of a group's details pane, around the group's `fields`.
+pub fn group_details(
+    title: &str,
+    collapsed: bool,
+    fields: Vec<Line<'static>>,
+) -> Vec<Line<'static>> {
+    let mut lines = vec![Line::from(vec![
+        Span::styled(if collapsed { "▸ " } else { "▾ " }, theme::accent()),
+        Span::styled(title.to_string(), theme::bold()),
+    ])];
+    lines.extend(fields);
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        if collapsed {
+            "enter/space expands this group · Z folds / unfolds all"
+        } else {
+            "enter/space or z collapses this group · Z folds / unfolds all"
+        },
+        theme::muted(),
+    )));
+    lines
+}
+
+/// `n label` breakdown rows (`3 todo`, `1 doing`) as details fields: the first under
+/// `label`, the rest continuing the value column. Zero counts are left out.
+pub fn breakdown(label: &str, parts: Vec<(Vec<Span<'static>>, usize)>) -> Vec<Line<'static>> {
+    let mut out = Vec::new();
+    for (spans, n) in parts.into_iter().filter(|(_, n)| *n > 0) {
+        let mut v = vec![Span::raw(format!("{n} "))];
+        v.extend(spans);
+        out.push(if out.is_empty() {
+            field(label, v)
+        } else {
+            field_cont(v)
+        });
+    }
+    out
+}
+
+/// One row of a list as drawn: its lines (an item may take several) and whether it is a
+/// group header.
+pub struct ListBlock {
+    pub header: bool,
+    pub lines: Vec<Line<'static>>,
+}
+
+/// Draw list `blocks` (one per [`ListRow`], `cursor` indexing them) in `rows`: a blank row
+/// before each group header but the first when the viewport is tall enough
+/// ([`group_gap`]), the cursor block's first line kept visible (see [`render_rows`]).
+pub fn render_list(
+    frame: &mut Frame,
+    rows: Rect,
+    bar_area: Rect,
+    blocks: Vec<ListBlock>,
+    cursor: Option<usize>,
+    offset: &Cell<usize>,
+) {
+    let gap = group_gap(rows.height as usize);
+    let mut lines = Vec::new();
+    let mut cursor_line = None;
+    let mut seen_header = false;
+    for (n, block) in blocks.into_iter().enumerate() {
+        if block.header {
+            if gap && seen_header {
+                lines.push(Line::from(""));
+            }
+            seen_header = true;
+        }
+        if Some(n) == cursor {
+            cursor_line = Some(lines.len());
+        }
+        lines.extend(block.lines);
+    }
+    render_rows(frame, rows, bar_area, lines, cursor_line, offset);
 }
 
 /// Draw list `lines` in `rows`, keeping row `cursor` visible. The offset persists in

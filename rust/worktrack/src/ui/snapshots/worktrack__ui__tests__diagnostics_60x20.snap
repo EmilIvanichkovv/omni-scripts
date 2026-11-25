@@ -5,8 +5,8 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   ┌ Diagnostics ─────────────────────────────────────────┐
 ┌ │Bitbucket:                                            │ ┐
-│▌│  token  set (BITBUCKET_TOKEN)                        │ │
-│ │  user   dev                                          │ │
+│ │  token  set (BITBUCKET_TOKEN)                        │ │
+│▌│  user   dev                                          │ │
 │ │Hook:                                                 │ │
 │ │  SessionEnd hook installed                           │ │
 │ │Paths:                                                │ │

@@ -5,16 +5,16 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
 ┌ Sessions · 1 live ─────────────────────────── 5 sessions ┐
-│ Today                                                  2 │
-│ 13:59 ● feature/PROJ-123-retry     Add backoff to uploa… │
-│▌09:00 ✓ feature/PROJ-118-sso       Fix SAML redirect     │
-│ Yesterday                                              2 │
+│ ▾ Today ────────────────────────────────────────────── 2 │
+│▌13:59 ● feature/PROJ-123-retry     Add backoff to uploa… │
+│ 09:00 ✓ feature/PROJ-118-sso       Fix SAML redirect     │
+│                                                          │
+│ ▾ Yesterday ────────────────────────────────────────── 2 │
 │ 14:00 ✓ (no branch)                Explain webpack conf… │
 │ 12:00 ! spike/s3-multipart         Try multipart API     │
-│ Mon 23 Nov                                             1 │
+│                                                          │
+│ ▾ Mon 23 Nov ───────────────────────────────────────── 1 │
 │ 14:00 … feature/PROJ-130-chunking  Chunk size experimen… │
-│                                                          │
-│                                                          │
 │                                                          │
 │                                                          │
 │                                                          │

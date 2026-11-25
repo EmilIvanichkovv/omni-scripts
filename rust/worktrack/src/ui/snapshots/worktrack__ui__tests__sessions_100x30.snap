@@ -5,29 +5,29 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Sessions · 1 live ─────────────────────────────────────────────────────────────────── 5 sessions ┐
-│ Today                                                                                          2 │
-│ 13:59 ● upload-svc  feature/PROJ-123-retry     Add backoff to uploads                   14 turns │
-│▌09:00 ✓ auth        feature/PROJ-118-sso       Fix SAML redirect                        22 turns │
-│ Yesterday                                                                                      2 │
+│ ▾ Today ────────────────────────────────────────────────────────────────────────────────────── 2 │
+│▌13:59 ● upload-svc  feature/PROJ-123-retry     Add backoff to uploads                   14 turns │
+│ 09:00 ✓ auth        feature/PROJ-118-sso       Fix SAML redirect                        22 turns │
+│                                                                                                  │
+│ ▾ Yesterday ────────────────────────────────────────────────────────────────────────────────── 2 │
 │ 14:00 ✓ —           (no branch)                Explain webpack config                    3 turns │
 │ 12:00 ! upload-svc  spike/s3-multipart         Try multipart API · summary failed        8 turns │
-│ Mon 23 Nov                                                                                     1 │
+│                                                                                                  │
+│ ▾ Mon 23 Nov ───────────────────────────────────────────────────────────────────────────────── 1 │
 │ 14:00 … upload-svc  feature/PROJ-130-chunking  Chunk size experiments                    5 turns │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Session ─────────────────────────────────────────────────────────────────────────────────────────┐
-│✓ Fix SAML redirect                                                                               ▲
-│When     08:20 – 09:00 · 22 turns · ended                                                         █
-│Branch   feature/PROJ-118-sso  API/auth                                                           █
-│Cwd      ~/work/auth-wt/sso                                                                       █
+│● Add backoff to uploads                                                                          ▲
+│When     13:19 – 13:59 · 14 turns · live                                                          █
+│Branch   feature/PROJ-123-retry  API/upload-svc                                                   █
+│Cwd      ~/work/upload-svc-wt/retry                                                               █
 │                                                                                                  █
-│Summary                                                                                           █
-│  Fixed the SAML redirect loop; login works against staging IdP.                                  █
+│Todos                                                                                             █
+│  • integration test for retry                                                                    █
 │                                                                                                  █
-│Done                                                                                              ║
-│  • Redirect loop fixed                                                                           ║
-│                                                                                                  ║
-│Unfinished                                                                                        ║
-│  • Logout flow untested                                                                          ║
+│Files touched (2)                                                                                 █
+│  src/upload.rs                                                                                   █
+│  tests/retry.rs                                                                                  ║
 │                                                                                                  ▼
 └────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
 

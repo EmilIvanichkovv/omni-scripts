@@ -7,9 +7,10 @@ use ratatui::Frame;
 
 use super::theme;
 use super::widgets::{
-    clean, field, fit, fmt_when, header_row, push_section, render_rows, short_link, BarItem,
+    self, clean, field, fit, fmt_when, group_header, push_section, render_list, short_link,
+    BarItem, Cut, ListBlock,
 };
-use crate::app::{App, BarHit, TodoFilter, TodoRow};
+use crate::app::{App, BarHit, GroupHeader, ListRow, Tab, TodoFilter};
 use crate::todos::{Todo, TodoStatus};
 
 const MARK_W: usize = 3;
@@ -123,47 +124,116 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     }
     let width = rows_area.width as usize;
     let indent = if app.todo_grouped { 2 } else { 0 };
-    let mut lines = Vec::new();
-    let mut cursor_row = None;
-    let mut todo_idx = 0;
     let rows = app.todo_rows();
-    for (n, row) in rows.iter().enumerate() {
-        match row {
-            TodoRow::Header(name) => {
-                let count = rows[n + 1..]
-                    .iter()
-                    .take_while(|r| matches!(r, TodoRow::Todo(_)))
-                    .count();
-                lines.push(header_row(
-                    &format!("▾ {}", clean(name)),
-                    &count.to_string(),
+    let blocks = rows
+        .iter()
+        .map(|r| match r {
+            ListRow::Group(g) => ListBlock {
+                header: true,
+                lines: vec![group_header(
+                    &clean(&g.label),
+                    g.count(),
+                    g.collapsed,
                     width,
-                ));
-            }
-            TodoRow::Todo(i) => {
-                if todo_idx == app.cursor[1] {
-                    cursor_row = Some(lines.len());
-                }
-                todo_idx += 1;
-                lines.push(todo_line(app, &app.todos[*i], width, indent));
-            }
-        }
-    }
-    render_rows(
+                    Cut::End,
+                )],
+            },
+            ListRow::Item(i) => ListBlock {
+                header: false,
+                lines: vec![todo_line(app, &app.todos[*i], width, indent)],
+            },
+        })
+        .collect();
+    let cursor = (!rows.is_empty()).then(|| app.cursor[Tab::Todos.index()].min(rows.len() - 1));
+    render_list(
         frame,
         rows_area,
         area,
-        lines,
-        cursor_row,
-        &app.feedback.list_offset[1],
+        blocks,
+        cursor,
+        &app.feedback.list_offset[Tab::Todos.index()],
     );
 }
 
 pub fn details(app: &App) -> Vec<Line<'static>> {
+    if let Some(ListRow::Group(g)) = app.selected_row(Tab::Todos) {
+        return group_details(app, &g);
+    }
     let Some(t) = app.selected_todo() else {
         return vec![Line::from(Span::styled("no todo selected", theme::muted()))];
     };
     todo_details(app, t)
+}
+
+/// Details of a repo group of todos: how many, their statuses, the latest activity, and the
+/// work items they link to.
+fn group_details(app: &App, g: &GroupHeader) -> Vec<Line<'static>> {
+    let todos: Vec<&Todo> = g.members.iter().map(|&i| &app.todos[i]).collect();
+    let mut fields = vec![field(
+        "Todos",
+        vec![Span::raw(format!(
+            "{} shown{}",
+            todos.len(),
+            if g.collapsed { " · folded" } else { "" }
+        ))],
+    )];
+    fields.extend(widgets::breakdown(
+        "Status",
+        [
+            TodoStatus::Doing,
+            TodoStatus::Todo,
+            TodoStatus::Done,
+            TodoStatus::Dropped,
+        ]
+        .into_iter()
+        .map(|st| {
+            let n = todos.iter().filter(|t| t.status == st).count();
+            (
+                vec![
+                    Span::styled(st.marker(), theme::todo_status(st)),
+                    Span::raw(format!(" {}", st.as_str())),
+                ],
+                n,
+            )
+        })
+        .collect(),
+    ));
+    let latest = todos
+        .iter()
+        .filter_map(|t| match (t.done, t.created) {
+            (Some(d), _) => Some((d, "done")),
+            (None, Some(c)) => Some((c, "added")),
+            (None, None) => None,
+        })
+        .max_by_key(|(d, _)| *d);
+    if let Some((d, what)) = latest {
+        fields.push(field(
+            "Latest",
+            vec![Span::raw(format!("{what} {}", d.format("%a %Y-%m-%d")))],
+        ));
+    }
+    let mut links: Vec<String> = todos.iter().filter_map(|t| t.link.clone()).collect();
+    links.sort();
+    links.dedup();
+    let tracked = links
+        .iter()
+        .filter(|l| app.item_for_link(l).is_some())
+        .count();
+    if !links.is_empty() {
+        fields.push(field(
+            "Links",
+            vec![Span::raw(format!(
+                "{} {} · {tracked} tracked in Work",
+                links.len(),
+                if links.len() == 1 {
+                    "branch"
+                } else {
+                    "branches"
+                }
+            ))],
+        ));
+    }
+    widgets::group_details(&clean(&g.label), g.collapsed, fields)
 }
 
 /// Details pane lines for one todo (Todos tab and Summary targets).

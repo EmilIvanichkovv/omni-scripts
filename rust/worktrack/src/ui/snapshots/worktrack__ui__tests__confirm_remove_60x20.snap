@@ -5,7 +5,7 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
   1W  2T  3S●  4S  5I·4
 ┌ Filter: Cleanup ▾  Sort: activity ────────────── 1 items ┐
-│ ▾ API/auth                                             1 │
+│ ▾ API/auth ─────────────────────────────────────────── 1 │
 │▌┌ Remove worktree ─────────────────────────────────────┐ │
 │ │Clean up bugfix/flaky? These commands run:            │ │
 │ │                                                      │ │

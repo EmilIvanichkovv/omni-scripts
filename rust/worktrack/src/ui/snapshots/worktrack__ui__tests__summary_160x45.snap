@@ -6,23 +6,23 @@ expression: text
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
 │ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│ ~/work/upload-svc-wt/retry                                                                 1 ││State    ✎ PR needs work (since 13:20)                        │
+│ ▾ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────── 1 ││State    ✎ PR needs work (since 13:20)                        │
 │▌  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed · 2 tasks · dirty · ahead 1        ││Repo     API/upload-svc                                       │
 │       Session: Add backoff to uploads                                                        ││Path     ~/work/upload-svc-wt/retry                           │
 │       Doing: (A) Finish upload retry logic                                                   ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
-│ ~/work/upload-svc                                                                          3 ││         session live                                         │
-│   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                           ││PR #44   Add retry with backoff to uploads                    │
-│   ○ chore/bump-deps  local only · dirty · ahead 2                                            ││         ivan ✗ needs work · maria ○ unapproved               │
-│   ↑ spike/s3-multipart  pushed, no PR · stale                                                ││         4 comments                                           │
-│       Session: Try multipart API                                                             ││Commits  3 ahead of trunk · last 2m                           │
-│ ~/work/auth-wt/sso                                                                         1 ││                                                              │
-│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                            ││Todos (1)                                                     │
-│       Session: Fixed the SAML redirect loop; login works against staging IdP.                ││  [~] (A) Finish upload retry logic                           │
-│ /tmp/scratch                                                                               1 ││                                                              │
-│   ◆ Explain webpack config  (no branch)                                                      ││Sessions (1)                                                  │
+│                                                                                              ││         session live                                         │
+│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────── 3 ││PR #44   Add retry with backoff to uploads                    │
+│   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                           ││         ivan ✗ needs work · maria ○ unapproved               │
+│   ○ chore/bump-deps  local only · dirty · ahead 2                                            ││         4 comments                                           │
+│   ↑ spike/s3-multipart  pushed, no PR · stale                                                ││Commits  3 ahead of trunk · last 2m                           │
+│       Session: Try multipart API                                                             ││                                                              │
+│                                                                                              ││Todos (1)                                                     │
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────── 1 ││  [~] (A) Finish upload retry logic                           │
+│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                            ││                                                              │
+│       Session: Fixed the SAML redirect loop; login works against staging IdP.                ││Sessions (1)                                                  │
 │                                                                                              ││  13:59  Add backoff to uploads                               │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│ ▾ /tmp/scratch ─────────────────────────────────────────────────────────────────────────── 1 ││                                                              │
+│   ◆ Explain webpack config  (no branch)                                                      ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

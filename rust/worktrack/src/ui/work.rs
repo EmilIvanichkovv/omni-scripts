@@ -7,12 +7,12 @@ use ratatui::Frame;
 
 use super::theme;
 use super::widgets::{
-    clean, field, field_cont, fit, fit_right, fmt_age, fmt_when, header_row, push_section,
-    render_rows, LABEL_W,
+    self, clean, field, field_cont, fit, fit_right, fmt_age, fmt_when, group_header, push_section,
+    render_list, Cut, ListBlock, LABEL_W,
 };
-use crate::app::{App, WorkRow};
+use crate::app::{App, GroupHeader, ListRow, Tab};
 use crate::lgbc::responsive::{str_width, truncate_middle};
-use crate::model::{ReviewerStatus, WorkItem};
+use crate::model::{ReviewerStatus, WorkItem, WorkState};
 
 const INDENT: usize = 3;
 const ICON: usize = 2;
@@ -160,11 +160,6 @@ fn item_line(app: &App, item: &WorkItem, cols: WorkColumns) -> Line<'static> {
     Line::from(spans)
 }
 
-fn group_line(name: &str, count: usize, collapsed: bool, width: usize) -> Line<'static> {
-    let label = format!("{} {}", if collapsed { "▸" } else { "▾" }, clean(name));
-    header_row(&label, &count.to_string(), width)
-}
-
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let title = Line::from(vec![
         Span::styled(" Filter: ", theme::muted()),
@@ -188,26 +183,33 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     let width = rows_area.width as usize;
     // One column of air before the border.
     let cols = columns(width.saturating_sub(1));
-    let lines: Vec<Line<'static>> = rows
+    let blocks = rows
         .iter()
         .map(|r| match r {
-            WorkRow::Group {
-                name,
-                count,
-                collapsed,
-                ..
-            } => group_line(name, *count, *collapsed, width),
-            WorkRow::Item(i) => item_line(app, &app.work_items[*i], cols),
+            ListRow::Group(g) => ListBlock {
+                header: true,
+                lines: vec![group_header(
+                    &clean(&g.label),
+                    g.count(),
+                    g.collapsed,
+                    width,
+                    Cut::End,
+                )],
+            },
+            ListRow::Item(i) => ListBlock {
+                header: false,
+                lines: vec![item_line(app, &app.work_items[*i], cols)],
+            },
         })
         .collect();
-    let cursor = Some(app.cursor[0].min(lines.len() - 1));
-    render_rows(
+    let cursor = Some(app.cursor[Tab::Work.index()].min(rows.len() - 1));
+    render_list(
         frame,
         rows_area,
         area,
-        lines,
+        blocks,
         cursor,
-        &app.feedback.list_offset[0],
+        &app.feedback.list_offset[Tab::Work.index()],
     );
 }
 
@@ -226,13 +228,8 @@ pub fn details(app: &App, width: u16) -> Vec<Line<'static>> {
         return vec![Line::from(Span::styled("nothing selected", theme::muted()))];
     };
     let item = match row {
-        WorkRow::Group {
-            repo_id,
-            name,
-            count,
-            collapsed,
-        } => return group_details(app, &repo_id, &name, count, collapsed),
-        WorkRow::Item(i) => &app.work_items[i],
+        ListRow::Group(g) => return group_details(app, &g),
+        ListRow::Item(i) => &app.work_items[i],
     };
     item_details(app, item, width)
 }
@@ -405,17 +402,47 @@ pub fn item_details(app: &App, item: &WorkItem, width: u16) -> Vec<Line<'static>
     lines
 }
 
-fn group_details(
-    app: &App,
-    repo_id: &str,
-    name: &str,
-    count: usize,
-    collapsed: bool,
-) -> Vec<Line<'static>> {
-    let mut lines = vec![Line::from(Span::styled(clean(name), theme::bold()))];
-    lines.push(field("Items", vec![Span::raw(format!("{count} shown"))]));
-    if let Some(repo) = app.repos.iter().find(|r| r.id == repo_id) {
-        lines.push(field(
+/// Details of a repo group: how many items, their states, the latest activity, and the
+/// repo's path, trunk and remote.
+fn group_details(app: &App, g: &GroupHeader) -> Vec<Line<'static>> {
+    let items: Vec<&WorkItem> = g.members.iter().map(|&i| &app.work_items[i]).collect();
+    let mut fields = vec![field(
+        "Items",
+        vec![Span::raw(format!(
+            "{} shown{}",
+            items.len(),
+            if g.collapsed { " · folded" } else { "" }
+        ))],
+    )];
+    fields.extend(widgets::breakdown(
+        "States",
+        WorkState::ALL
+            .into_iter()
+            .map(|st| {
+                let n = items.iter().filter(|w| w.state == st).count();
+                (
+                    vec![Span::styled(
+                        format!("{} {}", st.icon(), st.label()),
+                        theme::state(st),
+                    )],
+                    n,
+                )
+            })
+            .collect(),
+    ));
+    if let Some(latest) = items.iter().max_by_key(|w| w.last_activity) {
+        if latest.last_activity.is_some() {
+            fields.push(field(
+                "Latest",
+                vec![
+                    Span::raw(fmt_when(&app.now, latest.last_activity)),
+                    Span::styled(format!(" · {}", clean(&latest.branch)), theme::muted()),
+                ],
+            ));
+        }
+    }
+    if let Some(repo) = app.repos.iter().find(|r| r.id == g.key) {
+        fields.push(field(
             "Path",
             vec![Span::raw(clean(&display_path(
                 app,
@@ -423,22 +450,13 @@ fn group_details(
             )))],
         ));
         if let Some(t) = &repo.trunk {
-            lines.push(field("Trunk", vec![Span::raw(clean(t))]));
+            fields.push(field("Trunk", vec![Span::raw(clean(t))]));
         }
         if let Some(bb) = &repo.bb {
-            lines.push(field("Remote", vec![Span::raw(clean(&bb.base_url))]));
+            fields.push(field("Remote", vec![Span::raw(clean(&bb.base_url))]));
         }
     }
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        if collapsed {
-            "Enter expands this group."
-        } else {
-            "Enter collapses this group."
-        },
-        theme::muted(),
-    )));
-    lines
+    widgets::group_details(&clean(&g.label), g.collapsed, fields)
 }
 
 /// Path with the home directory shown as `~`.

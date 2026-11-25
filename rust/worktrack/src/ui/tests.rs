@@ -76,7 +76,7 @@ fn work_view() {
 fn work_view_all_filter_with_collapsed_group() {
     snap_all("work_all", |app| {
         keys(app, "ffff");
-        app.collapsed.insert("r_portal".into());
+        app.collapsed[0].insert("r_portal".into());
         app.cursor[0] = 0;
         app.status = None;
     });
@@ -111,6 +111,24 @@ fn sessions_view() {
     snap_all("sessions", |app| {
         keys(app, "3");
         app.cursor[2] = 1;
+    });
+}
+
+#[test]
+fn group_header_details() {
+    snap_all("sessions_day", |app| {
+        keys(app, "3");
+        app.cursor[2] = 0;
+    });
+    snap_all("todos_group", |app| {
+        keys(app, "2G");
+        app.cursor[1] = 0;
+    });
+    snap_all("summary_directory", |app| {
+        keys(app, "4");
+        app.cursor[3] = 0;
+        keys(app, "z");
+        app.status = None;
     });
 }
 
@@ -499,30 +517,35 @@ fn active_tab_and_filter_labels_are_accent_bold_underlined() {
 }
 
 #[test]
-fn sessions_cursor_skips_day_headers() {
+fn sessions_cursor_stops_on_day_headers_after_a_blank_row() {
     let mut app = sample::app();
     keys(&mut app, "3");
     let row = |app: &App| {
         let buf = render(app, 100, 30);
         let rows = cursor_rows(&buf);
-        row_text(&buf, rows[0])
+        assert_eq!(rows.len(), 1);
+        (rows[0], row_text(&buf, rows[0]))
     };
-    assert!(row(&app).contains("13:59"), "{}", row(&app));
+    assert!(row(&app).1.contains("13:59"), "{:?}", row(&app));
     keys(&mut app, "j");
-    assert!(row(&app).contains("09:00"), "{}", row(&app));
-    // The next row on screen is the `Yesterday` header; the cursor lands below it.
+    assert!(row(&app).1.contains("09:00"), "{:?}", row(&app));
+    // The next stop is the `Yesterday` header, one blank row below the last session.
     keys(&mut app, "j");
-    let r = row(&app);
+    let (y, r) = row(&app);
+    assert!(r.contains("▌▾ Yesterday ─"), "{r}");
+    assert!(r.trim_end().ends_with("2 │"), "{r}");
+    let buf = render(&app, 100, 30);
+    assert_eq!(row_text(&buf, y - 1).trim(), "│                                                                                                  │");
+    keys(&mut app, "j");
+    let r = row(&app).1;
     assert!(
         r.contains("14:00") && r.contains("Explain webpack config"),
         "{r}"
     );
-    let text = screen(&app, 100, 30);
-    assert!(text.contains("│ Yesterday "), "{text}");
 }
 
 #[test]
-fn summary_cursor_skips_directory_headers() {
+fn summary_cursor_stops_on_directory_headers() {
     let mut app = sample::app();
     keys(&mut app, "4");
     let row = |app: &App| {
@@ -535,18 +558,142 @@ fn summary_cursor_skips_directory_headers() {
         row(&app)
     );
     keys(&mut app, "j");
-    // Past the children and the `~/work/upload-svc` header.
+    // Past the children, onto the `~/work/upload-svc` header.
+    assert!(
+        row(&app).contains("▌▾ ~/work/upload-svc ─"),
+        "{}",
+        row(&app)
+    );
+    keys(&mut app, "j");
     assert!(
         row(&app).contains("feature/PROJ-130-chunking"),
         "{}",
         row(&app)
     );
-    keys(&mut app, "k");
+    keys(&mut app, "kk");
     assert!(
         row(&app).contains("feature/PROJ-123-retry"),
         "{}",
         row(&app)
     );
+}
+
+#[test]
+fn group_headers_share_one_style_and_fold_markers() {
+    let mut app = sample::app();
+    app.cursor[0] = 1;
+    app.collapsed[0].insert("r_portal".into());
+    let buf = render(&app, 100, 30);
+    let (x, y) = find(&buf, "▾ API/upload-svc").unwrap();
+    // Marker accent, name accent bold, rule and count muted.
+    assert_eq!(
+        styled_cells(&buf, x, y, 3),
+        ["▾ Cyan/Reset", "  Reset/Reset", "A Cyan/Reset +BOLD"]
+    );
+    let rule = row_text(&buf, y);
+    assert!(rule.contains("API/upload-svc ──"), "{rule}");
+    let (cx, _) = find(&buf, "─ 4 ").unwrap();
+    assert_eq!(buf[(cx, y)].fg, theme::MUTED);
+    assert_eq!(buf[(cx + 2, y)].fg, theme::MUTED);
+    // A collapsed group shows `▸` and its count.
+    let portal = row_text(&buf, find(&buf, "▸ WEB/portal").unwrap().1);
+    assert!(portal.trim_end().ends_with("1 │"), "{portal}");
+    // Every list uses the same header.
+    for (tab, header) in [
+        ("2G", "▾ API/auth ─"),
+        ("3", "▾ Today ─"),
+        ("4", "▾ ~/work/upload-svc-wt/retry ─"),
+    ] {
+        let mut app = sample::app();
+        keys(&mut app, tab);
+        let text = screen(&app, 100, 30);
+        assert!(text.contains(header), "{tab}: {text}");
+    }
+    // NO_COLOR keeps the marker, the bold name and the count.
+    app.no_color = true;
+    let plain = render(&app, 100, 30);
+    let (x, y) = find(&plain, "▾ API/upload-svc").unwrap();
+    assert!(plain[(x + 2, y)].modifier.contains(Modifier::BOLD));
+}
+
+#[test]
+fn group_headers_fit_narrow_lists() {
+    use super::widgets::{group_header, Cut};
+    let text =
+        |l: ratatui::text::Line| -> String { l.spans.iter().map(|s| s.content.as_ref()).collect() };
+    let path = "~/work/upload-svc-wt/feature-retry-with-backoff";
+    for width in [20usize, 38, 40, 58] {
+        let end = text(group_header(
+            "API/upload-service-with-long-name",
+            12,
+            false,
+            width,
+            Cut::End,
+        ));
+        assert!(end.width() <= width, "{width}: {end}");
+        assert!(end.ends_with(" 12 "), "{width}: {end}");
+        let mid = text(group_header(path, 3, true, width, Cut::Middle));
+        assert!(mid.width() <= width, "{width}: {mid}");
+        assert!(mid.starts_with(" ▸ ~/"), "{width}: {mid}");
+        assert!(mid.ends_with(" 3 "), "{width}: {mid}");
+    }
+    let mid = text(group_header(path, 3, false, 40, Cut::Middle));
+    assert!(mid.contains('…') && mid.contains("backoff"), "{mid}");
+    // Wide: the rule fills up to the count.
+    let wide = text(group_header("API/auth", 2, false, 30, Cut::End));
+    assert_eq!(wide, " ▾ API/auth ─────────────── 2 ");
+    assert_eq!(wide.width(), 30);
+}
+
+#[test]
+fn blank_rows_separate_groups_unless_the_pane_is_short() {
+    let mut app = sample::app();
+    // 100x30 stacked: the Work list pane shrinks to its rows, blank rows included.
+    let text = screen(&app, 100, 30);
+    let lines: Vec<&str> = text.lines().collect();
+    let auth = lines.iter().position(|l| l.contains("▾ API/auth")).unwrap();
+    assert_eq!(lines[auth - 1].trim_matches(|c| c == '│' || c == ' '), "");
+    let portal = lines
+        .iter()
+        .position(|l| l.contains("▾ WEB/portal"))
+        .unwrap();
+    assert!(lines[portal + 1].contains("feature/PROJ-140-webpack"));
+    assert!(lines[portal + 2].starts_with('└'), "{text}");
+    // The first group has none above it.
+    assert!(lines[auth - 7].starts_with('┌'), "{text}");
+    // A short pane (viewport under 8 rows) drops the blank rows: list only at 100x12,
+    // stacked at 100x20 (the list pane gets at most 9 of 16 content rows).
+    for (w, h) in [(100, 12), (100, 20)] {
+        let text = screen(&app, w, h);
+        let lines: Vec<&str> = text.lines().collect();
+        let auth = lines.iter().position(|l| l.contains("▾ API/auth")).unwrap();
+        assert!(lines[auth - 1].contains("spike/s3-multipart"), "{text}");
+    }
+    assert_eq!(app.feedback.arrangement.get(), Some(Arrangement::Stacked));
+    app.collapsed[0].insert("r_upload".into());
+    app.cursor[0] = 0;
+    let text = screen(&app, 100, 20);
+    assert!(text.contains("▸ API/upload-svc"), "{text}");
+}
+
+#[test]
+fn the_cursor_stays_visible_with_blank_rows_while_scrolling() {
+    let mut app = sample::app();
+    keys(&mut app, "3");
+    // 60x20 is list only: a 14-row viewport for 5 sessions, 3 days and 2 blank rows.
+    for _ in 0..12 {
+        keys(&mut app, "j");
+        let buf = render(&app, 60, 12);
+        assert_eq!(cursor_rows(&buf).len(), 1, "{}", buffer_text(&buf));
+    }
+    for _ in 0..12 {
+        keys(&mut app, "k");
+        let buf = render(&app, 60, 12);
+        assert_eq!(cursor_rows(&buf).len(), 1, "{}", buffer_text(&buf));
+    }
+    // Back at the top: the list starts with the first header.
+    let text = screen(&app, 60, 12);
+    assert!(text.lines().nth(3).unwrap().contains("▾ Today"), "{text}");
 }
 
 #[test]

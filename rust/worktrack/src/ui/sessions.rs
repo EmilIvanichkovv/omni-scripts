@@ -1,7 +1,7 @@
 //! Sessions view (spec 9.4): Claude Code sessions, newest first, under day headers, and
 //! their details.
 
-use chrono::{Datelike, NaiveDate, TimeZone};
+use chrono::{NaiveDate, TimeZone};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
@@ -9,9 +9,10 @@ use ratatui::Frame;
 
 use super::theme;
 use super::widgets::{
-    clean, field, fit, fit_right, header_row, push_section, render_rows, section,
+    self, clean, field, fit, fit_right, group_header, push_section, render_list, section, Cut,
+    ListBlock,
 };
-use crate::app::{App, Now};
+use crate::app::{day_label, App, GroupHeader, ListRow, Now, Tab};
 use crate::lgbc::responsive::str_width;
 use crate::sessions::{Session, SummaryStatus};
 
@@ -161,33 +162,9 @@ fn day_of(now: &Now, t: Option<i64>) -> Option<NaiveDate> {
         .map(|dt| dt.date_naive())
 }
 
-/// `Today`, `Yesterday`, `Tue 24 Nov` (with the year when it is not this year).
-fn day_label(now: &Now, day: Option<NaiveDate>) -> String {
-    let Some(d) = day else {
-        return "No date".to_string();
-    };
-    let today = now.date_naive();
-    match (today - d).num_days() {
-        0 => "Today".to_string(),
-        1 => "Yesterday".to_string(),
-        _ if d.year() == today.year() => d.format("%a %-d %b").to_string(),
-        _ => d.format("%a %-d %b %Y").to_string(),
-    }
-}
-
-fn session_day(app: &App, s: &Session) -> Option<NaiveDate> {
-    day_of(&app.now, s.last_activity_at.or(s.started_at))
-}
-
-/// Rows of the list: day headers plus one row per visible session.
+/// Rows of the list: day headers plus the sessions of open days.
 pub fn line_count(app: &App) -> usize {
-    let visible = app.visible_sessions();
-    let mut days: Vec<Option<NaiveDate>> = visible
-        .iter()
-        .map(|&i| session_day(app, &app.sessions[i]))
-        .collect();
-    days.dedup();
-    visible.len() + days.len()
+    app.session_rows().len()
 }
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
@@ -224,38 +201,37 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     }
     let width = rows_area.width as usize;
     let sessions: Vec<&Session> = visible.iter().map(|&i| &app.sessions[i]).collect();
-    // One column of air before the border.
+    // One column of air before the border; sized from every visible session so folding
+    // a day does not shift the columns.
     let cols = columns(app, &sessions, width.saturating_sub(1));
-    let cursor = app.cursor[2].min(sessions.len() - 1);
-    let mut lines = Vec::new();
-    let mut cursor_row = None;
-    let mut last_day = None;
-    for (n, s) in sessions.iter().enumerate() {
-        let day = session_day(app, s);
-        if last_day != Some(day) {
-            let count = sessions[n..]
-                .iter()
-                .take_while(|x| session_day(app, x) == day)
-                .count();
-            lines.push(header_row(
-                &day_label(&app.now, day),
-                &count.to_string(),
-                width,
-            ));
-            last_day = Some(day);
-        }
-        if n == cursor {
-            cursor_row = Some(lines.len());
-        }
-        lines.push(session_line(app, s, cols));
-    }
-    render_rows(
+    let rows = app.session_rows();
+    let blocks = rows
+        .iter()
+        .map(|r| match r {
+            ListRow::Group(g) => ListBlock {
+                header: true,
+                lines: vec![group_header(
+                    &g.label,
+                    g.count(),
+                    g.collapsed,
+                    width,
+                    Cut::End,
+                )],
+            },
+            ListRow::Item(i) => ListBlock {
+                header: false,
+                lines: vec![session_line(app, &app.sessions[*i], cols)],
+            },
+        })
+        .collect();
+    let cursor = Some(app.cursor[Tab::Sessions.index()].min(rows.len() - 1));
+    render_list(
         frame,
         rows_area,
         area,
-        lines,
-        cursor_row,
-        &app.feedback.list_offset[2],
+        blocks,
+        cursor,
+        &app.feedback.list_offset[Tab::Sessions.index()],
     );
 }
 
@@ -270,6 +246,9 @@ fn bullets(lines: &mut Vec<Line<'static>>, title: &str, items: &[String]) {
 }
 
 pub fn details(app: &App) -> Vec<Line<'static>> {
+    if let Some(ListRow::Group(g)) = app.selected_row(Tab::Sessions) {
+        return group_details(app, &g);
+    }
     let Some(s) = app.selected_session() else {
         return vec![Line::from(Span::styled(
             "no session selected",
@@ -303,6 +282,100 @@ fn when_range(app: &App, start: Option<i64>, end: Option<i64>) -> String {
         out.push_str(&clock(&app.now, end));
     }
     out
+}
+
+/// Details of a day: how many sessions (live ones), the time span, turns, summary
+/// statuses, the repos worked in and the latest session.
+fn group_details(app: &App, g: &GroupHeader) -> Vec<Line<'static>> {
+    let sessions: Vec<&Session> = g.members.iter().map(|&i| &app.sessions[i]).collect();
+    let now = app.now_ts();
+    let live = sessions.iter().filter(|s| s.is_live(now)).count();
+    let mut count = vec![Span::raw(match sessions.len() {
+        1 => "1 session".to_string(),
+        n => format!("{n} sessions"),
+    })];
+    if live > 0 {
+        count.push(Span::styled(
+            format!(" · {live} live"),
+            Style::new().fg(theme::LIVE),
+        ));
+    }
+    if g.collapsed {
+        count.push(Span::styled(" · folded", theme::muted()));
+    }
+    let mut fields = vec![field("Sessions", count)];
+    let start = sessions.iter().filter_map(|s| s.started_at).min();
+    let end = sessions
+        .iter()
+        .filter_map(|s| s.last_activity_at.or(s.started_at))
+        .max();
+    if start.is_some() || end.is_some() {
+        let turns: u64 = sessions.iter().map(|s| s.user_turns as u64).sum();
+        fields.push(field(
+            "When",
+            vec![
+                Span::raw(format!(
+                    "{} – {}",
+                    clock(&app.now, start),
+                    clock(&app.now, end)
+                )),
+                Span::styled(format!(" · {turns} turns"), theme::muted()),
+            ],
+        ));
+    }
+    fields.extend(widgets::breakdown(
+        "Summary",
+        [
+            (SummaryStatus::Done, "summarized"),
+            (SummaryStatus::Queued, "queued"),
+            (SummaryStatus::Failed, "failed"),
+        ]
+        .into_iter()
+        .map(|(st, label)| {
+            let n = sessions
+                .iter()
+                .filter(|s| s.summary_status == st && !s.is_live(now))
+                .count();
+            let (mark, style) = theme::session_mark(false, st);
+            (
+                vec![Span::styled(mark, style), Span::raw(format!(" {label}"))],
+                n,
+            )
+        })
+        .collect(),
+    ));
+    let mut repos: Vec<String> = Vec::new();
+    for s in &sessions {
+        let r = repo_short(app, s);
+        if !r.is_empty() && !repos.contains(&r) {
+            repos.push(r);
+        }
+    }
+    if !repos.is_empty() {
+        fields.push(field("Repos", vec![Span::raw(repos.join(" · "))]));
+    }
+    if let Some(latest) = sessions.first() {
+        fields.push(field(
+            "Latest",
+            vec![
+                Span::raw(clock(
+                    &app.now,
+                    latest.last_activity_at.or(latest.started_at),
+                )),
+                Span::styled(
+                    format!(" · {}", clean(&app.session_title(latest))),
+                    theme::muted(),
+                ),
+            ],
+        ));
+    }
+    let title = match sessions.first().and_then(|s| app.session_day(s)) {
+        Some(d) if matches!(g.label.as_str(), "Today" | "Yesterday") => {
+            format!("{} · {}", g.label, d.format("%a %-d %b"))
+        }
+        _ => g.label.clone(),
+    };
+    widgets::group_details(&title, g.collapsed, fields)
 }
 
 /// Details pane lines for one session (Sessions tab and Summary targets).

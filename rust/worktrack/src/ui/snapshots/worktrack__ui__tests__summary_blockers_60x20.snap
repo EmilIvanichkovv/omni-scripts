@@ -6,18 +6,18 @@ expression: text
   1W  2T  3S●  4S  5I·4
 ┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────┐
 │ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1 │
-│ ~/work/upload-svc-wt/retry                             2 │
+│ ▾ ~/work/upload-svc-wt/retry ───────────────────────── 2 │
 │▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested c…│
 │   ✎ feature/PROJ-123-retry  PR #44: CI failed            │
-│ ~/work/auth-wt/sso                                     1 │
+│                                                          │
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────── 1 │
 │   ◆ Waiting for IdP metadata from IT                     │
-│ ~/work/upload-svc                                      1 │
+│                                                          │
+│ ▾ ~/work/upload-svc ────────────────────────────────── 1 │
 │   ↑ spike/s3-multipart  stale                            │
-│ (other)                                                1 │
+│                                                          │
+│ ▾ (other) ──────────────────────────────────────────── 1 │
 │   ? PR #31 declined: keep or abandon                     │
-│                                                          │
-│                                                          │
-│                                                          │
 │                                                          │
 └─────────────────────────────────────────── enter details ┘
 

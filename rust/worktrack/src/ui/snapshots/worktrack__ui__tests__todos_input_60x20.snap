@@ -6,15 +6,15 @@ expression: text
   1W  2T  3S●  4S  5I·4
 ┌ Todos  Group: repo ───────────────────────────── 4 todos ┐
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
-│ ▾ API/auth                                             1 │
+│ ▾ API/auth ─────────────────────────────────────────── 1 │
 │   [ ]    Review SSO rollout … auth:feature/PROJ-11…      │
-│ ▾ API/upload-svc                                       1 │
+│                                                          │
+│ ▾ API/upload-svc ───────────────────────────────────── 1 │
 │▌  [~] A  Finish upload retry… upload-svc:feature/P…      │
-│ ▾ (no link)                                            2 │
+│                                                          │
+│ ▾ (no link) ────────────────────────────────────────── 2 │
 │   [ ] B  Write migration doc                             │
 │   [ ]    Call Ivan about sta…                            │
-│                                                          │
-│                                                          │
 │                                                          │
 │                                                          │
 │                                                          │

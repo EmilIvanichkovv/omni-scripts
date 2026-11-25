@@ -6,18 +6,18 @@ expression: text
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
 │ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│ ~/work/upload-svc-wt/retry                                                                 2 ││State    ✎ PR needs work (since 13:20)                        │
+│ ▾ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────── 2 ││State    ✎ PR needs work (since 13:20)                        │
 │▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested changes                               ││Repo     API/upload-svc                                       │
 │   ✎ feature/PROJ-123-retry  PR #44: CI failed                                                ││Path     ~/work/upload-svc-wt/retry                           │
-│ ~/work/auth-wt/sso                                                                         1 ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
-│   ◆ Waiting for IdP metadata from IT                                                         ││         session live                                         │
-│ ~/work/upload-svc                                                                          1 ││PR #44   Add retry with backoff to uploads                    │
-│   ↑ spike/s3-multipart  stale                                                                ││         ivan ✗ needs work · maria ○ unapproved               │
-│ (other)                                                                                    1 ││         4 comments                                           │
-│   ? PR #31 declined: keep or abandon                                                         ││Commits  3 ahead of trunk · last 2m                           │
+│                                                                                              ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────── 1 ││         session live                                         │
+│   ◆ Waiting for IdP metadata from IT                                                         ││PR #44   Add retry with backoff to uploads                    │
+│                                                                                              ││         ivan ✗ needs work · maria ○ unapproved               │
+│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────── 1 ││         4 comments                                           │
+│   ↑ spike/s3-multipart  stale                                                                ││Commits  3 ahead of trunk · last 2m                           │
 │                                                                                              ││                                                              │
-│                                                                                              ││Todos (1)                                                     │
-│                                                                                              ││  [~] (A) Finish upload retry logic                           │
+│ ▾ (other) ──────────────────────────────────────────────────────────────────────────────── 1 ││Todos (1)                                                     │
+│   ? PR #31 declined: keep or abandon                                                         ││  [~] (A) Finish upload retry logic                           │
 │                                                                                              ││                                                              │
 │                                                                                              ││Sessions (1)                                                  │
 │                                                                                              ││  13:59  Add backoff to uploads                               │

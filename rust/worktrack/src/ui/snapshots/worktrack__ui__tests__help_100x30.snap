@@ -5,30 +5,30 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
   1 Work   2┌ Keys ────────────────────────────────────────────────────────────────────┐
 ┌ Filter: Un│Global                                                                    ▲── 7 items ┐
-│▌▾ API/uplo│  1–5  Tab  Shift-Tab   switch tab                                        █         4 │
-│   ✎ featur│  j k ↓ ↑               move                                              █2m T1 S2   │
+│ ▾ API/uplo│  1–5  Tab  Shift-Tab   switch tab                                        █──────── 4 │
+│▌  ✎ featur│  j k ↓ ↑               move                                              █2m T1 S2   │
 │   ◐ featur│  g G  Home End         top / bottom (G groups in Todos)                  █1h T0 S1   │
 │   ○ chore/│  Ctrl-d Ctrl-u         half page down / up                               █3h T1 S0   │
 │   ↑ spike/│  J K                   scroll details                                    █6d T0 S1   │
-│ ▾ API/auth│  /                     search (@repo: @state: in Work); esc clears       █         2 │
-│   ✓ featur│  f                     cycle filter (Summary: section)                   █1d T1 S2   │
-│   ✕ featur│  v                     cycle layout: auto / side / stacked / list        █4d T0 S0   │
-│ ▾ WEB/port│  Enter / Esc           details full screen on narrow layouts / back      █         1 │
-│   ↑ featur│  r / R                 local reload / full sync                          █2d T0 S1   │
-└───────────│  i                     diagnostics                                       ║───────────┘
-┌ Details ──│  ? / q                 help / quit                                       ║───────────┐
-│API/upload-│                                                                          ║           │
-│Items    4 │Work                                                                      ║           │
-│Path     ~/│  Enter                 collapse / expand group                           ║           │
-│Trunk    ma│  o                     open PR in browser (Jira if no PR)                ║           │
-│Remote   ht│  y / Y                 copy branch name / worktree path                  ║           │
-│           │  t                     add todo linked to this item                      ║           │
-│Enter colla│  c                     copy resume command of latest session             ║           │
-│           │  A / U                 mark abandoned (confirm) / unmark                 ║           │
-│           │  X                     remove worktree, cleanup items only (confirm)     ║           │
-│           │                                                                          ║           │
-│           │Todos                                                                     ║           │
-│           │  a / e / E             add / edit title / edit notes in editor           ▼           │
-└───────────│  Space                 toggle done                                       │───────────┘
+│           │  /                     search (@repo: @state: in Work); esc clears       █           │
+│ ▾ API/auth│  f                     cycle filter (Summary: section)                   █──────── 2 │
+│   ✓ featur│  v                     cycle layout: auto / side / stacked / list        █1d T1 S2   │
+│   ✕ featur│  Enter / Esc           details full screen on narrow layouts / back      █4d T0 S0   │
+│           │  r / R                 local reload / full sync                          ║           │
+│ ▾ WEB/port│  i                     diagnostics                                       ║──────── 1 │
+│   ↑ featur│  ? / q                 help / quit                                       ║2d T0 S1   │
+└───────────│                                                                          ║───────────┘
+┌ Details ──│Groups (repos, days, directories)                                         ║───────────┐
+│feature/PRO│  Enter / Space         on a group header: fold / unfold it               ║PROJ-123 ↗ ▲
+│State    ✎ │  z                     fold / unfold the group of the selected row       ║           █
+│Repo     AP│  Z                     fold all groups (unfold all when all are folded)  ║           █
+│Path     ~/│  /                     searching shows every group open                  ║           █
+│Flags    di│                                                                          ║           █
+│PR #44   Ad│Work                                                                      ║           █
+│         iv│  o                     open PR in browser (Jira if no PR)                ║           ║
+│         4 │  y / Y                 copy branch name / worktree path                  ║           ║
+│Commits  3 │  t                     add todo linked to this item                      ║           ║
+│           │  c                     copy resume command of latest session             ▼           ▼
+└───────────│  A / U                 mark abandoned (confirm) / unmark                 │J/K scroll ┘
             └──────────────────────────────────────────── ↑↓ scroll · other keys close ┘
- enter collapse · o PR · c resume · t todo · f filter · / search · ? help · q quit
+ o PR · c resume · t todo · f filter · / search · ? help · q quit

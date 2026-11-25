@@ -6,11 +6,13 @@ expression: text
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Todos  Group: repo ───────────────────────────────────────────────────────────────────── 4 todos ┐
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                         │
-│ ▾ API/auth                                                                                     1 │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 1 │
 │   [ ]    Review SSO rollout plan                       auth:feature/PROJ-118-sso                 │
-│ ▾ API/upload-svc                                                                               1 │
+│                                                                                                  │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 1 │
 │▌  [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         │
-│ ▾ (no link)                                                                                    2 │
+│                                                                                                  │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────────── 2 │
 │   [ ] B  Write migration doc                                                                     │
 │   [ ]    Call Ivan about staging access                                                          │
 │ new todo › Call the bank                                                                         │
@@ -26,8 +28,6 @@ expression: text
 │Notes                                                                                             │
 │  Backoff with jitter.                                                                            │
 │  Check the integration test.                                                                     │
-│                                                                                                  │
-│                                                                                                  │
 │                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 

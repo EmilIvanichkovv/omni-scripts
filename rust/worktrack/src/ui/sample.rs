@@ -340,7 +340,7 @@ fn link(repo_id: &str, branch: &str) -> SessionLink {
     }
 }
 
-fn sessions() -> Vec<Session> {
+pub fn sessions() -> Vec<Session> {
     let mut live = session(
         "s-live",
         "Add backoff to uploads",
@@ -594,6 +594,9 @@ pub fn app() -> App {
         total: 7,
     });
     app.status = None;
-    app.cursor = [0; 5];
+    // Like a fresh list: every cursor on its first item, below the first group header.
+    for tab in Tab::ALL {
+        app.cursor[tab.index()] = app.first_item_row(tab);
+    }
     app
 }

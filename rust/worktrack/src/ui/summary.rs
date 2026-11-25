@@ -9,9 +9,10 @@ use ratatui::text::{Line, Span};
 use ratatui::Frame;
 
 use super::theme;
-use super::widgets::{clean, cut_spans, header_row, render_rows, BarItem};
-use crate::app::{App, BarHit, SummaryRow, SummarySection, Tab};
-use crate::lgbc::responsive::truncate_middle;
+use super::widgets::{
+    self, clean, cut_spans, field, fmt_when, group_header, render_list, BarItem, Cut, ListBlock,
+};
+use crate::app::{App, BarHit, GroupHeader, ListRow, SummarySection, Tab};
 use crate::summary::{Entry, Target};
 
 /// Style inline `**bold**` and `` `code` `` in one Markdown line.
@@ -165,8 +166,8 @@ pub fn line_count(app: &App) -> usize {
     app.summary_rows()
         .iter()
         .map(|r| match r {
-            SummaryRow::Header { .. } => 1,
-            SummaryRow::Entry(i) => entries.get(*i).map_or(0, entry_height),
+            ListRow::Group(_) => 1,
+            ListRow::Item(i) => entries.get(*i).map_or(0, entry_height),
         })
         .sum()
 }
@@ -214,36 +215,83 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
     let width = rows_area.width as usize;
-    let cursor = app.cursor[Tab::Summary.index()].min(entries.len() - 1);
-    let mut lines = Vec::new();
-    let mut cursor_row = None;
-    let mut n = 0;
-    for row in app.summary_rows() {
-        match row {
-            SummaryRow::Header { label, count } => {
-                lines.push(header_row(
-                    &truncate_middle(&clean(&label), width.saturating_sub(6).max(4)),
-                    &count.to_string(),
+    let rows = app.summary_rows();
+    let blocks = rows
+        .iter()
+        .map(|r| match r {
+            ListRow::Group(g) => ListBlock {
+                header: true,
+                lines: vec![group_header(
+                    &clean(&g.label),
+                    g.count(),
+                    g.collapsed,
                     width,
-                ));
-            }
-            SummaryRow::Entry(i) => {
-                if n == cursor {
-                    cursor_row = Some(lines.len());
-                }
-                n += 1;
-                lines.extend(entry_lines(app, &entries[i], width));
-            }
-        }
-    }
-    render_rows(
+                    Cut::Middle,
+                )],
+            },
+            ListRow::Item(i) => ListBlock {
+                header: false,
+                lines: entry_lines(app, &entries[*i], width),
+            },
+        })
+        .collect();
+    let cursor = Some(app.cursor[Tab::Summary.index()].min(rows.len() - 1));
+    render_list(
         frame,
         rows_area,
         area,
-        lines,
-        cursor_row,
+        blocks,
+        cursor,
         &app.feedback.list_offset[Tab::Summary.index()],
     );
+}
+
+/// Details of a directory group: how many entries of the section, what kinds they are,
+/// and the latest activity behind them.
+fn group_details(app: &App, g: &GroupHeader) -> Vec<Line<'static>> {
+    let entries = app.summary_section_entries();
+    let members: Vec<&Entry> = g.members.iter().filter_map(|&i| entries.get(i)).collect();
+    let mut fields = vec![field(
+        "Entries",
+        vec![Span::raw(format!(
+            "{} in {}{}",
+            members.len(),
+            app.summary_section.label(),
+            if g.collapsed { " · folded" } else { "" }
+        ))],
+    )];
+    let kind = |e: &Entry| match e.target {
+        Target::Item { .. } => 0,
+        Target::Todo { .. } => 1,
+        Target::Session { .. } => 2,
+        Target::Inbox => 3,
+        Target::None => 4,
+    };
+    fields.extend(widgets::breakdown(
+        "Kinds",
+        [
+            ("work item", "work items"),
+            ("todo", "todos"),
+            ("session", "sessions"),
+            ("inbox choice", "inbox choices"),
+            ("other", "other"),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(k, (one, many))| {
+            let n = members.iter().filter(|e| kind(e) == k).count();
+            (vec![Span::raw(if n == 1 { one } else { many })], n)
+        })
+        .collect(),
+    ));
+    let latest = members
+        .iter()
+        .filter_map(|e| app.summary_activity(&e.target))
+        .max();
+    if latest.is_some() {
+        fields.push(field("Latest", vec![Span::raw(fmt_when(&app.now, latest))]));
+    }
+    widgets::group_details(&clean(&g.label), g.collapsed, fields)
 }
 
 fn gone(what: &str) -> Vec<Line<'static>> {
@@ -255,6 +303,9 @@ fn gone(what: &str) -> Vec<Line<'static>> {
 
 /// Details of the selected entry's target, and the pane title.
 pub fn details(app: &App, width: u16) -> (Vec<Line<'static>>, &'static str) {
+    if let Some(ListRow::Group(g)) = app.selected_row(Tab::Summary) {
+        return (group_details(app, &g), " Directory ");
+    }
     let Some(e) = app.selected_summary_entry() else {
         return (
             vec![Line::from(Span::styled("nothing selected", theme::muted()))],

@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Todos  Group: repo ───────────────────────────────────────────────────────────────── 4 todos ┐┌ Repo ────────────────────────────────────────────────────────┐
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                     ││▾ API/auth                                                    │
+│▌▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Todos    1 shown                                              │
+│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││Status   1 [ ] todo                                           │
+│                                                                                              ││Latest   added Fri 2026-11-20                                 │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Links    1 branch · 1 tracked in Work                         │
+│   [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││                                                              │
+│                                                                                              ││enter/space or z collapses this group · Z folds / unfolds all │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││                                                              │
+│   [ ] B  Write migration doc                                                                 ││                                                              │
+│   [ ]    Call Ivan about staging access                                                      ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ enter/space toggle · z fold · Z fold all · h/l filter · a add · ? help · q quit

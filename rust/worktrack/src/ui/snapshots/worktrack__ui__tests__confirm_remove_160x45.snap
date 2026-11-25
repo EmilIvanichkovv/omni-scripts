@@ -5,7 +5,7 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────── 1 items ┐┌ Details ─────────────────────────────────────────────────────┐
-│ ▾ API/auth                                                                                 1 ││bugfix/flaky                                                  │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││bugfix/flaky                                                  │
 │▌  ✔ bugfix/flaky                                    PR #41          ⌫            20h T1 S0   ││State    ✔ merged (since Tue)                                 │
 │                                                                                              ││Repo     API/auth                                             │
 │                                                                                              ││Path     ~/work/auth-wt/flaky                                 │

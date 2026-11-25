@@ -6,13 +6,13 @@ expression: text
   1W  2T  3S●  4S  5I·4
 ┌ Filter: Unfinished ▾  Sort: activity ─────────── 4 items ┐
 │ / @state:pr                                              │
-│▌▾ API/upload-svc                                       2 │
-│   ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
+│ ▾ API/upload-svc ───────────────────────────────────── 2 │
+│▌  ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
 │   ◐ feature/PROJ-130-c… PR #47  …ci     ↓3 ∅          1h │
-│ ▾ API/auth                                             2 │
+│                                                          │
+│ ▾ API/auth ─────────────────────────────────────────── 2 │
 │   ✓ feature/PROJ-118-s… PR #39  ✓ci                   1d │
 │   ✕ feature/PROJ-101-l… PR #31                        4d │
-│                                                          │
 │                                                          │
 │                                                          │
 │                                                          │

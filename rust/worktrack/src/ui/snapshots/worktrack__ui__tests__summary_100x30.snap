@@ -6,18 +6,18 @@ expression: text
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────────┐
 │ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                         ▲
-│ ~/work/upload-svc-wt/retry                                                                     1 █
+│ ▾ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────────── 1 █
 │▌  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed · 2 tasks · dirty · ahead 1            █
 │       Session: Add backoff to uploads                                                            █
 │       Doing: (A) Finish upload retry logic                                                       █
-│ ~/work/upload-svc                                                                              3 █
+│                                                                                                  █
+│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────────── 3 █
 │   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                               █
 │   ○ chore/bump-deps  local only · dirty · ahead 2                                                █
-│   ↑ spike/s3-multipart  pushed, no PR · stale                                                    █
-│       Session: Try multipart API                                                                 █
-│ ~/work/auth-wt/sso                                                                             1 ║
-│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                                ║
-│       Session: Fixed the SAML redirect loop; login works against staging IdP.                    ▼
+│   ↑ spike/s3-multipart  pushed, no PR · stale                                                    ║
+│       Session: Try multipart API                                                                 ║
+│                                                                                                  ║
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────────── 1 ▼
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ Details ─────────────────────────────────────────────────────────────────────────────────────────┐
 │feature/PROJ-123-retry                                                                 PROJ-123 ↗ ▲

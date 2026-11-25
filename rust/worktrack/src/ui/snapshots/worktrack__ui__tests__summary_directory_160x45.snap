@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Directory ───────────────────────────────────────────────────┐
+│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││▸ ~/work/upload-svc-wt/retry                                  │
+│▌▸ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────── 1 ││Entries  1 in In progress · folded                            │
+│                                                                                              ││Kinds    1 work item                                          │
+│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────── 3 ││Latest   13:58                                                │
+│   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                           ││                                                              │
+│   ○ chore/bump-deps  local only · dirty · ahead 2                                            ││enter/space expands this group · Z folds / unfolds all        │
+│   ↑ spike/s3-multipart  pushed, no PR · stale                                                ││                                                              │
+│       Session: Try multipart API                                                             ││                                                              │
+│                                                                                              ││                                                              │
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────── 1 ││                                                              │
+│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                            ││                                                              │
+│       Session: Fixed the SAML redirect loop; login works against staging IdP.                ││                                                              │
+│                                                                                              ││                                                              │
+│ ▾ /tmp/scratch ─────────────────────────────────────────────────────────────────────────── 1 ││                                                              │
+│   ◆ Explain webpack config  (no branch)                                                      ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ enter/space toggle · z fold · Z fold all · h/l section · [ ] window · ? help · q quit

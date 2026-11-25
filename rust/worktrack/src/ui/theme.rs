@@ -19,9 +19,24 @@
 //!   ([`active_label`]): accent, bold and underlined, with no block or brackets, so the bar
 //!   never shifts. Inactive labels are [`soft`] (or [`muted`] when empty); separators are
 //!   muted `·`. Under `NO_COLOR` bold + underline mark the active one.
-//! - **Group headers** inside lists (repo, day, directory) are bold with a muted count on
-//!   the right, and the cursor never stops on them unless they act (Work's collapsible
-//!   repo groups).
+//! - **Group headers** inside lists (Work and Todos repos, Sessions days, Summary
+//!   directories) are one widget, [`widgets::group_header`](super::widgets::group_header):
+//!   ` ▾ name ───── 3 ` with the disclosure marker (`▾` open, `▸` folded) in the accent
+//!   colour, the name in [`heading`] (accent bold), a [`muted`] thin rule filling to the
+//!   muted member count. Names are cut with `…` (paths in the middle) so the count always
+//!   shows; under `NO_COLOR` the marker and the bold name carry it.
+//! - **Groups behave the same in every list**: the cursor stops on headers; `Enter` /
+//!   `Space` on a header folds or unfolds it, `z` folds the cursor's group from any row,
+//!   `Z` folds all (unfolds all when all are folded). `h`/`l`/`←`/`→` stay with the filter
+//!   and section bars. Fold state is per tab, keyed by group identity (`App::collapsed`),
+//!   survives data refreshes and is ignored while the tab has a search. Item-only keys on a
+//!   header only show a `select an item` hint. A header's details pane is a group summary
+//!   (`widgets::group_details`: count, state breakdown, latest activity, fold hint).
+//! - **Group spacing**: one blank row before every group header but the first
+//!   (`widgets::render_list`), only when the list viewport has at least
+//!   [`GROUP_GAP_MIN_ROWS`](super::widgets::GROUP_GAP_MIN_ROWS) (8) rows, so short panes
+//!   keep every row for content. The stacked layout sizes the list pane with the blank rows
+//!   when they will be drawn.
 //! - **Details panes**: a bold title line, then `widgets::field` rows (muted labels
 //!   [`LABEL_W`](super::widgets::LABEL_W) wide, values in normal text). Sections start with
 //!   `widgets::push_section` (one blank line, then a bold accent title); items under a

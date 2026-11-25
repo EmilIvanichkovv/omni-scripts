@@ -6,15 +6,15 @@ expression: text
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Todos  Group: repo ───────────────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                     ││Finish upload retry logic                                     │
-│ ▾ API/auth                                                                                 1 ││Status   [~] doing · priority A                               │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Status   [~] doing · priority A                               │
 │   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
-│ ▾ API/upload-svc                                                                           1 ││         work                                                 │
-│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Jira     PROJ-123                                             │
-│ ▾ (no link)                                                                                2 ││Source   manual                                               │
-│   [ ] B  Write migration doc                                                                 ││Created  Fri 2026-11-20                                       │
-│   [ ]    Call Ivan about staging access                                                      ││                                                              │
-│                                                                                              ││Notes                                                         │
-│                                                                                              ││  Backoff with jitter.                                        │
+│                                                                                              ││         work                                                 │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Jira     PROJ-123                                             │
+│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Source   manual                                               │
+│                                                                                              ││Created  Fri 2026-11-20                                       │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││                                                              │
+│   [ ] B  Write migration doc                                                                 ││Notes                                                         │
+│   [ ]    Call Ivan about staging access                                                      ││  Backoff with jitter.                                        │
 │                                                                                              ││  Check the integration test.                                 │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

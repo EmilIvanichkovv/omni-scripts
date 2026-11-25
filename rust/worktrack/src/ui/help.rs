@@ -31,9 +31,17 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     (
+        "Groups (repos, days, directories)",
+        &[
+            ("Enter / Space", "on a group header: fold / unfold it"),
+            ("z", "fold / unfold the group of the selected row"),
+            ("Z", "fold all groups (unfold all when all are folded)"),
+            ("/", "searching shows every group open"),
+        ],
+    ),
+    (
         "Work",
         &[
-            ("Enter", "collapse / expand group"),
             ("o", "open PR in browser (Jira if no PR)"),
             ("y / Y", "copy branch name / worktree path"),
             ("t", "add todo linked to this item"),

@@ -5,22 +5,22 @@ expression: text
  worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
   1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
 ┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 4 items ┐┌ Details ─────────────────────────────────────────────────────┐
-│ / @state:pr                                                                                  ││API/upload-svc                                                │
-│▌▾ API/upload-svc                                                                           2 ││Items    2 shown                                              │
-│   ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││Path     ~/work/upload-svc                                    │
-│   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Trunk    main                                                 │
-│ ▾ API/auth                                                                                 2 ││Remote   https://bitbucket.example.com                        │
-│   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││                                                              │
-│   ✕ feature/PROJ-101-legacy                         PR #31                        4d T0 S0   ││Enter collapses this group.                                   │
+│ / @state:pr                                                                                  ││feature/PROJ-123-retry                             PROJ-123 ↗ │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 2 ││State    ✎ PR needs work (since 13:20)                        │
+│▌  ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││Repo     API/upload-svc                                       │
+│   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Path     ~/work/upload-svc-wt/retry                           │
+│                                                                                              ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 2 ││         session live                                         │
+│   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││PR #44   Add retry with backoff to uploads                    │
+│   ✕ feature/PROJ-101-legacy                         PR #31                        4d T0 S0   ││         ivan ✗ needs work · maria ○ unapproved               │
+│                                                                                              ││         4 comments                                           │
+│                                                                                              ││Commits  3 ahead of trunk · last 2m                           │
 │                                                                                              ││                                                              │
+│                                                                                              ││Todos (1)                                                     │
+│                                                                                              ││  [~] (A) Finish upload retry logic                           │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│                                                                                              ││Sessions (1)                                                  │
+│                                                                                              ││  13:59  Add backoff to uploads                               │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

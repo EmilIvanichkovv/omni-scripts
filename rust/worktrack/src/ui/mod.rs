@@ -31,7 +31,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, InputPurpose, Overlay, StatusKind, Tab, WorkRow};
+use crate::app::{App, InputPurpose, ListRow, Overlay, StatusKind, Tab};
 use crate::lgbc::responsive::{self, str_width, truncate_end, Arrangement, LayoutMode};
 use crate::refresh::PrStatus;
 use widgets::{clean, fmt_age, hint_line_pinned, key_hint, pane_block, BarItem};
@@ -119,9 +119,13 @@ fn strip_colors(frame: &mut Frame) {
 
 fn draw_details(frame: &mut Frame, app: &App, area: Rect) {
     let inner_w = area.width.saturating_sub(2);
+    let header = app.tab != Tab::Inbox && app.on_group_header(app.tab);
     let (lines, title) = match app.tab {
+        Tab::Work if header => (work::details(app, inner_w), " Repo "),
         Tab::Work => (work::details(app, inner_w), " Details "),
+        Tab::Todos if header => (todos::details(app), " Repo "),
         Tab::Todos => (todos::details(app), " Todo "),
+        Tab::Sessions if header => (sessions::details(app), " Day "),
         Tab::Sessions => (sessions::details(app), " Session "),
         Tab::Inbox => (inbox::details(app), " Suggestion "),
         Tab::Summary => summary::details(app, inner_w),
@@ -167,25 +171,51 @@ pub fn choose_arrangement(mode: LayoutMode, area: Rect, content: Rect) -> Arrang
     }
 }
 
-/// Rows the list pane of the current tab needs to show everything (borders included).
-fn list_rows_wanted(app: &App) -> u16 {
-    let rows = match app.tab {
-        Tab::Work => app.work_rows().len(),
-        Tab::Todos => app.todo_rows().len() + 1,
-        Tab::Sessions => sessions::line_count(app),
-        Tab::Summary => summary::line_count(app) + 1,
-        Tab::Inbox => app.pending_suggestions().len(),
+/// What the list pane of the current tab needs to show everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ListWanted {
+    /// List rows without the blank rows between groups.
+    rows: usize,
+    /// Blank rows between groups (drawn only when the viewport is tall enough).
+    gaps: usize,
+    /// Borders, filter bar, search line and input row.
+    chrome: usize,
+}
+
+impl ListWanted {
+    /// Pane height for `rows` list rows; empty lists show a message of up to three rows.
+    fn height(self, rows: usize) -> u16 {
+        u16::try_from(rows.max(3) + self.chrome).unwrap_or(u16::MAX)
+    }
+}
+
+fn list_rows_wanted(app: &App) -> ListWanted {
+    let (rows, bar) = match app.tab {
+        Tab::Work => (app.work_rows().len(), 0),
+        Tab::Todos => (app.todo_rows().len(), 1),
+        Tab::Sessions => (sessions::line_count(app), 0),
+        Tab::Summary => (summary::line_count(app), 1),
+        Tab::Inbox => (app.pending_suggestions().len(), 0),
+    };
+    let gaps = match app.tab {
+        Tab::Inbox => 0,
+        tab => widgets::gap_rows(&app.list_rows(tab)),
     };
     let searching = !app.search[app.tab.index()].is_empty()
         || matches!(&app.input, Some(a) if a.purpose == InputPurpose::Search);
     let extra = usize::from(searching) + usize::from(app.input.is_some());
-    // Empty lists show a message of up to three rows.
-    u16::try_from(rows.max(3) + extra + 2).unwrap_or(u16::MAX)
+    ListWanted {
+        rows,
+        gaps,
+        chrome: bar + extra + 2,
+    }
 }
 
 /// Stacked: at most 60 % for the list, less when its rows need less (so a short list does
-/// not leave a block of empty rows), at least 40 %. Side by side: list 60 %, details 40 %.
-fn split(arrangement: Arrangement, content: Rect, list_wanted: u16) -> (Rect, Option<Rect>) {
+/// not leave a block of empty rows), at least 40 %. The blank rows between groups count only
+/// when the resulting viewport is tall enough to draw them (`widgets::group_gap`). Side by
+/// side: list 60 %, details 40 %.
+fn split(arrangement: Arrangement, content: Rect, wanted: ListWanted) -> (Rect, Option<Rect>) {
     match arrangement {
         Arrangement::SideBySide => {
             let [l, d] =
@@ -196,7 +226,11 @@ fn split(arrangement: Arrangement, content: Rect, list_wanted: u16) -> (Rect, Op
         Arrangement::Stacked => {
             let max = content.height * 3 / 5;
             let min = (content.height * 2 / 5).min(max);
-            let list_h = list_wanted.clamp(min, max);
+            let mut list_h = wanted.height(wanted.rows + wanted.gaps).clamp(min, max);
+            let viewport = (list_h as usize).saturating_sub(wanted.chrome);
+            if !widgets::group_gap(viewport) {
+                list_h = wanted.height(wanted.rows).clamp(min, max);
+            }
             let [l, d] =
                 Layout::vertical([Constraint::Length(list_h), Constraint::Min(0)]).areas(content);
             (l, Some(d))
@@ -482,16 +516,26 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
     }
     let list_only = app.feedback.arrangement.get() == Some(Arrangement::ListOnly);
     // The most useful keys of the view; `?` (pinned by the footer) lists the rest.
+    if app.tab != Tab::Inbox && matches!(app.selected_row(app.tab), Some(ListRow::Group(_))) {
+        let mut g = vec![
+            key_hint("enter/space", "toggle"),
+            key_hint("z", "fold"),
+            key_hint("Z", "fold all"),
+        ];
+        g.extend(match app.tab {
+            Tab::Work => vec![key_hint("f", "filter"), key_hint("/", "search")],
+            Tab::Todos => vec![key_hint("h/l", "filter"), key_hint("a", "add")],
+            Tab::Summary => vec![key_hint("h/l", "section"), key_hint("[ ]", "window")],
+            _ => vec![key_hint("/", "search")],
+        });
+        return g;
+    }
     match app.tab {
         Tab::Work => {
-            let enter = match app.selected_work_row() {
-                _ if list_only => Some("details"),
-                Some(WorkRow::Group { collapsed, .. }) => {
-                    Some(if collapsed { "expand" } else { "collapse" })
-                }
-                _ => None,
-            };
-            let mut g: Vec<_> = enter.map(|e| key_hint("enter", e)).into_iter().collect();
+            let mut g: Vec<_> = list_only
+                .then(|| key_hint("enter", "details"))
+                .into_iter()
+                .collect();
             g.extend([
                 key_hint("o", "PR"),
                 key_hint("c", "resume"),

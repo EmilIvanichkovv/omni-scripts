@@ -428,33 +428,52 @@ pub enum Overlay {
     LinkPicker(LinkPicker),
 }
 
-/// A row of the Work list.
+/// A group header of a grouped list (a Work repo, a Todos repo, a Sessions day, a Summary
+/// working directory). Every grouped list folds the same way: `Enter` / `Space` on a header,
+/// `z` from any row of the group, `Z` for all groups; the collapse state lives in
+/// [`App::collapsed`] under [`GroupHeader::key`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkRow {
-    Group {
-        repo_id: String,
-        name: String,
-        count: usize,
-        collapsed: bool,
-    },
-    /// Index into `App::work_items`.
+pub struct GroupHeader {
+    /// Identity of the group, stable across data refreshes (repo id, day, directory).
+    pub key: String,
+    /// Display name.
+    pub label: String,
+    /// Items of the group (indices as in [`ListRow::Item`]), also when it is collapsed.
+    pub members: Vec<usize>,
+    pub collapsed: bool,
+}
+
+impl GroupHeader {
+    pub fn count(&self) -> usize {
+        self.members.len()
+    }
+}
+
+/// A row of a list. The cursor stops on both kinds. `Item` indexes the tab's data:
+/// `App::work_items`, `App::todos`, `App::sessions`, the current Summary section's entries,
+/// `App::suggestions`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ListRow {
+    Group(GroupHeader),
     Item(usize),
 }
 
-/// A row of the Todos list. The cursor only stops on `Todo` rows.
+/// Identity of a list row for keeping the selection across list changes: the row's own key
+/// and, for an item inside a group, the key of its group header (the fallback when the item
+/// gets folded away).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TodoRow {
-    Header(String),
-    /// Index into `App::todos`.
-    Todo(usize),
+struct RowKey {
+    key: String,
+    group: Option<String>,
 }
 
-/// A row of the Summary list: a working-directory header or an entry (index into the
-/// current section's entries). The cursor only stops on `Entry` rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SummaryRow {
-    Header { label: String, count: usize },
-    Entry(usize),
+impl RowKey {
+    fn item(key: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            group: None,
+        }
+    }
 }
 
 /// The working directory a Summary entry is grouped under.
@@ -526,7 +545,9 @@ pub struct App {
     pub todo_filter: TodoFilter,
     pub summary_section: SummarySection,
     pub todo_grouped: bool,
-    pub collapsed: HashSet<String>,
+    /// Keys ([`GroupHeader::key`]) of the collapsed groups of each tab's list. Kept across
+    /// data refreshes; ignored while the tab has a search.
+    pub collapsed: [HashSet<String>; 5],
     pub search: [String; 5],
     pub cursor: [usize; 5],
     pub details_scroll: usize,
@@ -543,6 +564,25 @@ pub use crate::sessions::resume::shell_quote;
 /// `cd '<path>' && claude --resume <id>` (spec 6.5).
 pub fn resume_command(path: &Path, session_id: &str) -> String {
     crate::sessions::resume::resume_command_text(path, session_id)
+}
+
+/// Collapse key of a Sessions day group.
+fn day_key(day: Option<NaiveDate>) -> String {
+    day.map_or_else(|| "none".to_string(), |d| d.to_string())
+}
+
+/// `Today`, `Yesterday`, `Tue 24 Nov` (with the year when it is not this year).
+pub fn day_label(now: &Now, day: Option<NaiveDate>) -> String {
+    let Some(d) = day else {
+        return "No date".to_string();
+    };
+    let today = now.date_naive();
+    match (today - d).num_days() {
+        0 => "Today".to_string(),
+        1 => "Yesterday".to_string(),
+        _ if d.year() == today.year() => d.format("%a %-d %b").to_string(),
+        _ => d.format("%a %-d %b %Y").to_string(),
+    }
 }
 
 /// The latest workday strictly before `date` (spec 8.1). With no workdays: the day before.
@@ -637,7 +677,7 @@ impl App {
             todo_filter: TodoFilter::default(),
             summary_section: SummarySection::default(),
             todo_grouped: false,
-            collapsed: HashSet::new(),
+            collapsed: Default::default(),
             search: Default::default(),
             cursor: [0; 5],
             details_scroll: 0,
@@ -694,7 +734,7 @@ impl App {
     }
 
     pub fn handle_event(&mut self, event: AppEvent) {
-        let keys: Vec<Option<String>> = Tab::ALL.iter().map(|t| self.selected_key(*t)).collect();
+        let keys: Vec<Option<RowKey>> = Tab::ALL.iter().map(|t| self.selected_key(*t)).collect();
         match event {
             AppEvent::ReposUpdated { repos, worktrees } => {
                 self.repos = repos;
@@ -816,8 +856,7 @@ impl App {
     }
 
     /// Visible Work rows: groups by repo, newest activity first.
-    pub fn work_rows(&self) -> Vec<WorkRow> {
-        let searching = !self.query(Tab::Work).trim().is_empty();
+    pub fn work_rows(&self) -> Vec<ListRow> {
         let mut items: Vec<usize> = (0..self.work_items.len())
             .filter(|&i| {
                 let it = &self.work_items[i];
@@ -839,18 +878,34 @@ impl App {
                 None => groups.push((it.repo_id.clone(), it.repo_name.clone(), vec![i])),
             }
         }
+        self.grouped_rows(Tab::Work, groups)
+    }
+
+    /// Whether a tab's groups are all shown open regardless of [`Self::collapsed`]: while it
+    /// has a search, so every match shows.
+    pub fn groups_forced_open(&self, tab: Tab) -> bool {
+        !self.query(tab).trim().is_empty()
+    }
+
+    /// Rows of `(key, label, members)` groups: each header, then its members unless the
+    /// group is collapsed.
+    fn grouped_rows(&self, tab: Tab, groups: Vec<(String, String, Vec<usize>)>) -> Vec<ListRow> {
+        let open = self.groups_forced_open(tab);
         let mut rows = Vec::new();
-        for (repo_id, name, members) in groups {
-            let collapsed = !searching && self.collapsed.contains(&repo_id);
-            rows.push(WorkRow::Group {
-                repo_id,
-                name,
-                count: members.len(),
+        for (key, label, members) in groups {
+            let collapsed = !open && self.collapsed[tab.index()].contains(&key);
+            let items: Vec<ListRow> = if collapsed {
+                Vec::new()
+            } else {
+                members.iter().copied().map(ListRow::Item).collect()
+            };
+            rows.push(ListRow::Group(GroupHeader {
+                key,
+                label,
+                members,
                 collapsed,
-            });
-            if !collapsed {
-                rows.extend(members.into_iter().map(WorkRow::Item));
-            }
+            }));
+            rows.extend(items);
         }
         rows
     }
@@ -863,15 +918,69 @@ impl App {
             .count()
     }
 
-    pub fn selected_work_row(&self) -> Option<WorkRow> {
-        self.work_rows().get(self.cursor[0]).cloned()
+    pub fn selected_work_row(&self) -> Option<ListRow> {
+        self.selected_row(Tab::Work)
     }
 
     pub fn selected_work_item(&self) -> Option<&WorkItem> {
-        match self.selected_work_row()? {
-            WorkRow::Item(i) => self.work_items.get(i),
-            WorkRow::Group { .. } => None,
+        self.work_items.get(self.selected_item(Tab::Work)?)
+    }
+
+    /// Rows of a tab's list.
+    pub fn list_rows(&self, tab: Tab) -> Vec<ListRow> {
+        match tab {
+            Tab::Work => self.work_rows(),
+            Tab::Todos => self.todo_rows(),
+            Tab::Sessions => self.session_rows(),
+            Tab::Summary => self.summary_rows(),
+            Tab::Inbox => self
+                .pending_suggestions()
+                .into_iter()
+                .map(ListRow::Item)
+                .collect(),
         }
+    }
+
+    /// The row under a tab's cursor.
+    pub fn selected_row(&self, tab: Tab) -> Option<ListRow> {
+        self.list_rows(tab).get(self.cursor[tab.index()]).cloned()
+    }
+
+    /// The item under a tab's cursor (`None` on a group header).
+    pub fn selected_item(&self, tab: Tab) -> Option<usize> {
+        match self.selected_row(tab)? {
+            ListRow::Item(i) => Some(i),
+            ListRow::Group(_) => None,
+        }
+    }
+
+    /// Whether a tab's cursor is on a group header.
+    pub fn on_group_header(&self, tab: Tab) -> bool {
+        matches!(self.selected_row(tab), Some(ListRow::Group(_)))
+    }
+
+    /// The group the cursor is in (the header itself, or the header above the item) and the
+    /// header's row.
+    fn current_group(&self, tab: Tab) -> Option<(usize, GroupHeader)> {
+        let rows = self.list_rows(tab);
+        let cursor = self.cursor[tab.index()].min(rows.len().checked_sub(1)?);
+        rows[..=cursor]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(n, r)| match r {
+                ListRow::Group(g) => Some((n, g.clone())),
+                ListRow::Item(_) => None,
+            })
+    }
+
+    /// Row of the first item of a tab's list (where a fresh list puts the cursor), 0 when
+    /// it has none.
+    pub fn first_item_row(&self, tab: Tab) -> usize {
+        self.list_rows(tab)
+            .iter()
+            .position(|r| matches!(r, ListRow::Item(_)))
+            .unwrap_or(0)
     }
 
     /// Repo part of a todo link, `PROJECT/repo:branch` → `PROJECT/repo`.
@@ -911,26 +1020,29 @@ impl App {
             .unwrap_or_else(|| "~(no link)".to_string())
     }
 
-    /// Display rows of the Todos list, with group headers when grouped.
-    pub fn todo_rows(&self) -> Vec<TodoRow> {
-        let mut rows = Vec::new();
-        let mut last: Option<String> = None;
-        for i in self.visible_todos() {
-            if self.todo_grouped {
-                let g = self.todo_group_name(&self.todos[i]);
-                if last.as_ref() != Some(&g) {
-                    rows.push(TodoRow::Header(g.trim_start_matches('~').to_string()));
-                    last = Some(g);
+    /// Display rows of the Todos list, grouped by repo with `G`.
+    pub fn todo_rows(&self) -> Vec<ListRow> {
+        let visible = self.visible_todos();
+        if !self.todo_grouped {
+            return visible.into_iter().map(ListRow::Item).collect();
+        }
+        // `visible_todos` is sorted by group name, so groups are contiguous.
+        let mut groups: Vec<(String, String, Vec<usize>)> = Vec::new();
+        for i in visible {
+            let g = self.todo_group_name(&self.todos[i]);
+            match groups.last_mut() {
+                Some(last) if last.0 == g => last.2.push(i),
+                _ => {
+                    let label = g.trim_start_matches('~').to_string();
+                    groups.push((g, label, vec![i]));
                 }
             }
-            rows.push(TodoRow::Todo(i));
         }
-        rows
+        self.grouped_rows(Tab::Todos, groups)
     }
 
     pub fn selected_todo(&self) -> Option<&Todo> {
-        let i = *self.visible_todos().get(self.cursor[1])?;
-        self.todos.get(i)
+        self.todos.get(self.selected_item(Tab::Todos)?)
     }
 
     /// Sessions passing the search, newest first.
@@ -958,9 +1070,30 @@ impl App {
         out
     }
 
+    /// Day a session is listed under (its last activity, else its start), local time.
+    pub fn session_day(&self, s: &Session) -> Option<NaiveDate> {
+        s.last_activity_at
+            .or(s.started_at)
+            .and_then(|t| self.now.offset().timestamp_opt(t, 0).single())
+            .map(|dt| dt.date_naive())
+    }
+
+    /// Rows of the Sessions list: visible sessions under day groups, newest first.
+    pub fn session_rows(&self) -> Vec<ListRow> {
+        let mut groups: Vec<(String, String, Vec<usize>)> = Vec::new();
+        for i in self.visible_sessions() {
+            let day = self.session_day(&self.sessions[i]);
+            let key = day_key(day);
+            match groups.last_mut() {
+                Some(last) if last.0 == key => last.2.push(i),
+                _ => groups.push((key, day_label(&self.now, day), vec![i])),
+            }
+        }
+        self.grouped_rows(Tab::Sessions, groups)
+    }
+
     pub fn selected_session(&self) -> Option<&Session> {
-        let i = *self.visible_sessions().get(self.cursor[2])?;
-        self.sessions.get(i)
+        self.sessions.get(self.selected_item(Tab::Sessions)?)
     }
 
     pub fn session_title(&self, s: &Session) -> String {
@@ -1152,7 +1285,7 @@ impl App {
     /// Rows of the current Summary section: entries grouped under their working directory
     /// (directories with the most recent activity first, then `(no directory)`, then
     /// `(other)`), entries in section order inside a group.
-    pub fn summary_rows(&self) -> Vec<SummaryRow> {
+    pub fn summary_rows(&self) -> Vec<ListRow> {
         let entries = self
             .summary
             .as_ref()
@@ -1175,36 +1308,31 @@ impl App {
             SummaryDir::NoDir => (1, std::cmp::Reverse(0)),
             SummaryDir::Other => (2, std::cmp::Reverse(0)),
         });
-        let mut rows = Vec::new();
-        for (dir, _, members) in groups {
-            let label = match &dir {
-                SummaryDir::Path(p) => self.display_path(p),
-                SummaryDir::NoDir => "(no directory)".to_string(),
-                SummaryDir::Other => "(other)".to_string(),
-            };
-            rows.push(SummaryRow::Header {
-                label,
-                count: members.len(),
-            });
-            rows.extend(members.into_iter().map(SummaryRow::Entry));
-        }
-        rows
+        let groups = groups
+            .into_iter()
+            .map(|(dir, _, members)| {
+                let (key, label) = match &dir {
+                    SummaryDir::Path(p) => (format!("p:{}", p.display()), self.display_path(p)),
+                    SummaryDir::NoDir => ("nodir".to_string(), "(no directory)".to_string()),
+                    SummaryDir::Other => ("other".to_string(), "(other)".to_string()),
+                };
+                (key, label, members)
+            })
+            .collect();
+        self.grouped_rows(Tab::Summary, groups)
     }
 
-    /// Entries of the current Summary section in display order (as grouped by
-    /// [`Self::summary_rows`]); the Summary cursor indexes this list.
-    pub fn summary_entries(&self) -> Vec<&Entry> {
-        let Some(s) = &self.summary else {
-            return Vec::new();
-        };
-        let entries = self.summary_section.entries(s);
-        self.summary_rows()
-            .into_iter()
-            .filter_map(|r| match r {
-                SummaryRow::Entry(i) => entries.get(i),
-                SummaryRow::Header { .. } => None,
-            })
-            .collect()
+    /// Latest activity behind a Summary entry's target (what its directory group is
+    /// ordered by).
+    pub fn summary_activity(&self, target: &Target) -> Option<i64> {
+        self.summary_dir(target).1
+    }
+
+    /// Entries of the current Summary section (indexed by the section's [`ListRow::Item`]s).
+    pub fn summary_section_entries(&self) -> &[Entry] {
+        self.summary
+            .as_ref()
+            .map_or(&[][..], |s| self.summary_section.entries(s))
     }
 
     pub fn summary_section_count(&self, sec: SummarySection) -> usize {
@@ -1212,9 +1340,8 @@ impl App {
     }
 
     pub fn selected_summary_entry(&self) -> Option<&Entry> {
-        self.summary_entries()
-            .get(self.cursor[Tab::Summary.index()])
-            .copied()
+        self.summary_section_entries()
+            .get(self.selected_item(Tab::Summary)?)
     }
 
     pub fn work_item(&self, repo_id: &str, branch: &str) -> Option<&WorkItem> {
@@ -1297,73 +1424,77 @@ impl App {
     // Selection bookkeeping
     // ------------------------------------------------------------------
 
-    /// Number of cursor positions in a tab's list.
+    /// Number of cursor positions in a tab's list (group headers included).
     pub fn row_count(&self, tab: Tab) -> usize {
-        match tab {
-            Tab::Work => self.work_rows().len(),
-            Tab::Todos => self.visible_todos().len(),
-            Tab::Sessions => self.visible_sessions().len(),
-            Tab::Summary => self.summary_entries().len(),
-            Tab::Inbox => self.pending_suggestions().len(),
-        }
+        self.list_rows(tab).len()
     }
 
-    fn row_keys(&self, tab: Tab) -> Vec<String> {
+    /// Selection key of item `i` of a tab's list. Summary keys are numbered by `seen` so
+    /// duplicate targets stay apart.
+    fn item_key(&self, tab: Tab, i: usize, seen: &mut Vec<String>) -> String {
         match tab {
-            Tab::Work => self
-                .work_rows()
-                .into_iter()
-                .map(|r| match r {
-                    WorkRow::Group { repo_id, .. } => format!("g:{repo_id}"),
-                    WorkRow::Item(i) => {
-                        let w = &self.work_items[i];
-                        format!("i:{}:{}", w.repo_id, w.branch)
-                    }
-                })
-                .collect(),
-            Tab::Todos => self
-                .visible_todos()
-                .into_iter()
-                .map(|i| todo_key(&self.todos[i]))
-                .collect(),
-            Tab::Sessions => self
-                .visible_sessions()
-                .into_iter()
-                .map(|i| self.sessions[i].id.clone())
-                .collect(),
+            Tab::Work => {
+                let w = &self.work_items[i];
+                format!("i:{}:{}", w.repo_id, w.branch)
+            }
+            Tab::Todos => todo_key(&self.todos[i]),
+            Tab::Sessions => self.sessions[i].id.clone(),
             Tab::Summary => {
                 // Target first, so a selection survives text changes; duplicates numbered.
-                let mut seen: Vec<String> = Vec::new();
-                self.summary_entries()
-                    .iter()
-                    .map(|e| {
-                        let base = match &e.target {
-                            Target::None => format!("l:{}", e.line),
-                            t => format!("{t:?}"),
-                        };
-                        let n = seen.iter().filter(|k| **k == base).count();
-                        seen.push(base.clone());
-                        format!("{base}#{n}")
-                    })
-                    .collect()
+                let Some(e) = self.summary_section_entries().get(i) else {
+                    return String::new();
+                };
+                let base = match &e.target {
+                    Target::None => format!("l:{}", e.line),
+                    t => format!("{t:?}"),
+                };
+                let n = seen.iter().filter(|k| **k == base).count();
+                seen.push(base.clone());
+                format!("{base}#{n}")
             }
-            Tab::Inbox => self
-                .pending_suggestions()
-                .into_iter()
-                .map(|i| self.suggestions[i].id.to_string())
-                .collect(),
+            Tab::Inbox => self.suggestions[i].id.to_string(),
         }
     }
 
-    fn selected_key(&self, tab: Tab) -> Option<String> {
+    fn row_keys(&self, tab: Tab) -> Vec<RowKey> {
+        let mut seen = Vec::new();
+        let mut group: Option<String> = None;
+        self.list_rows(tab)
+            .into_iter()
+            .map(|r| match r {
+                ListRow::Group(g) => {
+                    let key = format!("g:{}", g.key);
+                    group = Some(key.clone());
+                    RowKey { key, group: None }
+                }
+                ListRow::Item(i) => RowKey {
+                    key: self.item_key(tab, i, &mut seen),
+                    group: group.clone(),
+                },
+            })
+            .collect()
+    }
+
+    fn has_key(&self, tab: Tab, key: &str) -> bool {
+        self.row_keys(tab).iter().any(|k| k.key == key)
+    }
+
+    fn selected_key(&self, tab: Tab) -> Option<RowKey> {
         self.row_keys(tab).get(self.cursor[tab.index()]).cloned()
     }
 
-    /// Put the cursor back on `key` after the list changed; clamp when it is gone.
-    fn reselect(&mut self, tab: Tab, key: Option<String>) {
+    /// Put the cursor back on `key` after the list changed: on the row itself, else on its
+    /// group's header (it was folded away), else clamped. With no previous selection (the
+    /// list was empty) the cursor goes to the first item.
+    fn reselect(&mut self, tab: Tab, key: Option<RowKey>) {
         let keys = self.row_keys(tab);
         let idx = tab.index();
-        if let Some(pos) = key.and_then(|k| keys.iter().position(|x| *x == k)) {
+        let Some(key) = key else {
+            self.cursor[idx] = self.first_item_row(tab);
+            return;
+        };
+        let find = |k: &str| keys.iter().position(|x| x.key == k);
+        if let Some(pos) = find(&key.key).or_else(|| key.group.as_deref().and_then(find)) {
             self.cursor[idx] = pos;
         } else {
             self.cursor[idx] = self.cursor[idx].min(keys.len().saturating_sub(1));
@@ -1584,10 +1715,10 @@ impl App {
         self.details_scroll = 0;
     }
 
-    /// Switch the Summary section; the cursor goes back to the first entry.
+    /// Switch the Summary section; the cursor goes to its first entry.
     fn set_summary_section(&mut self, sec: SummarySection) {
         self.summary_section = sec;
-        self.cursor[Tab::Summary.index()] = 0;
+        self.cursor[Tab::Summary.index()] = self.first_item_row(Tab::Summary);
         self.details_scroll = 0;
         self.details_open = false;
     }
@@ -1596,6 +1727,9 @@ impl App {
     fn tab_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return None;
+        }
+        if let Some(effects) = self.group_key(key) {
+            return Some(effects);
         }
         match self.tab {
             Tab::Work => self.work_key(key),
@@ -1606,22 +1740,107 @@ impl App {
         }
     }
 
+    /// Folding keys of the grouped lists (Work, Todos, Sessions, Summary): `Enter` / `Space`
+    /// on a group header toggle it, `z` toggles the cursor's group from any row, `Z` folds
+    /// all groups (unfolds all when every group is folded).
+    fn group_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
+        if self.tab == Tab::Inbox {
+            return None;
+        }
+        match key.code {
+            KeyCode::Enter | KeyCode::Char(' ') if self.on_group_header(self.tab) => {
+                self.toggle_group(self.tab);
+            }
+            KeyCode::Char('z') => self.toggle_group(self.tab),
+            KeyCode::Char('Z') => self.fold_all(self.tab),
+            _ => return None,
+        }
+        Some(Vec::new())
+    }
+
+    /// Why a tab's groups cannot be folded right now, if they cannot.
+    fn fold_refusal(&self, tab: Tab) -> Option<&'static str> {
+        if self.groups_forced_open(tab) {
+            Some("groups stay open while searching")
+        } else if tab == Tab::Todos && !self.todo_grouped {
+            Some("no groups; G groups todos by repo")
+        } else {
+            None
+        }
+    }
+
+    /// `z` / `Enter` / `Space` on a header: fold or unfold the cursor's group; the cursor
+    /// goes to its header.
+    fn toggle_group(&mut self, tab: Tab) {
+        if let Some(why) = self.fold_refusal(tab) {
+            self.set_status(why);
+            return;
+        }
+        let Some((row, group)) = self.current_group(tab) else {
+            return;
+        };
+        let set = &mut self.collapsed[tab.index()];
+        if group.collapsed {
+            set.remove(&group.key);
+        } else {
+            set.insert(group.key);
+        }
+        // Rows above the header do not change.
+        self.cursor[tab.index()] = row;
+        self.details_scroll = 0;
+    }
+
+    /// `Z`: fold every group of the list, or unfold all when they are all folded already.
+    fn fold_all(&mut self, tab: Tab) {
+        if let Some(why) = self.fold_refusal(tab) {
+            self.set_status(why);
+            return;
+        }
+        let groups: Vec<GroupHeader> = self
+            .list_rows(tab)
+            .into_iter()
+            .filter_map(|r| match r {
+                ListRow::Group(g) => Some(g),
+                ListRow::Item(_) => None,
+            })
+            .collect();
+        if groups.is_empty() {
+            return;
+        }
+        let key = self.selected_key(tab);
+        let idx = tab.index();
+        if groups.iter().any(|g| !g.collapsed) {
+            self.collapsed[idx].extend(groups.into_iter().map(|g| g.key));
+            self.set_status("folded all groups");
+        } else {
+            self.collapsed[idx].clear();
+            self.set_status("unfolded all groups");
+        }
+        self.reselect(tab, key);
+        self.details_scroll = 0;
+    }
+
+    /// Item-only key pressed on a group header: a short hint instead of doing anything.
+    /// `None` (not handled) when the cursor is not on a header.
+    fn needs_item(&mut self) -> Option<Vec<Effect>> {
+        if !self.on_group_header(self.tab) {
+            return None;
+        }
+        self.set_status("select an item; enter/space folds this group");
+        Some(Vec::new())
+    }
+
     fn work_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
-        let row = self.selected_work_row();
         let item = self.selected_work_item().cloned();
         let none = Some(Vec::new());
+        if matches!(
+            key.code,
+            KeyCode::Char('o' | 'y' | 'Y' | 't' | 'c' | 'A' | 'U' | 'X')
+        ) && item.is_none()
+        {
+            return self.needs_item();
+        }
         match key.code {
-            KeyCode::Enter => match row {
-                Some(WorkRow::Group { repo_id, .. }) => {
-                    if !self.query(Tab::Work).trim().is_empty() {
-                        self.set_status("groups stay open while searching");
-                    } else if !self.collapsed.remove(&repo_id) {
-                        self.collapsed.insert(repo_id);
-                    }
-                    none
-                }
-                _ => None,
-            },
             KeyCode::Char('o') => {
                 let item = item?;
                 Some(self.open_item_url(&item))
@@ -1836,7 +2055,10 @@ impl App {
                 none
             }
             KeyCode::Char('e' | 'E' | ' ' | 's' | 'p' | 'L' | '+' | '-' | 'D' | 'd') => {
-                if self.selected_todo().is_none() || self.refuse_todo_edit() {
+                if self.selected_todo().is_none() {
+                    return self.needs_item().or(none);
+                }
+                if self.refuse_todo_edit() {
                     return none;
                 }
                 let Some(id) = self.selected_todo_id() else {
@@ -1969,6 +2191,9 @@ impl App {
     }
 
     fn sessions_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
+        if matches!(key.code, KeyCode::Char('c' | 's')) && self.selected_session().is_none() {
+            return self.needs_item();
+        }
         match key.code {
             KeyCode::Char('c') => {
                 let s = self.selected_session()?.clone();
@@ -2010,39 +2235,48 @@ impl App {
     /// hides it: clear the search, then widen the filter to All, and expand its group.
     fn select_work_item(&mut self, repo_id: &str, branch: &str) {
         self.switch_tab(Tab::Work);
-        self.collapsed.remove(repo_id);
+        self.collapsed[Tab::Work.index()].remove(repo_id);
         let key = format!("i:{repo_id}:{branch}");
-        if !self.row_keys(Tab::Work).contains(&key) {
+        if !self.has_key(Tab::Work, &key) {
             self.search[Tab::Work.index()].clear();
         }
-        if !self.row_keys(Tab::Work).contains(&key) {
+        if !self.has_key(Tab::Work, &key) {
             self.work_filter = WorkFilter::All;
         }
-        self.reselect(Tab::Work, Some(key));
+        self.reselect(Tab::Work, Some(RowKey::item(key)));
         self.details_scroll = 0;
     }
 
     /// Switch to Todos and select a todo, clearing the search / widening the filter to All
-    /// when they hide it.
+    /// when they hide it, and expanding its repo group.
     fn select_todo(&mut self, key: String) {
         self.switch_tab(Tab::Todos);
-        if !self.row_keys(Tab::Todos).contains(&key) {
+        if let Some(t) = self.todos.iter().find(|t| todo_key(t) == key) {
+            let group = self.todo_group_name(t);
+            self.collapsed[Tab::Todos.index()].remove(&group);
+        }
+        if !self.has_key(Tab::Todos, &key) {
             self.search[Tab::Todos.index()].clear();
         }
-        if !self.row_keys(Tab::Todos).contains(&key) {
+        if !self.has_key(Tab::Todos, &key) {
             self.todo_filter = TodoFilter::All;
         }
-        self.reselect(Tab::Todos, Some(key));
+        self.reselect(Tab::Todos, Some(RowKey::item(key)));
         self.details_scroll = 0;
     }
 
-    /// Switch to Sessions and select a session, clearing the search when it hides it.
+    /// Switch to Sessions and select a session, clearing the search when it hides it and
+    /// expanding its day.
     fn select_session(&mut self, id: String) {
         self.switch_tab(Tab::Sessions);
-        if !self.row_keys(Tab::Sessions).contains(&id) {
+        if let Some(s) = self.find_session(&id) {
+            let day = day_key(self.session_day(s));
+            self.collapsed[Tab::Sessions.index()].remove(&day);
+        }
+        if !self.has_key(Tab::Sessions, &id) {
             self.search[Tab::Sessions.index()].clear();
         }
-        self.reselect(Tab::Sessions, Some(id));
+        self.reselect(Tab::Sessions, Some(RowKey::item(id)));
         self.details_scroll = 0;
     }
 
@@ -2082,7 +2316,7 @@ impl App {
                 self.switch_tab(Tab::Inbox);
                 if id.is_some() {
                     self.search[Tab::Inbox.index()].clear();
-                    self.reselect(Tab::Inbox, id);
+                    self.reselect(Tab::Inbox, id.map(RowKey::item));
                 }
             }
         }
@@ -2107,7 +2341,9 @@ impl App {
                 Some(self.jump_to_summary_target())
             }
             KeyCode::Char('o') => {
-                let target = self.selected_summary_entry()?.target.clone();
+                let Some(target) = self.selected_summary_entry().map(|e| e.target.clone()) else {
+                    return self.needs_item();
+                };
                 match self.target_item(&target).cloned() {
                     Some(item) => Some(self.open_item_url(&item)),
                     None => {
@@ -2264,7 +2500,7 @@ impl App {
                     let idx = self.tab.index();
                     if self.search[idx] != active.input.text {
                         self.search[idx] = active.input.text.clone();
-                        self.cursor[idx] = 0;
+                        self.cursor[idx] = self.first_item_row(self.tab);
                         self.details_scroll = 0;
                     }
                 }
@@ -2548,6 +2784,15 @@ mod tests {
             .collect()
     }
 
+    /// Put the Sessions cursor on the row of session `id`.
+    fn select_session_row(app: &mut App, id: &str) {
+        app.cursor[2] = app
+            .session_rows()
+            .iter()
+            .position(|r| matches!(r, ListRow::Item(i) if app.sessions[*i].id == id))
+            .unwrap();
+    }
+
     fn select_todo(app: &mut App, id: &str) {
         let pos = app
             .visible_todos()
@@ -2641,7 +2886,7 @@ mod tests {
             app.work_rows()
                 .into_iter()
                 .filter_map(|r| match r {
-                    WorkRow::Item(i) => Some(app.work_items[i].branch.clone()),
+                    ListRow::Item(i) => Some(app.work_items[i].branch.clone()),
                     _ => None,
                 })
                 .collect()
@@ -2666,8 +2911,8 @@ mod tests {
         assert!(app.input.is_some());
         let rows = app.work_rows();
         assert!(rows.iter().all(|r| match r {
-            WorkRow::Group { name, .. } => name.contains("auth"),
-            WorkRow::Item(i) => app.work_items[*i].repo_name.contains("auth"),
+            ListRow::Group(g) => g.label.contains("auth"),
+            ListRow::Item(i) => app.work_items[*i].repo_name.contains("auth"),
         }));
         app.handle_key(key(KeyCode::Enter));
         assert!(app.input.is_none());
@@ -2678,7 +2923,7 @@ mod tests {
             .work_rows()
             .into_iter()
             .filter_map(|r| match r {
-                WorkRow::Item(i) => Some(app.work_items[i].state),
+                ListRow::Item(i) => Some(app.work_items[i].state),
                 _ => None,
             })
             .collect();
@@ -2712,6 +2957,268 @@ mod tests {
         assert!(after < before);
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(app.work_rows().len(), before);
+    }
+
+    #[test]
+    fn every_grouped_list_stops_on_its_headers() {
+        let mut app = sample::app();
+        press(&mut app, "2G");
+        for (tab, first) in [
+            (Tab::Work, "API/upload-svc"),
+            (Tab::Todos, "API/auth"),
+            (Tab::Sessions, "Today"),
+            (Tab::Summary, "~/work/upload-svc-wt/retry"),
+        ] {
+            app.tab = tab;
+            assert_eq!(app.first_item_row(tab), 1, "{tab:?}");
+            app.cursor[tab.index()] = 0;
+            match app.selected_row(tab) {
+                Some(ListRow::Group(g)) => assert_eq!(g.label, first),
+                other => panic!("{tab:?}: {other:?}"),
+            }
+            assert!(app.on_group_header(tab));
+            press(&mut app, "j");
+            assert_eq!(app.cursor[tab.index()], 1);
+            assert!(app.selected_item(tab).is_some(), "{tab:?}");
+            // `G` (bottom) is the Todos grouping key, so only the other tabs check the end.
+            if tab != Tab::Todos {
+                press(&mut app, "G");
+                assert_eq!(app.cursor[tab.index()], app.row_count(tab) - 1);
+                press(&mut app, "g");
+                assert_eq!(app.cursor[tab.index()], 0);
+            }
+        }
+        assert_eq!(
+            group_labels(&app, Tab::Todos),
+            ["API/auth", "API/upload-svc", "(no link)"]
+        );
+        assert_eq!(
+            group_labels(&app, Tab::Sessions),
+            ["Today", "Yesterday", "Mon 23 Nov"]
+        );
+        // Ungrouped todos have no headers.
+        press(&mut app, "2G");
+        assert!(!app
+            .todo_rows()
+            .iter()
+            .any(|r| matches!(r, ListRow::Group(_))));
+    }
+
+    #[test]
+    fn enter_space_and_z_fold_the_same_way_in_every_list() {
+        let mut app = sample::app();
+        press(&mut app, "2G");
+        for tab in [Tab::Work, Tab::Todos, Tab::Sessions, Tab::Summary] {
+            app.tab = tab;
+            let idx = tab.index();
+            let before = app.row_count(tab);
+            // Enter on the header folds, Space unfolds.
+            app.cursor[idx] = 0;
+            app.handle_key(key(KeyCode::Enter));
+            assert!(app.row_count(tab) < before, "{tab:?}");
+            assert!(matches!(app.selected_row(tab), Some(ListRow::Group(g)) if g.collapsed));
+            app.handle_key(key(KeyCode::Char(' ')));
+            assert_eq!(app.row_count(tab), before, "{tab:?}");
+            // z from an item folds its group and puts the cursor on the header.
+            app.cursor[idx] = 1;
+            press(&mut app, "z");
+            assert_eq!(app.cursor[idx], 0, "{tab:?}");
+            assert!(app.row_count(tab) < before);
+            press(&mut app, "z");
+            assert_eq!(app.row_count(tab), before);
+            assert_eq!(app.cursor[idx], 0);
+        }
+    }
+
+    #[test]
+    fn capital_z_folds_all_then_unfolds_all() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        let groups = group_labels(&app, Tab::Sessions).len();
+        // From the second session of Today.
+        press(&mut app, "j");
+        press(&mut app, "Z");
+        assert_eq!(app.row_count(Tab::Sessions), groups, "only headers left");
+        assert_eq!(app.cursor[2], 0, "the cursor goes to its group's header");
+        assert_eq!(app.status.as_ref().unwrap().text, "folded all groups");
+        // One open group is enough for Z to fold all again.
+        press(&mut app, "jz");
+        assert!(app.row_count(Tab::Sessions) > groups);
+        press(&mut app, "Z");
+        assert_eq!(app.row_count(Tab::Sessions), groups);
+        press(&mut app, "Z");
+        assert_eq!(app.status.as_ref().unwrap().text, "unfolded all groups");
+        assert_eq!(
+            app.row_count(Tab::Sessions),
+            app.visible_sessions().len() + groups
+        );
+        // Todos without grouping: nothing to fold, a hint instead.
+        press(&mut app, "2Z");
+        assert!(app.status.as_ref().unwrap().text.contains("G groups"));
+        assert!(app.collapsed[1].is_empty());
+    }
+
+    #[test]
+    fn folding_persists_across_refreshes_per_tab() {
+        let mut app = sample::app();
+        app.cursor[0] = 0;
+        app.handle_key(key(KeyCode::Enter));
+        press(&mut app, "3");
+        app.cursor[2] = 0;
+        press(&mut app, "z");
+        press(&mut app, "4");
+        press(&mut app, "z");
+        let summary_folded = summary_headers(&app)[0].clone();
+        let work_rows = app.work_rows();
+        let session_rows = app.row_count(Tab::Sessions);
+        // Fresh data from the background: the same groups stay folded.
+        let mut items = app.work_items.clone();
+        items.reverse();
+        app.handle_event(AppEvent::WorkItemsUpdated(items));
+        app.handle_event(AppEvent::SessionsUpdated(sample::sessions()));
+        app.handle_event(AppEvent::SummaryUpdated {
+            since: NaiveDate::from_ymd_opt(2026, 11, 24).unwrap(),
+            summary: sample::summary(),
+            markdown: String::new(),
+        });
+        assert!(
+            matches!(&app.work_rows()[0], ListRow::Group(g) if g.collapsed && g.key == "r_upload")
+        );
+        assert_eq!(app.work_rows().len(), work_rows.len());
+        assert_eq!(app.row_count(Tab::Sessions), session_rows);
+        assert!(app.collapsed[2].contains("2026-11-25"));
+        let folded: Vec<String> = app
+            .summary_rows()
+            .into_iter()
+            .filter_map(|r| match r {
+                ListRow::Group(g) if g.collapsed => Some(g.label),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(folded, [summary_folded]);
+        // Each tab keeps its own set; Todos is untouched.
+        assert!(app.collapsed[1].is_empty());
+        // The cursor stays on the folded header through the refresh.
+        assert!(app.on_group_header(Tab::Summary));
+    }
+
+    #[test]
+    fn searching_opens_every_group() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        press(&mut app, "Z");
+        let folded = app.row_count(Tab::Sessions);
+        press(&mut app, "/upload");
+        // While typing, the cursor goes to the first match, its group open.
+        assert!(app.selected_session().is_some());
+        assert!(app.row_count(Tab::Sessions) > folded);
+        app.handle_key(key(KeyCode::Enter));
+        press(&mut app, "z");
+        assert!(app
+            .status
+            .as_ref()
+            .unwrap()
+            .text
+            .contains("while searching"));
+        app.handle_key(key(KeyCode::Esc));
+        assert_eq!(app.row_count(Tab::Sessions), folded, "the folds come back");
+    }
+
+    #[test]
+    fn item_keys_on_a_header_only_hint() {
+        let hinted = |app: &App| {
+            app.status
+                .as_ref()
+                .is_some_and(|s| s.text.starts_with("select an item"))
+        };
+        let mut app = sample::app();
+        app.cursor[0] = 0;
+        for k in ["o", "y", "Y", "t", "c", "A", "U", "X"] {
+            app.status = None;
+            assert!(press(&mut app, k).is_empty(), "work {k}");
+            assert!(hinted(&app), "work {k}");
+            assert!(app.overlay.is_none() && app.input.is_none(), "work {k}");
+        }
+        press(&mut app, "2G");
+        app.cursor[1] = 0;
+        for k in ["s", "p", "e", "E", "D", "d", "L", "+", "-"] {
+            app.status = None;
+            assert!(press(&mut app, k).is_empty(), "todos {k}");
+            assert!(hinted(&app), "todos {k}");
+            assert!(app.overlay.is_none() && app.input.is_none(), "todos {k}");
+        }
+        // Space on a todo header folds the group instead of toggling done.
+        assert!(press(&mut app, " ").is_empty());
+        assert!(matches!(app.selected_row(Tab::Todos), Some(ListRow::Group(g)) if g.collapsed));
+        press(&mut app, "3");
+        app.cursor[2] = 0;
+        for k in ["c", "s"] {
+            app.status = None;
+            assert!(press(&mut app, k).is_empty(), "sessions {k}");
+            assert!(hinted(&app), "sessions {k}");
+        }
+        press(&mut app, "4");
+        app.cursor[3] = 0;
+        app.status = None;
+        assert!(press(&mut app, "o").is_empty());
+        assert!(hinted(&app));
+        // Enter folds instead of jumping; Space unfolds instead of marking done.
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Summary);
+        assert!(press(&mut app, " ").is_empty());
+        assert!(matches!(app.selected_row(Tab::Summary), Some(ListRow::Group(g)) if !g.collapsed));
+        // List-only: Enter on a header still folds rather than opening the details.
+        app.feedback.arrangement.set(Some(Arrangement::ListOnly));
+        app.handle_key(key(KeyCode::Enter));
+        assert!(!app.details_open);
+        assert!(matches!(app.selected_row(Tab::Summary), Some(ListRow::Group(g)) if g.collapsed));
+    }
+
+    #[test]
+    fn jumps_expand_the_target_group() {
+        // Sessions → Work.
+        let mut app = sample::app();
+        app.collapsed[0].insert("r_auth".into());
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Work);
+        assert!(app.collapsed[0].is_empty());
+        assert_eq!(
+            app.selected_work_item().unwrap().branch,
+            "feature/PROJ-118-sso"
+        );
+        // Summary → grouped Todos with the todo's repo folded.
+        let mut app = summary_app();
+        app.todo_grouped = true;
+        app.collapsed[1].insert("API/auth".into());
+        select_entry(&mut app, SummarySection::Todo, "Review SSO");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Todos);
+        assert!(!app.collapsed[1].contains("API/auth"));
+        assert_eq!(app.selected_todo().unwrap().id.as_deref(), Some("t_6"));
+        // Summary → Sessions with the session's day folded.
+        let mut app = summary_app();
+        app.collapsed[2].insert("2026-11-25".into());
+        select_entry(&mut app, SummarySection::Blockers, "IdP metadata");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Sessions);
+        assert!(app.collapsed[2].is_empty());
+        assert_eq!(app.selected_session().unwrap().id, "s-sso");
+    }
+
+    #[test]
+    fn a_folded_away_selection_falls_back_to_its_header() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        // Today gets folded while the cursor is on one of its sessions (another tab's
+        // jump would do this; here directly).
+        let key = app.selected_key(Tab::Sessions);
+        app.collapsed[2].insert("2026-11-25".into());
+        app.reselect(Tab::Sessions, key);
+        assert_eq!(app.cursor[2], 0);
+        assert!(app.on_group_header(Tab::Sessions));
     }
 
     #[test]
@@ -3002,12 +3509,7 @@ mod tests {
     fn resume_without_a_worktree_copies_nothing() {
         let mut app = sample::app();
         press(&mut app, "3");
-        let pos = app
-            .visible_sessions()
-            .iter()
-            .position(|&i| app.sessions[i].id == "s-nobranch")
-            .unwrap();
-        app.cursor[2] = pos;
+        select_session_row(&mut app, "s-nobranch");
         assert!(press(&mut app, "c").is_empty());
         assert!(app
             .status
@@ -3035,12 +3537,7 @@ mod tests {
     fn sessions_enter_jumps_to_the_work_item() {
         let mut app = sample::app();
         press(&mut app, "3");
-        let pos = app
-            .visible_sessions()
-            .iter()
-            .position(|&i| app.sessions[i].id == "s-sso")
-            .unwrap();
-        app.cursor[2] = pos;
+        select_session_row(&mut app, "s-sso");
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(app.tab, Tab::Work);
         assert_eq!(
@@ -3264,24 +3761,42 @@ mod tests {
         app
     }
 
+    /// `(row, line)` of every entry row of the current Summary section, in display order.
+    fn summary_entry_rows(app: &App) -> Vec<(usize, String)> {
+        let entries = app.summary_section_entries();
+        app.summary_rows()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(n, r)| match r {
+                ListRow::Item(i) => Some((n, entries[i].line.clone())),
+                ListRow::Group(_) => None,
+            })
+            .collect()
+    }
+
     /// Put the Summary cursor on the first entry of `sec` whose line contains `text`.
     fn select_entry(app: &mut App, sec: SummarySection, text: &str) {
         app.summary_section = sec;
-        app.cursor[3] = app
-            .summary_entries()
-            .iter()
-            .position(|e| e.line.contains(text))
-            .unwrap_or_else(|| panic!("no {text} in {sec:?}"));
+        app.cursor[3] = summary_entry_rows(app)
+            .into_iter()
+            .find(|(_, l)| l.contains(text))
+            .unwrap_or_else(|| panic!("no {text} in {sec:?}"))
+            .0;
+    }
+
+    /// Labels of the group headers of a tab's list.
+    fn group_labels(app: &App, tab: Tab) -> Vec<String> {
+        app.list_rows(tab)
+            .into_iter()
+            .filter_map(|r| match r {
+                ListRow::Group(g) => Some(g.label),
+                ListRow::Item(_) => None,
+            })
+            .collect()
     }
 
     fn summary_headers(app: &App) -> Vec<String> {
-        app.summary_rows()
-            .into_iter()
-            .filter_map(|r| match r {
-                SummaryRow::Header { label, .. } => Some(label),
-                SummaryRow::Entry(_) => None,
-            })
-            .collect()
+        group_labels(app, Tab::Summary)
     }
 
     #[test]
@@ -3297,15 +3812,16 @@ mod tests {
                 "/tmp/scratch"
             ]
         );
-        // The cursor walks entries in display order; headers are not positions.
-        let lines: Vec<String> = app
-            .summary_entries()
-            .iter()
-            .map(|e| e.line.clone())
-            .collect();
-        assert_eq!(app.row_count(Tab::Summary), lines.len());
+        // The cursor walks headers and entries in display order, starting on the first
+        // entry.
+        let lines: Vec<String> = summary_entry_rows(&app).into_iter().map(|e| e.1).collect();
+        assert_eq!(app.row_count(Tab::Summary), lines.len() + 4);
         assert!(lines[0].contains("PROJ-123-retry"), "{lines:?}");
         assert!(lines[1].contains("PROJ-130-chunking"), "{lines:?}");
+        assert_eq!(app.cursor[3], 1);
+        press(&mut app, "j");
+        assert!(app.on_group_header(Tab::Summary));
+        assert!(app.selected_summary_entry().is_none());
         press(&mut app, "j");
         assert!(app
             .selected_summary_entry()
@@ -3357,13 +3873,12 @@ mod tests {
     #[test]
     fn summary_sections_switch_with_h_l_arrows_and_f() {
         let mut app = summary_app();
-        assert_eq!(app.row_count(Tab::Summary), app.summary_entries().len());
-        assert!(app.row_count(Tab::Summary) > 2);
+        assert!(app.row_count(Tab::Summary) > summary_entry_rows(&app).len());
         press(&mut app, "jj");
-        assert_eq!(app.cursor[3], 2);
+        assert_eq!(app.cursor[3], 3);
         press(&mut app, "l");
         assert_eq!(app.summary_section, SummarySection::Todo);
-        assert_eq!(app.cursor[3], 0, "a new section starts at the top");
+        assert_eq!(app.cursor[3], 1, "a new section starts on its first entry");
         press(&mut app, "h");
         assert_eq!(app.summary_section, SummarySection::InProgress);
         app.handle_key(key(KeyCode::Right));
@@ -3379,7 +3894,7 @@ mod tests {
         assert_eq!(app.summary_section, SummarySection::Todo);
         // j/k/G move within the section.
         press(&mut app, "G");
-        assert_eq!(app.cursor[3], app.summary_entries().len() - 1);
+        assert_eq!(app.cursor[3], app.row_count(Tab::Summary) - 1);
         press(&mut app, "g");
         assert_eq!(app.cursor[3], 0);
     }
@@ -3408,13 +3923,13 @@ mod tests {
         // bugfix/flaky is merged: hidden by the Unfinished filter, the search and a
         // collapsed group.
         app.search[0] = "retry".into();
-        app.collapsed.insert("r_auth".into());
+        app.collapsed[0].insert("r_auth".into());
         select_entry(&mut app, SummarySection::Cleanup, "bugfix/flaky");
         app.handle_key(key(KeyCode::Enter));
         assert_eq!(app.tab, Tab::Work);
         assert_eq!(app.work_filter, WorkFilter::All);
         assert!(app.search[0].is_empty());
-        assert!(!app.collapsed.contains("r_auth"));
+        assert!(!app.collapsed[0].contains("r_auth"));
         assert_eq!(app.selected_work_item().unwrap().branch, "bugfix/flaky");
     }
 
@@ -3604,6 +4119,6 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::NONE,
         });
-        assert_eq!(app.cursor[0], 3);
+        assert_eq!(app.cursor[0], 4, "three rows down from the first item");
     }
 }

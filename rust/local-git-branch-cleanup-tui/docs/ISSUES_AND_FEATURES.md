@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 25-11-2026 18:08
+**Last Updated:** 25-11-2026 18:11
 
 ---
 
@@ -72,38 +72,6 @@ _No open critical issues._
 
 ---
 
-### Issue #28: Show the active filter in the header
-
-- **Status:** 🔴 Open
-- **Reported:** 25-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#85](https://github.com/EmilIvanichkovv/omni-scripts/issues/85)
-- **Description:**
-  - Nothing on screen says which filter is active unless the filter bar is open. The bar is hidden
-    by default (`show_filter: false`, toggled with `F`), but `Tab`, `1`-`4` and `F1`-`F4` change
-    `current_filter` (branches) or `WorktreeFilter` (worktrees) with the bar hidden too.
-  - `header_lines` in `ui.rs` shows indicators for force, dry run, sort (`🔀`) and layout (`▥`), but
-    none for the filter, and the list titles (`Branches (N shown, M selected)`, `Worktrees (...)`)
-    only give a count. A filtered list looks like a repo with fewer branches.
-- **Steps to Reproduce:**
-  1. Start the TUI with the filter bar hidden (the default).
-  2. Press `1` (or `Tab`) to switch to SAFE MERGED.
-  3. Look for any sign that the list is filtered.
-- **Expected Behavior:** While a filter other than ALL is active, the header shows an indicator with
-  its name (e.g. `⏷ SAFE MERGED`), like the sort and layout indicators, in both the branch and
-  worktree views. It shows whether or not the filter bar is open.
-- **Actual Behavior:** With the filter bar hidden, the only change is that fewer rows are listed.
-- **Proposed Fix:**
-  - In `header_lines`, push a group with the active filter's `label()` when it is not `All`:
-    `app.current_filter` in the branch view, the worktree view's `filter` in the worktree view.
-    Style it like the sort indicator (`COLOR_ACCENT`).
-  - Optional: show it only while the filter bar is hidden, since the bar already highlights the
-    active tab. Showing it always is simpler and keeps the header consistent.
-  - Add a render test that the indicator appears for a non-ALL filter and not for ALL, and list it
-    with the other header indicators in the README / usage guide.
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -146,6 +114,40 @@ _No open performance issues._
 ---
 
 ## Resolved Issues
+
+### Issue #28: Show the active filter in the header
+
+- **Status:** 🟢 Resolved
+- **Reported:** 25-11-2026
+- **Resolved:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#85](https://github.com/EmilIvanichkovv/omni-scripts/issues/85)
+- **Description:**
+  - Nothing on screen said which filter was active unless the filter bar was open. The bar is hidden
+    by default (`show_filter: false`, toggled with `F`), but `Tab`, `1`-`4` and `F1`-`F4` change
+    `current_filter` (branches) or `WorktreeFilter` (worktrees) with the bar hidden too.
+  - `header_lines` in `ui.rs` showed indicators for force, dry run, sort (`🔀`) and layout (`▥`),
+    but none for the filter, and the list titles (`Branches (N shown, M selected)`,
+    `Worktrees (...)`) only gave a count. A filtered list looked like a repo with fewer branches.
+- **Steps to Reproduce:**
+  1. Start the TUI with the filter bar hidden (the default).
+  2. Press `1` (or `Tab`) to switch to SAFE MERGED.
+  3. Look for any sign that the list is filtered.
+- **Expected Behavior:** While a filter other than ALL is active, the header shows an indicator with
+  its name, like the sort and layout indicators, in both the branch and worktree views. It shows
+  whether or not the filter bar is open.
+- **Actual Behavior:** With the filter bar hidden, the only change was that fewer rows were listed.
+- **Fix:**
+  - `header_lines` pushes a `▽ <FILTER>` group (`COLOR_ACCENT`, before the sort indicator) when the
+    active filter is not ALL: `app.current_filter` in the branch view, the worktree view's `filter`
+    in the worktree view. It shows whether or not the filter bar is open, which keeps the header
+    consistent. `▽` replaced the `⏷` proposed earlier: it is a narrow, widely supported glyph like
+    the layout indicator's `▥`.
+  - Added a render test for both views and the ALL case; documented the indicator in the usage guide
+    and added a manual check to `TESTING.md`.
+- **Commit:** `feat(tui): Show the active filter in the header`
+
+---
 
 ### Issue #27: Move the legend to a full-width box above the footer
 
@@ -1197,3 +1199,4 @@ _No open performance issues._
 | 25-11-2026 | 17:52 | #30   | Reported: Write a log file for diagnosing errors                       |
 | 25-11-2026 | 18:02 | #26   | Resolved: Action log scrolls with the wheel and `]` / `[`              |
 | 25-11-2026 | 18:08 | #27   | Resolved: Legend is a full-width box above the footer                  |
+| 25-11-2026 | 18:11 | #28   | Resolved: Header shows the active filter (`▽ SAFE MERGED`)             |

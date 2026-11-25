@@ -2052,20 +2052,13 @@ fn todo_key(t: &Todo) -> String {
 
 /// Display text and link of a suggestion.
 // TODO(integration): once `SuggestionPayload::text()/link()` land, delegate to them.
-#[allow(unreachable_patterns)]
 pub fn suggestion_text(s: &Suggestion) -> (&str, Option<&str>) {
-    match &s.payload {
-        SuggestionPayload::AddTodo { title, link, .. } => (title.as_str(), link.as_deref()),
-        SuggestionPayload::KeepOrAbandon { link, message, .. } => {
-            (message.as_str(), Some(link.as_str()))
-        }
-        _ => ("(suggestion)", None),
-    }
+    (s.payload.text(), s.payload.link())
 }
 
 /// Whether a suggestion needs a keep / abandon choice (`?`) instead of a plain accept (`+`).
 pub fn needs_choice(s: &Suggestion) -> bool {
-    matches!(s.payload, SuggestionPayload::KeepOrAbandon { .. })
+    s.payload.needs_choice()
 }
 
 #[cfg(test)]

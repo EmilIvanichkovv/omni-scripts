@@ -3,6 +3,8 @@
 
 pub mod hook;
 pub mod ingest;
+pub mod link;
+pub mod resume;
 pub mod summarize;
 
 use serde::{Deserialize, Serialize};

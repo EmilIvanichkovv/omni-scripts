@@ -532,6 +532,7 @@ Press `i` at any time to display information about the tool:
 - Tool name and description
 - Explanation of all branch status types (merged, pr-merged, pr-diverged, gone, unmerged, local,
   protected, protected-wt, current)
+- The log file of this run (see Troubleshooting)
 - Hint to press `?` for keyboard shortcuts
 
 In the worktree view it explains the worktree states and the Changes column instead.
@@ -714,5 +715,14 @@ stale ones too).
 
 ### Deletion failed
 
-- Check the action log for the error message
+- Check the action log for the error message, or the log file (below)
 - Common causes: branch checked out, permission issues, or branch no longer exists
+
+### Log file
+
+Every run appends to `$XDG_STATE_HOME/local-git-branch-cleanup-tui/logs/YYYY-MM-DD.log`
+(`~/.local/state/...` on Linux, the local app data folder on macOS and Windows); the about popup
+(`i`) and every error popup show the exact path. Each line has a timestamp, level and process id.
+Errors and warnings (failed deletions, fetch and PR lookup failures, a browser that does not open,
+panics) are logged by default; `--log-level debug` adds reloads and opened URLs, and
+`--log-level off` turns the file off. Files older than 7 days are deleted when the TUI starts.

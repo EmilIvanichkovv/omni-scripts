@@ -256,8 +256,17 @@ Options:
                                      still fetch)
   -w, --worktrees                    Start in the worktree view; with --cli, print the
                                      worktree table and exit
+      --log-level <LEVEL>            How much to write to the log file: off, error,
+                                     warn, info, debug [default: info]
   -h, --help                         Print help
 ```
+
+Each run appends to a log file, one per day, in
+`$XDG_STATE_HOME/local-git-branch-cleanup-tui/logs/YYYY-MM-DD.log` (`~/.local/state` on Linux; the
+local app data folder on macOS and Windows). Files older than 7 days are deleted. Errors (failed
+deletions, fetch and PR lookup failures, a browser that does not open, panics) are always logged
+unless `--log-level off`; `debug` adds reloads and opened URLs. The about popup (`i`) and the error
+popup show the file's path.
 
 `--github` and `--bitbucket` are mutually exclusive, and each `--bitbucket-*` override requires
 `--bitbucket`.

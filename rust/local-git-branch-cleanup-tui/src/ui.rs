@@ -2337,8 +2337,22 @@ fn render_help_modal(frame: &mut Frame, app: &mut App) {
 }
 
 /// Render the info modal
+/// "Log file: <path>" and a blank line
+fn log_file_lines(path: &std::path::Path) -> Vec<Line<'static>> {
+    vec![
+        Line::from(vec![
+            Span::styled("  Log file: ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(
+                path.display().to_string(),
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(""),
+    ]
+}
+
 /// Render the error popup: its title on the border, the message (one line
-/// per message line, wrapped) and how to close it
+/// per message line, wrapped), the log file and how to close it
 fn render_error_popup(frame: &mut Frame, app: &mut App) {
     let Some(error) = &app.error_popup else {
         return;
@@ -2351,6 +2365,9 @@ fn render_error_popup(frame: &mut Frame, app: &mut App) {
         ))
     }));
     lines.push(Line::from(""));
+    if let Some(path) = crate::logging::path() {
+        lines.extend(log_file_lines(path));
+    }
     let footer = Line::from(vec![
         Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
         Span::styled(
@@ -2486,11 +2503,19 @@ fn render_info_modal(frame: &mut Frame, app: &mut App) {
         )]),
         Line::from(""),
     ];
-    let lines = if view == ViewMode::Worktrees {
+    let mut lines = if view == ViewMode::Worktrees {
         worktree_info_lines()
     } else {
         lines
     };
+    // Where errors are logged, above the closing hints
+    if let Some(path) = crate::logging::path() {
+        let at = lines
+            .iter()
+            .position(|line| line.to_string().contains("for keyboard shortcuts"))
+            .unwrap_or(lines.len());
+        lines.splice(at..at, log_file_lines(path));
+    }
 
     let scroll = render_modal(
         frame,

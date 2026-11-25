@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ┐
-│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 │
-│▌  ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   │
-│   ◐ feature/PROJ-130-chunking                           PR #47  …ci     ↓3 ∅          1h T0 S1   │
-│   ○ chore/bump-deps                                     —               * ↑2          3h T1 S0   │
-│ ┌ Diagnostics ─────────────────────────────────────────────────────────────────────────────────┐ │
-│ │Bitbucket:                                                                                    │ │
-│ │  token  set (BITBUCKET_TOKEN)                                                                │ │
-│ │  user   dev                                                                                  │ │
-│ │Hook:                                                                                         │ │
-│ │  SessionEnd hook installed                                                                   │ │
-│ │Paths:                                                                                        │ │
-│ │  config ~/.config/worktrack/config.toml                                                      │ │
-└─│  db     ~/.local/share/worktrack/worktrack.db                                                │─┘
-┌ │                                                                                              │─┐
-│f│Skipped repos                                                                                 │ ▲
-│S│  ~/work/scratch/.git  origin is not Bitbucket Data Center                                    │ █
-│R│                                                                                              │ █
-│P│Recent errors                                                                                 │ █
-│F│  API/auth: git fetch failed                                                                  │ █
-│P└──────────────────────────────────────────────────────────────────────────────────────────────┘ █
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─╯        ╰─┴─────────┴─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ╮
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 ▲
+│▌╭ Diagnostics ─────────────────────────────────────────────────────────────────────────────────╮ █
+│ │Bitbucket:                                                                                    │ █
+│ │  token  set (BITBUCKET_TOKEN)                                                                │ █
+│ │  user   dev                                                                                  │ █
+│ │Hook:                                                                                         │ █
+│ │  SessionEnd hook installed                                                                   │ █
+│ │Paths:                                                                                        │ █
+│ │  config ~/.config/worktrack/config.toml                                                      │ █
+│ │  db     ~/.local/share/worktrack/worktrack.db                                                │ ║
+│ │                                                                                              │ ▼
+╰─│Skipped repos                                                                                 │─╯
+╭ │  ~/work/scratch/.git  origin is not Bitbucket Data Center                                    │─╮
+│f│                                                                                              │ ▲
+│S│Recent errors                                                                                 │ █
+│R│  API/auth: git fetch failed                                                                  │ █
+│P╰──────────────────────────────────────────────────────────────────────────────────────────────╯ █
+│Flags    dirty · ahead 1 · ci failed · 2 open tasks · session live                                ║
+│PR #44   Add retry with backoff to uploads                                                        ║
 │         ivan ✗ needs work · maria ○ unapproved                                                   ║
-│         4 comments                                                                               ║
-│Commits  3 ahead of trunk · last 2m                                                               ║
-│                                                                                                  ▼
-└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+│         4 comments                                                                               ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
  o PR · c resume · t todo · f filter · / search · ? help · q quit

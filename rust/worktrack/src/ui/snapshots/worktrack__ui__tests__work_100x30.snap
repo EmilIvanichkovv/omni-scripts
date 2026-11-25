@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ┐
-│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 │
-│▌  ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   │
-│   ◐ feature/PROJ-130-chunking                           PR #47  …ci     ↓3 ∅          1h T0 S1   │
-│   ○ chore/bump-deps                                     —               * ↑2          3h T1 S0   │
-│   ↑ spike/s3-multipart                                  —               ∅ z          16d T0 S1   │
-│                                                                                                  │
-│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 2 │
-│   ✓ feature/PROJ-118-sso                                PR #39  ✓ci                   1d T1 S2   │
-│   ✕ feature/PROJ-101-legacy                             PR #31                        4d T0 S0   │
-│                                                                                                  │
-│ ▾ WEB/portal ───────────────────────────────────────────────────────────────────────────────── 1 │
-│   ↑ feature/PROJ-140-webpack                            —               ∅             2d T0 S1   │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Details ─────────────────────────────────────────────────────────────────────────────────────────┐
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─╯        ╰─┴─────────┴─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ╮
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 ▲
+│▌  ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   █
+│   ◐ feature/PROJ-130-chunking                           PR #47  …ci     ↓3 ∅          1h T0 S1   █
+│   ○ chore/bump-deps                                     —               * ↑2          3h T1 S0   █
+│   ↑ spike/s3-multipart                                  —               ∅ z          16d T0 S1   █
+│                                                                                                  █
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 2 █
+│   ✓ feature/PROJ-118-sso                                PR #39  ✓ci                   1d T1 S2   █
+│   ✕ feature/PROJ-101-legacy                             PR #31                        4d T0 S0   █
+│                                                                                                  ║
+│ ▾ WEB/portal ───────────────────────────────────────────────────────────────────────────────── 1 ▼
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ Details ─────────────────────────────────────────────────────────────────────────────────────────╮
 │feature/PROJ-123-retry                                                                 PROJ-123 ↗ ▲
 │State    ✎ PR needs work (since 13:20)                                                            █
 │Repo     API/upload-svc                                                                           █
 │Path     ~/work/upload-svc-wt/retry                                                               █
-│Flags    dirty · ahead 1 · ci failed · 2 open tasks · session live                                █
-│PR #44   Add retry with backoff to uploads                                                        █
+│Flags    dirty · ahead 1 · ci failed · 2 open tasks · session live                                ║
+│PR #44   Add retry with backoff to uploads                                                        ║
 │         ivan ✗ needs work · maria ○ unapproved                                                   ║
-│         4 comments                                                                               ║
-│Commits  3 ahead of trunk · last 2m                                                               ║
-│                                                                                                  ▼
-└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+│         4 comments                                                                               ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
  o PR · c resume · t todo · f filter · / search · ? help · q quit

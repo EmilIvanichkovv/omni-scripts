@@ -15,10 +15,32 @@
 //!   gets an explicit bright foreground so the row also reads on light terminals, where
 //!   the background shows as a dark bar. Under `NO_COLOR` the marker and bold still
 //!   identify the row. List rows therefore start with one blank gutter column.
-//! - **Active label** of the tab bar and filter / section bars
+//! - **Header**: the app name on the left in [`heading`]; the status on the right (sync
+//!   progress in the accent colour, counts [`soft`], last sync [`muted`], the PR status
+//!   coloured only when it is not ok). Narrow rows drop the last sync, then repos, items
+//!   and progress; the PR status goes last.
+//! - **Tabs** (`ui::render_tabs`): when the terminal is at least `ROOMY_MIN_HEIGHT` (24)
+//!   rows tall, one rounded box per tab (`╭ 1 Work ╮`), one column apart, over a muted line
+//!   across the full width. The active box is open at the bottom into that line, with an
+//!   accent border and an [`active_tab`] label (accent bold); inactive boxes have muted
+//!   borders that join the line (`┴`) and [`soft`] labels. Badges follow the label: the
+//!   pending Inbox count (accent), `●` for live sessions ([`LIVE`]), `!` for a todo file
+//!   error. Narrow widths shrink the boxes: no inner padding, then short labels (`1 W`),
+//!   then padding-free short labels. Short terminals get one row of labels instead, the
+//!   active one in [`active_label`] (short labels when narrow). Each tab (box or label) is
+//!   a click target. Under `NO_COLOR` the bold label and the open bottom (one-row bar:
+//!   bold + underline) mark the active tab.
+//! - **Vertical spacing** (roomy terminals only, ≥ 24 rows): one blank row between the tab
+//!   line and the content, and one under a list pane's filter / section bar. Short
+//!   terminals keep every row for content. Panes have rounded muted borders; a list pane's
+//!   title does not repeat the tab name (it carries only extra state, quiet), and the
+//!   count sits on the right of its top border.
+//! - **Active label** of the one-row tab bar and filter / section bars
 //!   ([`active_label`]): accent, bold and underlined, with no block or brackets, so the bar
 //!   never shifts. Inactive labels are [`soft`] (or [`muted`] when empty); separators are
-//!   muted `·`. Under `NO_COLOR` bold + underline mark the active one.
+//!   a muted `·` with two spaces on each side (one when the bar is tight). Extra pane state
+//!   that belongs with the bar (the Todos grouping) sits muted on its right when it fits.
+//!   Under `NO_COLOR` bold + underline mark the active one.
 //! - **Group headers** inside lists (Work and Todos repos, Sessions days, Summary
 //!   directories) are one widget, [`widgets::group_header`](super::widgets::group_header):
 //!   ` ▾ name ───── 3 ` with the disclosure marker (`▾` open, `▸` folded) in the accent
@@ -95,6 +117,12 @@ pub fn active_label() -> Style {
     Style::new()
         .fg(ACCENT)
         .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+}
+
+/// The label of the active (boxed) tab: accent and bold; its accent box, open at the
+/// bottom, marks it too.
+pub fn active_tab() -> Style {
+    Style::new().fg(ACCENT).add_modifier(Modifier::BOLD)
 }
 
 /// The cursor row's version of a span style (see the module docs).

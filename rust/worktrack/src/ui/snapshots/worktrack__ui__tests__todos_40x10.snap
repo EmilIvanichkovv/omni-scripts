@@ -1,0 +1,14 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: "screen(&app, 40, 10)"
+---
+ worktrack         ⟳ syncing 3/7   PR ✓
+  1 W   2 T   3 S ●   4 S   5 I 4
+╭───────────────────────────── 6 todos ╮
+│ Drop 1 ‹ All 6 › Act 4               ▲
+│▌[~] A  Finish upload retry log…      █
+│ [ ] B  Write migration doc           ║
+│ [ ]    Call Ivan about staging…      ▼
+╰─────────────────────── enter details ╯
+
+ a add · space done · ? help · q quit

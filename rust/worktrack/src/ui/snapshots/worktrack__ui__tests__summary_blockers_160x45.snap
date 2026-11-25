@@ -2,23 +2,26 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────┐┌ Details ─────────────────────────────────────────────────────┐
-│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                     ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│ ▾ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────── 2 ││State    ✎ PR needs work (since 13:20)                        │
-│▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested changes                               ││Repo     API/upload-svc                                       │
-│   ✎ feature/PROJ-123-retry  PR #44: CI failed                                                ││Path     ~/work/upload-svc-wt/retry                           │
-│                                                                                              ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
-│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────── 1 ││         session live                                         │
-│   ◆ Waiting for IdP metadata from IT                                                         ││PR #44   Add retry with backoff to uploads                    │
-│                                                                                              ││         ivan ✗ needs work · maria ○ unapproved               │
-│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────── 1 ││         4 comments                                           │
-│   ↑ spike/s3-multipart  stale                                                                ││Commits  3 ahead of trunk · last 2m                           │
-│                                                                                              ││                                                              │
-│ ▾ (other) ──────────────────────────────────────────────────────────────────────────────── 1 ││Todos (1)                                                     │
-│   ? PR #31 declined: keep or abandon                                                         ││  [~] (A) Finish upload retry logic                           │
-│                                                                                              ││                                                              │
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─┴─────────┴─┴──────────────┴─╯           ╰─┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────
+
+╭ Wed 25 Nov · since Tue 24 Nov ───────────────────────────────────────────────────────────────╮╭ Details ─────────────────────────────────────────────────────╮
+│ Done 1  ·  In progress 6  ·  Todo 3  ·  Blockers 5  ·  Cleanup 1                             ││feature/PROJ-123-retry                             PROJ-123 ↗ │
+│                                                                                              ││State    ✎ PR needs work (since 13:20)                        │
+│ ▾ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────── 2 ││Repo     API/upload-svc                                       │
+│▌  ✎ feature/PROJ-123-retry  PR #44: reviewer requested changes                               ││Path     ~/work/upload-svc-wt/retry                           │
+│   ✎ feature/PROJ-123-retry  PR #44: CI failed                                                ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│                                                                                              ││         session live                                         │
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────── 1 ││PR #44   Add retry with backoff to uploads                    │
+│   ◆ Waiting for IdP metadata from IT                                                         ││         ivan ✗ needs work · maria ○ unapproved               │
+│                                                                                              ││         4 comments                                           │
+│ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────── 1 ││Commits  3 ahead of trunk · last 2m                           │
+│   ↑ spike/s3-multipart  stale                                                                ││                                                              │
+│                                                                                              ││Todos (1)                                                     │
+│ ▾ (other) ──────────────────────────────────────────────────────────────────────────────── 1 ││  [~] (A) Finish upload retry logic                           │
+│   ? PR #31 declined: keep or abandon                                                         ││                                                              │
 │                                                                                              ││Sessions (1)                                                  │
 │                                                                                              ││  13:59  Add backoff to uploads                               │
 │                                                                                              ││                                                              │
@@ -41,9 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
  h/l section · enter open · o PR · space done · y copy · [ ] window · ? help · q quit

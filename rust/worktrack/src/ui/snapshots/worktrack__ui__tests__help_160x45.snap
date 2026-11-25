@@ -2,28 +2,28 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 S┌ Keys ────────────────────────────────────────────────────────────────────┐
-┌ Filter: Unfinished ▾  Sort: activity ───│Global                                                                    ▲─────────────────────────────────────────┐
-│ ▾ API/upload-svc ───────────────────────│  1–5  Tab  Shift-Tab   switch tab                                        █y                             PROJ-123 ↗ │
-│▌  ✎ feature/PROJ-123-retry              │  j k ↓ ↑               move                                              █ork (since 13:20)                        │
-│   ◐ feature/PROJ-130-chunking           │  g G  Home End         top / bottom (G groups in Todos)                  █vc                                       │
-│   ○ chore/bump-deps                     │  Ctrl-d Ctrl-u         half page down / up                               █d-svc-wt/retry                           │
-│   ↑ spike/s3-multipart                  │  J K                   scroll details                                    █d 1 · ci failed · 2 open tasks ·         │
-│                                         │  /                     search (@repo: @state: in Work); esc clears       █                                         │
-│ ▾ API/auth ─────────────────────────────│  f                     cycle filter (Summary: section)                   █th backoff to uploads                    │
-│   ✓ feature/PROJ-118-sso                │  v                     cycle layout: auto / side / stacked / list        █ work · maria ○ unapproved               │
-│   ✕ feature/PROJ-101-legacy             │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
-│                                         │  r / R                 local reload / full sync                          █runk · last 2m                           │
-│ ▾ WEB/portal ───────────────────────────│  i                     diagnostics                                       █                                         │
-│   ↑ feature/PROJ-140-webpack            │  ? / q                 help / quit                                       █                                         │
-│                                         │                                                                          █ad retry logic                           │
-│                                         │Groups (repos, days, directories)                                         █                                         │
-│                                         │  Enter / Space         on a group header: fold / unfold it               █                                         │
-│                                         │  z                     fold / unfold the group of the selected row       █to uploads                               │
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭╭ Keys ────────────────────────────────────────────────────────────────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ ││Global                                                                    ▲
+─╯        ╰─┴─────────┴─┴──────────────┴─┴│  1–5  Tab  Shift-Tab   switch tab                                        █──────────────────────────────────────────
+                                          │  j k ↓ ↑               move                                              █
+╭ Filter: Unfinished ▾  Sort: activity ───│  g G  Home End         top / bottom (G groups in Todos)                  █─────────────────────────────────────────╮
+│ ▾ API/upload-svc ───────────────────────│  Ctrl-d Ctrl-u         half page down / up                               █y                             PROJ-123 ↗ │
+│▌  ✎ feature/PROJ-123-retry              │  J K                   scroll details                                    █ork (since 13:20)                        │
+│   ◐ feature/PROJ-130-chunking           │  /                     search (@repo: @state: in Work); esc clears       █vc                                       │
+│   ○ chore/bump-deps                     │  f                     cycle filter (Summary: section)                   █d-svc-wt/retry                           │
+│   ↑ spike/s3-multipart                  │  v                     cycle layout: auto / side / stacked / list        █d 1 · ci failed · 2 open tasks ·         │
+│                                         │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
+│ ▾ API/auth ─────────────────────────────│  r / R                 local reload / full sync                          █th backoff to uploads                    │
+│   ✓ feature/PROJ-118-sso                │  i                     diagnostics                                       █ work · maria ○ unapproved               │
+│   ✕ feature/PROJ-101-legacy             │  ? / q                 help / quit                                       █                                         │
+│                                         │                                                                          █runk · last 2m                           │
+│ ▾ WEB/portal ───────────────────────────│Groups (repos, days, directories)                                         █                                         │
+│   ↑ feature/PROJ-140-webpack            │  Enter / Space         on a group header: fold / unfold it               █                                         │
+│                                         │  z                     fold / unfold the group of the selected row       █ad retry logic                           │
 │                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
 │                                         │  /                     searching shows every group open                  █                                         │
-│                                         │                                                                          █                                         │
+│                                         │                                                                          █to uploads                               │
 │                                         │Work                                                                      █                                         │
 │                                         │  o                     open PR in browser (Jira if no PR)                █                                         │
 │                                         │  y / Y                 copy branch name / worktree path                  █                                         │
@@ -44,6 +44,6 @@ expression: text
 │                                         │                                                                          ║                                         │
 │                                         │Sessions                                                                  ║                                         │
 │                                         │  c                     copy resume command                               ▼                                         │
-└─────────────────────────────────────────│  s                     re-summarize                                      │─────────────────────────────────────────┘
-                                          └──────────────────────────────────────────── ↑↓ scroll · other keys close ┘
+╰─────────────────────────────────────────│  s                     re-summarize                                      │─────────────────────────────────────────╯
+                                          ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t todo · f filter · / search · ? help · q quit

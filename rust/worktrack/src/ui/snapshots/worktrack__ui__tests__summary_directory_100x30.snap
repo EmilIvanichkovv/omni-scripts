@@ -2,24 +2,25 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────────────────────────────────────────────┐
-│ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1                                         ▲
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─┴─────────┴─┴──────────────┴─╯           ╰─┴───────────┴────────────────────────────────
+
+╭ Wed 25 Nov · since Tue 24 Nov ───────────────────────────────────────────────────────────────────╮
+│ Done 1  ·  In progress 6  ·  Todo 3  ·  Blockers 5  ·  Cleanup 1                                 ▲
+│                                                                                                  █
 │▌▸ ~/work/upload-svc-wt/retry ───────────────────────────────────────────────────────────────── 1 █
 │                                                                                                  █
 │ ▾ ~/work/upload-svc ────────────────────────────────────────────────────────────────────────── 3 █
 │   ◐ feature/PROJ-130-chunking  PR #47 open · ci running · behind 3                               █
 │   ○ chore/bump-deps  local only · dirty · ahead 2                                                █
-│   ↑ spike/s3-multipart  pushed, no PR · stale                                                    █
-│       Session: Try multipart API                                                                 █
-│                                                                                                  █
-│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────────── 1 █
-│   ✓ feature/PROJ-118-sso  PR #39 approved · ci ok                                                ║
-│       Session: Fixed the SAML redirect loop; login works against staging IdP.                    ║
-│                                                                                                  ▼
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Directory ───────────────────────────────────────────────────────────────────────────────────────┐
+│   ↑ spike/s3-multipart  pushed, no PR · stale                                                    ║
+│       Session: Try multipart API                                                                 ║
+│                                                                                                  ║
+│ ▾ ~/work/auth-wt/sso ───────────────────────────────────────────────────────────────────────── 1 ▼
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ Directory ───────────────────────────────────────────────────────────────────────────────────────╮
 │▸ ~/work/upload-svc-wt/retry                                                                      │
 │Entries  1 in In progress · folded                                                                │
 │Kinds    1 work item                                                                              │
@@ -28,7 +29,6 @@ expression: text
 │enter/space expands this group · Z folds / unfolds all                                            │
 │                                                                                                  │
 │                                                                                                  │
-│                                                                                                  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
  enter/space toggle · z fold · Z fold all · h/l section · [ ] window · ? help · q quit

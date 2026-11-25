@@ -193,11 +193,17 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         .and_then(|s| s.today)
         .unwrap_or_else(|| app.today());
     let since = app.summary_since.map(day).unwrap_or_else(|| "—".into());
+    // The tab names the pane; the title is the window, quiet so the bar leads.
     let title = Line::from(vec![
-        Span::styled(" Summary ", theme::accent()),
-        Span::styled(format!("· {} · since {since} ", day(today)), theme::bold()),
+        Span::styled(format!(" {} ", day(today)), theme::soft()),
+        Span::styled("· since ", theme::muted()),
+        Span::styled(format!("{since} "), theme::soft()),
     ]);
-    let rows_area = super::list_pane(frame, app, area, title, String::new(), Some(bar(app)));
+    let bar = super::PaneBar {
+        items: bar(app),
+        aside: Vec::new(),
+    };
+    let rows_area = super::list_pane(frame, app, area, title, String::new(), Some(bar));
     if app.summary.is_none() {
         super::render_empty(frame, rows_area, "Building the summary…");
         return;

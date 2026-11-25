@@ -5,8 +5,9 @@
 //! reports pane areas and scroll limits back through `App::feedback` (for the mouse wheel
 //! and key handling).
 //!
-//! Frame (spec 9.1): header row, tab bar row, content (list pane + details pane), footer of
-//! two rows (status line, context hints). Breakpoints: ≥ 120 columns side by side (list
+//! Frame (spec 9.1): header row, tab bar (three rows of boxed tabs plus a blank row when
+//! the terminal is at least [`ROOMY_MIN_HEIGHT`] rows tall, else one row), content (list
+//! pane + details pane), footer of two rows (status line, context hints). Breakpoints: ≥ 120 columns side by side (list
 //! 60 %), 80–119 stacked (60/40), < 80 list only with `Enter`/`Esc` for details, below
 //! 40×10 only `terminal too small`. `v` forces an arrangement (falls back to list only when
 //! it does not fit).
@@ -31,8 +32,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, InputPurpose, ListRow, Overlay, StatusKind, Tab};
-use crate::lgbc::responsive::{self, str_width, truncate_end, Arrangement, LayoutMode};
+use crate::app::{App, BarHit, InputPurpose, ListRow, Overlay, StatusKind, Tab};
+use crate::lgbc::responsive::{self, truncate_end, Arrangement, LayoutMode};
 use crate::refresh::PrStatus;
 use widgets::{clean, fmt_age, hint_line_pinned, key_hint, pane_block, BarItem};
 
@@ -42,6 +43,15 @@ const SIDE_BY_SIDE_WIDTH: u16 = 120;
 const STACKED_WIDTH: u16 = 80;
 /// Stacked needs this many content rows, else list only.
 const STACKED_MIN_HEIGHT: u16 = 13;
+/// From this terminal height the frame is roomy: boxed tabs, a blank row between them and
+/// the content, and a blank row under the filter / section bars. Shorter terminals get a
+/// one-row tab bar and keep every other row for content.
+pub(crate) const ROOMY_MIN_HEIGHT: u16 = 24;
+
+/// Whether the frame for a terminal of this size has room for boxed tabs and air rows.
+pub(crate) fn is_roomy(area: Rect) -> bool {
+    area.height >= ROOMY_MIN_HEIGHT
+}
 
 /// Render the whole UI.
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -58,15 +68,18 @@ pub fn draw(frame: &mut Frame, app: &App) {
         return;
     }
 
-    let [header, tabs, content, footer] = Layout::vertical([
+    let roomy = is_roomy(area);
+    let tab_bar = tab_bar_kind(app, area.width, roomy);
+    let [header, tabs, _air, content, footer] = Layout::vertical([
         Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(tab_bar.height()),
+        Constraint::Length(u16::from(roomy)),
         Constraint::Min(0),
         Constraint::Length(2),
     ])
     .areas(area);
     render_header(frame, app, header);
-    render_tabs(frame, app, tabs);
+    render_tabs(frame, app, tabs, tab_bar);
     render_footer(frame, app, footer);
 
     let arrangement = choose_arrangement(app.layout_mode, area, content);
@@ -77,7 +90,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         fb.details_area.set(Some(content));
         draw_details(frame, app, content);
     } else {
-        let (list, details) = split(arrangement, content, list_rows_wanted(app));
+        let (list, details) = split(arrangement, content, list_rows_wanted(app, roomy));
         fb.list_area.set(list);
         fb.details_area.set(details);
         match app.tab {
@@ -178,7 +191,7 @@ struct ListWanted {
     rows: usize,
     /// Blank rows between groups (drawn only when the viewport is tall enough).
     gaps: usize,
-    /// Borders, filter bar, search line and input row.
+    /// Borders, filter bar (and the blank row under it), search line and input row.
     chrome: usize,
 }
 
@@ -189,12 +202,14 @@ impl ListWanted {
     }
 }
 
-fn list_rows_wanted(app: &App) -> ListWanted {
+fn list_rows_wanted(app: &App, roomy: bool) -> ListWanted {
+    // The filter / section bar and, when roomy, the blank row under it.
+    let bar_rows = 1 + usize::from(roomy);
     let (rows, bar) = match app.tab {
         Tab::Work => (app.work_rows().len(), 0),
-        Tab::Todos => (app.todo_rows().len(), 1),
+        Tab::Todos => (app.todo_rows().len(), bar_rows),
         Tab::Sessions => (sessions::line_count(app), 0),
-        Tab::Summary => (summary::line_count(app), 1),
+        Tab::Summary => (summary::line_count(app), bar_rows),
         Tab::Inbox => (app.pending_suggestions().len(), 0),
     };
     let gaps = match app.tab {
@@ -239,18 +254,26 @@ fn split(arrangement: Arrangement, content: Rect, wanted: ListWanted) -> (Rect, 
     }
 }
 
+/// The filter / section bar of a list pane: its labels and an optional muted `aside`
+/// drawn on the right of the same row when it fits (the Todos grouping).
+pub(crate) struct PaneBar {
+    pub items: Vec<BarItem>,
+    pub aside: Vec<Span<'static>>,
+}
+
 /// Draw the bordered list pane chrome: `title` left, `count` right (if any), the filter /
-/// section `bar` as the first row, the search line under it when a query is set, the inline
-/// input at the bottom when one is open. Returns the area left for rows and records the
-/// viewport height.
+/// section `bar` as the first row (plus one blank row under it when the frame is roomy), the
+/// search line under it when a query is set, the inline input at the bottom when one is
+/// open. Returns the area left for rows and records the viewport height.
 pub(crate) fn list_pane(
     frame: &mut Frame,
     app: &App,
     area: Rect,
     title: Line<'static>,
     count: String,
-    bar: Option<Vec<BarItem>>,
+    bar: Option<PaneBar>,
 ) -> Rect {
+    let roomy = is_roomy(frame.area());
     let mut block = pane_block(title);
     if !count.is_empty() {
         block = block
@@ -268,14 +291,26 @@ pub(crate) fn list_pane(
     let mut inner = block.inner(area);
     frame.render_widget(block, area);
 
-    if let Some(items) = bar {
+    if let Some(bar) = bar {
         if inner.height > 1 {
             let [top, rest] =
                 Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(inner);
-            let (line, hits) = widgets::filter_bar(&items, top);
+            let (line, hits) = widgets::filter_bar(&bar.items, top);
+            let aside = Line::from(bar.aside);
+            let fits = line.width() + 3 + aside.width() <= top.width as usize;
             frame.render_widget(Paragraph::new(line), top);
+            if fits && aside.width() > 0 {
+                frame.render_widget(Paragraph::new(aside.right_aligned()), top);
+            }
             app.feedback.bar_hits.borrow_mut().extend(hits);
             inner = rest;
+            if roomy && inner.height > 1 {
+                inner = Rect {
+                    y: inner.y + 1,
+                    height: inner.height - 1,
+                    ..inner
+                };
+            }
         }
     }
 
@@ -366,7 +401,7 @@ fn pr_status_text(app: &App) -> (String, Style) {
     match &app.pr_status {
         None => ("PR …".into(), theme::muted()),
         // Colour only when something is wrong.
-        Some(PrStatus::Ok) => ("PR ✓".into(), Style::new()),
+        Some(PrStatus::Ok) => ("PR ✓".into(), theme::soft()),
         Some(PrStatus::NoToken) => ("PR: no token".into(), Style::new().fg(theme::WARN)),
         Some(PrStatus::Offline) => ("PR: offline".into(), Style::new().fg(theme::WARN)),
         Some(PrStatus::Error { message, .. }) => (
@@ -380,6 +415,34 @@ fn pr_status_text(app: &App) -> (String, Style) {
     }
 }
 
+/// One part of the header's status (right side), dropped in `keep` order (lowest first)
+/// when the row is too narrow.
+struct HeaderPart {
+    span: Span<'static>,
+    keep: u8,
+    /// The progress part: set apart from the counts by a wider gap.
+    progress: bool,
+}
+
+fn header_status(parts: &[HeaderPart]) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    for (i, p) in parts.iter().enumerate() {
+        if i > 0 {
+            if parts[i - 1].progress {
+                spans.push(Span::raw("   "));
+            } else {
+                spans.push(Span::styled(" · ", theme::muted()));
+            }
+        }
+        spans.push(p.span.clone());
+    }
+    spans.push(Span::raw(" "));
+    spans
+}
+
+/// The app name on the left in accent bold; the status on the right: sync progress in the
+/// accent colour, then counts, PR status (coloured only when something is wrong) and the
+/// last sync, muted. Parts that do not fit are dropped (last sync first, PR status last).
 fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let repos = app
         .repos
@@ -396,97 +459,232 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         Some(t) => format!("synced {} ago", fmt_age(app.now_ts(), Some(t))),
         None => "not synced yet".into(),
     };
-    let right = app
-        .progress
-        .as_ref()
-        .map(|(task, done, total)| format!("⟳ {} {done}/{total} ", clean(task)))
-        .unwrap_or_default();
-    let right_w = str_width(&right);
-    let left_budget = (area.width as usize).saturating_sub(right_w + 1);
-
-    let sep = Span::styled(" · ", theme::muted());
-    let mut spans = vec![
-        Span::styled(" worktrack", theme::heading()),
-        Span::styled("  ", theme::muted()),
-        Span::raw(format!("{repos} repos")),
-        sep.clone(),
-        Span::raw(format!("{items} items")),
-        sep.clone(),
-        Span::styled(pr, pr_style),
-        sep,
-        Span::styled(synced, theme::muted()),
-    ];
-    // Cut from the right so the title and counts stay.
-    let mut used = 0;
-    let mut kept = Vec::new();
-    for s in spans.drain(..) {
-        let w = s.width();
-        if used + w > left_budget {
-            let rest = left_budget.saturating_sub(used);
-            if rest > 0 {
-                let cut = truncate_end(&s.content, rest);
-                used += str_width(&cut);
-                kept.push(Span::styled(cut, s.style));
-            }
-            break;
-        }
-        used += w;
-        kept.push(s);
+    let mut parts = Vec::new();
+    if let Some((task, done, total)) = &app.progress {
+        parts.push(HeaderPart {
+            span: Span::styled(format!("⟳ {} {done}/{total}", clean(task)), theme::accent()),
+            keep: 3,
+            progress: true,
+        });
     }
-    let fill = (area.width as usize).saturating_sub(used + right_w);
-    kept.push(Span::raw(" ".repeat(fill)));
-    kept.push(Span::styled(right, theme::accent()));
-    frame.render_widget(Paragraph::new(Line::from(kept)), area);
+    for (text, style, keep) in [
+        (format!("{repos} repos"), theme::soft(), 1),
+        (format!("{items} items"), theme::soft(), 2),
+        (pr, pr_style, 4),
+        (synced, theme::muted(), 0),
+    ] {
+        parts.push(HeaderPart {
+            span: Span::styled(text, style),
+            keep,
+            progress: false,
+        });
+    }
+
+    let name = Span::styled(" worktrack", theme::heading());
+    let budget = (area.width as usize).saturating_sub(name.width() + 2);
+    let mut status = header_status(&parts);
+    while parts.len() > 1 && status.iter().map(Span::width).sum::<usize>() > budget {
+        if let Some(i) = (0..parts.len()).min_by_key(|&i| parts[i].keep) {
+            parts.remove(i);
+        }
+        status = header_status(&parts);
+    }
+    let status = widgets::cut_spans(status, budget);
+    frame.render_widget(Paragraph::new(Line::from(name)), area);
+    frame.render_widget(Paragraph::new(Line::from(status).right_aligned()), area);
 }
 
-/// ` label ` of the tab bar: the active one accent, bold and underlined (no block, so
-/// `NO_COLOR` still shows it through bold + underline), the others soft.
-fn tab_label(label: String, active: bool) -> [Span<'static>; 3] {
-    let style = if active {
-        theme::active_label()
+/// How the tab bar is drawn (see the UI conventions in `theme`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TabBar {
+    /// Three rows of boxes: `short` labels (`1 W`) and `pad` spaces inside the borders.
+    Boxed { short: bool, pad: u16 },
+    /// One row of labels (short terminals, or too narrow for boxes).
+    Row,
+}
+
+impl TabBar {
+    fn height(self) -> u16 {
+        match self {
+            TabBar::Boxed { .. } => 3,
+            TabBar::Row => 1,
+        }
+    }
+}
+
+/// Box levels, roomiest first.
+const TAB_BOXES: [TabBar; 4] = [
+    TabBar::Boxed {
+        short: false,
+        pad: 1,
+    },
+    TabBar::Boxed {
+        short: false,
+        pad: 0,
+    },
+    TabBar::Boxed {
+        short: true,
+        pad: 1,
+    },
+    TabBar::Boxed {
+        short: true,
+        pad: 0,
+    },
+];
+
+/// The label of `tab`: `1 Work` (`1 W` when `short`) in `style`, then its badge (pending
+/// Inbox count, live `●` for Sessions, `!` for a todo file error).
+fn tab_label(app: &App, tab: Tab, short: bool, style: Style) -> Vec<Span<'static>> {
+    let n = tab.index() + 1;
+    let name = if short {
+        format!("{n} {}", &tab.title()[..1])
     } else {
-        theme::soft()
+        format!("{n} {}", tab.title())
     };
-    [Span::raw(" "), Span::styled(label, style), Span::raw(" ")]
+    let mut spans = vec![Span::styled(name, style)];
+    let badge = match tab {
+        Tab::Inbox if app.pending_count() > 0 => Some(Span::styled(
+            app.pending_count().to_string(),
+            style.fg(theme::ACCENT),
+        )),
+        Tab::Sessions if app.any_session_live() => Some(Span::styled("●", style.fg(theme::LIVE))),
+        Tab::Todos if app.todo_error.is_some() => Some(Span::styled(
+            "!",
+            style.fg(theme::DANGER).add_modifier(Modifier::BOLD),
+        )),
+        _ => None,
+    };
+    if let Some(badge) = badge {
+        spans.push(Span::styled(" ", style));
+        spans.push(badge);
+    }
+    spans
 }
 
-fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
-    let mut spans = vec![Span::raw(" ")];
-    for tab in Tab::ALL {
-        let mut label = format!("{} {}", tab.index() + 1, tab.title());
-        match tab {
-            Tab::Inbox => {
-                let n = app.pending_count();
-                if n > 0 {
-                    label.push_str(&format!("·{n}"));
-                }
-            }
-            Tab::Sessions if app.any_session_live() => label.push_str("·live"),
-            Tab::Todos if app.todo_error.is_some() => label.push_str("·!"),
-            _ => {}
-        }
-        spans.extend(tab_label(label, tab == app.tab));
-        spans.push(Span::raw(" "));
+fn spans_width(spans: &[Span]) -> usize {
+    spans.iter().map(Span::width).sum()
+}
+
+/// Width of the boxed tab bar at a box level: a margin column, then each box (borders, pad,
+/// label) with one column between boxes.
+fn boxed_width(app: &App, short: bool, pad: u16) -> usize {
+    let boxes: usize = Tab::ALL
+        .into_iter()
+        .map(|t| spans_width(&tab_label(app, t, short, Style::new())) + 2 + 2 * pad as usize)
+        .sum();
+    1 + boxes + Tab::ALL.len() - 1
+}
+
+/// Boxed tabs when the frame is roomy and a box level fits `width`, else one row.
+pub(crate) fn tab_bar_kind(app: &App, width: u16, roomy: bool) -> TabBar {
+    if !roomy {
+        return TabBar::Row;
     }
-    let line = Line::from(spans);
-    let line = if line.width() > area.width as usize {
-        // Narrow: drop the titles, keep digits and badges.
+    TAB_BOXES
+        .into_iter()
+        .find(|level| match *level {
+            TabBar::Boxed { short, pad } => boxed_width(app, short, pad) <= width as usize,
+            TabBar::Row => true,
+        })
+        .unwrap_or(TabBar::Row)
+}
+
+fn render_tabs(frame: &mut Frame, app: &App, area: Rect, kind: TabBar) {
+    match kind {
+        TabBar::Boxed { short, pad } => render_tab_boxes(frame, app, area, short, pad),
+        TabBar::Row => render_tab_row(frame, app, area),
+    }
+}
+
+/// Boxed tabs (notebook style): rounded boxes in a row over a muted line that runs across
+/// the full width; the active box is open at the bottom into that line, its border accent
+/// and its label accent bold. Inactive boxes have muted borders and soft labels. Each box
+/// (all three rows) is a click target.
+fn render_tab_boxes(frame: &mut Frame, app: &App, area: Rect, short: bool, pad: u16) {
+    let pad_s = " ".repeat(pad as usize);
+    let rule = theme::muted();
+    let mut top = vec![Span::raw(" ")];
+    let mut mid = vec![Span::raw(" ")];
+    let mut base = vec![Span::styled("─", rule)];
+    let mut hits = Vec::new();
+    let mut x = area.x + 1;
+    for (i, tab) in Tab::ALL.into_iter().enumerate() {
+        let active = tab == app.tab;
+        let (border, label_style) = if active {
+            (theme::accent(), theme::active_tab())
+        } else {
+            (theme::muted(), theme::soft())
+        };
+        if i > 0 {
+            top.push(Span::raw(" "));
+            mid.push(Span::raw(" "));
+            base.push(Span::styled("─", rule));
+            x += 1;
+        }
+        let label = tab_label(app, tab, short, label_style);
+        let inner = spans_width(&label) + 2 * pad as usize;
+        top.push(Span::styled(format!("╭{}╮", "─".repeat(inner)), border));
+        mid.push(Span::styled("│", border));
+        mid.push(Span::raw(pad_s.clone()));
+        mid.extend(label);
+        mid.push(Span::raw(pad_s.clone()));
+        mid.push(Span::styled("│", border));
+        if active {
+            base.push(Span::styled("╯", border));
+            base.push(Span::raw(" ".repeat(inner)));
+            base.push(Span::styled("╰", border));
+        } else {
+            base.push(Span::styled(format!("┴{}┴", "─".repeat(inner)), rule));
+        }
+        let w = inner as u16 + 2;
+        hits.push((Rect::new(x, area.y, w, 3), BarHit::Tab(tab)));
+        x += w;
+    }
+    let used = spans_width(&base);
+    base.push(Span::styled(
+        "─".repeat((area.width as usize).saturating_sub(used)),
+        rule,
+    ));
+    let lines = [top, mid, base]
+        .into_iter()
+        .map(|spans| Line::from(widgets::cut_spans(spans, area.width as usize)))
+        .collect::<Vec<_>>();
+    frame.render_widget(Paragraph::new(lines), area);
+    hits.retain(|(r, _)| r.right() <= area.right());
+    app.feedback.bar_hits.borrow_mut().extend(hits);
+}
+
+/// One-row tab bar (short terminals): ` 1 Work   2 Todos ` with the active label in the
+/// active-label style (accent, bold, underlined); short labels (`1 W`) when narrow.
+fn render_tab_row(frame: &mut Frame, app: &App, area: Rect) {
+    let build = |short: bool| {
         let mut spans = vec![Span::raw(" ")];
+        let mut hits = Vec::new();
+        let mut x = area.x + 1;
         for tab in Tab::ALL {
-            let mut label = format!("{}{}", tab.index() + 1, &tab.title()[..1]);
-            if tab == Tab::Inbox && app.pending_count() > 0 {
-                label.push_str(&format!("·{}", app.pending_count()));
-            }
-            if tab == Tab::Sessions && app.any_session_live() {
-                label.push('●');
-            }
-            spans.extend(tab_label(label, tab == app.tab));
+            let style = if tab == app.tab {
+                theme::active_label()
+            } else {
+                theme::soft()
+            };
+            let label = tab_label(app, tab, short, style);
+            let w = spans_width(&label) as u16 + 2;
+            hits.push((Rect::new(x, area.y, w, 1), BarHit::Tab(tab)));
+            spans.push(Span::raw(" "));
+            spans.extend(label);
+            spans.push(Span::raw("  "));
+            x += w + 1;
         }
-        Line::from(spans)
-    } else {
-        line
+        (spans, hits)
     };
-    frame.render_widget(Paragraph::new(line), area);
+    let (mut spans, mut hits) = build(false);
+    if spans_width(&spans) > area.width as usize {
+        (spans, hits) = build(true);
+    }
+    let spans = widgets::cut_spans(spans, area.width as usize);
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
+    hits.retain(|(r, _)| r.right() <= area.right());
+    app.feedback.bar_hits.borrow_mut().extend(hits);
 }
 
 fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {

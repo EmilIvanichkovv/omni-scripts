@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Summary · Wed 25 Nov · since Tue 24 Nov ─────────────────┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ Wed 25 Nov · since Tue 24 Nov ───────────────────────────╮
 │ Done 1 · In progress 6 · Todo 3 · Blockers 5 · Cleanup 1 ▲
 │▌▸ ~/work/upload-svc-wt/retry ───────────────────────── 1 █
 │                                                          █
@@ -19,6 +19,6 @@ expression: text
 │       Session: Fixed the SAML redirect loop; login works…█
 │                                                          ║
 │ ▾ /tmp/scratch ─────────────────────────────────────── 1 ▼
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  enter/space toggle · z fold · ? help · q quit

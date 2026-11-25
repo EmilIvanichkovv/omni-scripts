@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  ┌ Diagnostics ─────────────────────────────────────────┐
-┌ │Bitbucket:                                            │ ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  ╭ Diagnostics ─────────────────────────────────────────╮
+╭ │Bitbucket:                                            │ ╮
 │ │  token  set (BITBUCKET_TOKEN)                        │ │
 │▌│  user   dev                                          │ │
 │ │Hook:                                                 │ │
@@ -19,6 +19,6 @@ expression: text
 │ │                                                      │ │
 │ │Recent errors                                         │ │
 │ │  API/auth: git fetch failed                          │ │
-└─└──────────────────────────────────────────────────────┘ ┘
+╰─╰──────────────────────────────────────────────────────╯ ╯
 
  enter details · o PR · c resume · ? help · q quit

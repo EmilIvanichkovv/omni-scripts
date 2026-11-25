@@ -350,13 +350,22 @@ fn no_color_strips_all_colors_but_keeps_the_cursor_and_active_labels() {
     let (x, y) = find(&plain, "feature/PROJ-130-chunking").unwrap();
     assert_eq!(plain[(1, y)].symbol(), " ");
     assert!(!plain[(x, y)].modifier.contains(Modifier::BOLD));
-    // The active tab and filter label: bold + underline.
+    // The active tab: a bold label and a box open at the bottom; inactive boxes are closed.
     let (x, y) = find(&plain, "1 Work").unwrap();
-    assert!(plain[(x, y)]
+    assert!(plain[(x, y)].modifier.contains(Modifier::BOLD));
+    let base: String = row_text(&plain, y + 1).chars().take(4).collect();
+    assert_eq!(base, "─╯  ");
+    let (x, y) = find(&plain, "2 Todos").unwrap();
+    assert!(!plain[(x, y)].modifier.contains(Modifier::BOLD));
+    assert_eq!(plain[(x, y + 1)].symbol(), "─");
+    // The one-row tab bar of short terminals: bold + underline.
+    let plain_row = render(&app, 60, 20);
+    let (x, y) = find(&plain_row, "1 Work").unwrap();
+    assert!(plain_row[(x, y)]
         .modifier
         .contains(Modifier::BOLD | Modifier::UNDERLINED));
-    let (x, y) = find(&plain, "2 Todos").unwrap();
-    assert!(!plain[(x, y)].modifier.contains(Modifier::UNDERLINED));
+    let (x, y) = find(&plain_row, "2 Todos").unwrap();
+    assert!(!plain_row[(x, y)].modifier.contains(Modifier::UNDERLINED));
     keys(&mut app, "2");
     let plain = render(&app, 100, 30);
     let (x, y) = find(&plain, "Active 4").unwrap();
@@ -496,7 +505,8 @@ fn every_list_draws_one_cursor_row_with_the_shared_style() {
 fn active_tab_and_filter_labels_are_accent_bold_underlined() {
     let mut app = sample::app();
     keys(&mut app, "2");
-    let buf = render(&app, 100, 30);
+    // The one-row tab bar (short terminals) uses the active-label style.
+    let buf = render(&app, 100, 20);
     let (x, y) = find(&buf, "2 Todos").unwrap();
     assert_eq!(
         styled_cells(&buf, x, y, 1),
@@ -504,6 +514,7 @@ fn active_tab_and_filter_labels_are_accent_bold_underlined() {
     );
     let (x, y) = find(&buf, "1 Work").unwrap();
     assert_eq!(styled_cells(&buf, x, y, 1), ["1 Gray/Reset"]);
+    let buf = render(&app, 100, 30);
     let (x, y) = find(&buf, "Active 4").unwrap();
     assert_eq!(
         styled_cells(&buf, x - 1, y, 2),
@@ -511,9 +522,18 @@ fn active_tab_and_filter_labels_are_accent_bold_underlined() {
     );
     let (x, y) = find(&buf, "Doing 1").unwrap();
     assert_eq!(styled_cells(&buf, x, y, 1), ["D Gray/Reset"]);
-    // Separators are a muted `·`.
-    let (x, y) = find(&buf, "Active 4 ·").unwrap();
-    assert_eq!(styled_cells(&buf, x + 9, y, 1), ["· DarkGray/Reset"]);
+    // Separators are a muted `·` with two spaces on each side.
+    let (x, y) = find(&buf, "Active 4  ·  Todo 3").unwrap();
+    assert_eq!(styled_cells(&buf, x + 10, y, 1), ["· DarkGray/Reset"]);
+    // The grouping sits muted on the right of the bar.
+    let (x, y) = find(&buf, "group: none").unwrap();
+    assert_eq!(
+        styled_cells(&buf, x, y, 1)
+            .into_iter()
+            .chain(styled_cells(&buf, x + 7, y, 1))
+            .collect::<Vec<_>>(),
+        ["g DarkGray/Reset", "n Gray/Reset"]
+    );
 }
 
 #[test]
@@ -648,8 +668,8 @@ fn group_headers_fit_narrow_lists() {
 #[test]
 fn blank_rows_separate_groups_unless_the_pane_is_short() {
     let mut app = sample::app();
-    // 100x30 stacked: the Work list pane shrinks to its rows, blank rows included.
-    let text = screen(&app, 100, 30);
+    // 100x34 stacked: the Work list pane shrinks to its rows, blank rows included.
+    let text = screen(&app, 100, 34);
     let lines: Vec<&str> = text.lines().collect();
     let auth = lines.iter().position(|l| l.contains("▾ API/auth")).unwrap();
     assert_eq!(lines[auth - 1].trim_matches(|c| c == '│' || c == ' '), "");
@@ -658,9 +678,9 @@ fn blank_rows_separate_groups_unless_the_pane_is_short() {
         .position(|l| l.contains("▾ WEB/portal"))
         .unwrap();
     assert!(lines[portal + 1].contains("feature/PROJ-140-webpack"));
-    assert!(lines[portal + 2].starts_with('└'), "{text}");
+    assert!(lines[portal + 2].starts_with('╰'), "{text}");
     // The first group has none above it.
-    assert!(lines[auth - 7].starts_with('┌'), "{text}");
+    assert!(lines[auth - 7].starts_with('╭'), "{text}");
     // A short pane (viewport under 8 rows) drops the blank rows: list only at 100x12,
     // stacked at 100x20 (the list pane gets at most 9 of 16 content rows).
     for (w, h) in [(100, 12), (100, 20)] {
@@ -716,8 +736,12 @@ fn status_line_and_header_show_state() {
     assert!(text.contains("copied feature/x"));
     assert!(text.contains("3 repos · 9 items · PR ✓ · synced 2m ago"));
     assert!(text.contains("⟳ syncing 3/7"));
-    assert!(text.contains("5 Inbox·4"));
-    assert!(text.contains("3 Sessions·live"));
+    assert!(text.contains("│ 5 Inbox 4 │"));
+    assert!(text.contains("│ 3 Sessions ● │"));
+    // The app name left, the status right-aligned.
+    let header = text.lines().next().unwrap();
+    assert!(header.starts_with(" worktrack   "), "{header}");
+    assert!(header.ends_with("synced 2m ago"), "{header}");
 }
 
 #[test]
@@ -745,4 +769,257 @@ fn details_rows_wrap_under_the_value_column() {
         .unwrap();
     let next = text.lines().nth(flags + 1).unwrap();
     assert!(next.contains("││         session live"), "{next}");
+}
+
+fn sample_on(tab: &str) -> App {
+    let mut app = sample::app();
+    keys(&mut app, tab);
+    app
+}
+
+fn left_click(app: &mut App, column: u16, row: u16) {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    app.handle_mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    });
+}
+
+fn tab_hit(app: &App, tab: Tab) -> ratatui::layout::Rect {
+    app.feedback
+        .bar_hits
+        .borrow()
+        .iter()
+        .find(|(_, h)| *h == crate::app::BarHit::Tab(tab))
+        .map(|(r, _)| *r)
+        .unwrap_or_else(|| panic!("no hit area for {tab:?}"))
+}
+
+#[test]
+fn clicking_a_tab_switches_to_it() {
+    let mut app = sample::app();
+    // Boxed: every box is a hit area three rows tall, under the header.
+    render(&app, 100, 30);
+    for tab in Tab::ALL {
+        let r = tab_hit(&app, tab);
+        assert_eq!((r.y, r.height), (1, 3), "{tab:?}");
+    }
+    let r = tab_hit(&app, Tab::Sessions);
+    left_click(&mut app, r.x, r.y + 2);
+    assert_eq!(app.tab, Tab::Sessions);
+    // The hit areas match the boxes on screen.
+    let buf = render(&app, 100, 30);
+    let r = tab_hit(&app, Tab::Summary);
+    assert_eq!(buf[(r.x, r.y)].symbol(), "╭");
+    assert_eq!(buf[(r.right() - 1, r.y)].symbol(), "╮");
+    left_click(&mut app, r.x + 3, r.y + 1);
+    assert_eq!(app.tab, Tab::Summary);
+    // Between two boxes nothing happens.
+    render(&app, 100, 30);
+    let r = tab_hit(&app, Tab::Inbox);
+    left_click(&mut app, r.x - 1, r.y + 1);
+    assert_eq!(app.tab, Tab::Summary);
+    // One-row bar (short terminal): the label is the hit area.
+    let buf = render(&app, 100, 20);
+    let r = tab_hit(&app, Tab::Todos);
+    assert_eq!((r.y, r.height), (1, 1));
+    assert!(row_text(&buf, 1)[r.x as usize..].starts_with(" 2 Todos "));
+    left_click(&mut app, r.x + 1, r.y);
+    assert_eq!(app.tab, Tab::Todos);
+    // Overlays take the clicks.
+    keys(&mut app, "?");
+    render(&app, 100, 20);
+    let r = tab_hit(&app, Tab::Work);
+    left_click(&mut app, r.x + 1, r.y);
+    assert_eq!(app.tab, Tab::Todos);
+}
+
+#[test]
+fn tab_bar_falls_back_from_boxes_to_compact_boxes_to_one_row() {
+    use super::TabBar;
+    let app = sample::app();
+    let boxed = |short, pad| TabBar::Boxed { short, pad };
+    // Sample badges: `3 Sessions ●` and `5 Inbox 4`.
+    for (w, h, want) in [
+        (200, 60, boxed(false, 1)),
+        (68, 24, boxed(false, 1)),
+        (67, 24, boxed(false, 0)),
+        (58, 24, boxed(false, 0)),
+        (57, 24, boxed(true, 1)),
+        (44, 24, boxed(true, 1)),
+        (43, 24, boxed(true, 0)),
+        (40, 24, boxed(true, 0)),
+        (200, 23, TabBar::Row),
+        (100, 20, TabBar::Row),
+        (40, 10, TabBar::Row),
+    ] {
+        assert_eq!(super::tab_bar_kind(&app, w, h >= 24), want, "{w}x{h}");
+        assert_eq!(
+            super::is_roomy(ratatui::layout::Rect::new(0, 0, w, h)),
+            h >= super::ROOMY_MIN_HEIGHT
+        );
+        let text = screen(&app, w, h);
+        let lines: Vec<&str> = text.lines().collect();
+        for line in &lines {
+            assert!(line.width() <= w as usize, "{w}x{h}: {line}");
+        }
+        match want {
+            TabBar::Boxed { short, pad } => {
+                let label = if short { "1 W" } else { "1 Work" };
+                let inner = format!("{0}{label}{0}", " ".repeat(pad as usize));
+                assert!(lines[1].starts_with(" ╭"), "{w}x{h}: {text}");
+                assert!(lines[2].starts_with(&format!(" │{inner}│")), "{text}");
+                assert!(lines[3].starts_with("─╯"), "{text}");
+                // One blank row between the tab line and the content.
+                assert_eq!(lines[4], "", "{text}");
+                assert!(lines[5].starts_with('╭'), "{text}");
+            }
+            TabBar::Row => {
+                assert!(lines[1].starts_with("  1 W"), "{w}x{h}: {text}");
+                assert!(lines[2].starts_with('╭'), "{text}");
+            }
+        }
+    }
+    let text = screen(&app, 57, 24);
+    assert!(text.lines().nth(2).unwrap().contains("│ 3 S ● │"), "{text}");
+}
+
+#[test]
+fn boxed_tabs_mark_the_active_box_in_accent_and_the_rest_muted() {
+    let app = sample_on("2");
+    let buf = render(&app, 100, 30);
+    let (x, y) = find(&buf, "2 Todos").unwrap();
+    // Active: accent border, accent bold label, open bottom with accent corners.
+    assert_eq!(
+        styled_cells(&buf, x - 2, y, 3),
+        ["│ Cyan/Reset", "  Reset/Reset", "2 Cyan/Reset +BOLD"]
+    );
+    assert_eq!(styled_cells(&buf, x - 2, y - 1, 1), ["╭ Cyan/Reset"]);
+    assert_eq!(
+        styled_cells(&buf, x - 2, y + 1, 2),
+        ["╯ Cyan/Reset", "  Reset/Reset"]
+    );
+    assert_eq!(styled_cells(&buf, x + 8, y + 1, 1), ["╰ Cyan/Reset"]);
+    // Inactive: muted border joining the muted line, soft label.
+    let (x, y) = find(&buf, "1 Work").unwrap();
+    assert_eq!(
+        styled_cells(&buf, x - 2, y, 3),
+        ["│ DarkGray/Reset", "  Reset/Reset", "1 Gray/Reset"]
+    );
+    assert_eq!(
+        styled_cells(&buf, x - 2, y + 1, 2),
+        ["┴ DarkGray/Reset", "─ DarkGray/Reset"]
+    );
+    // Badges: the live dot in the live colour, the pending count in the accent colour.
+    let (x, y) = find(&buf, "3 Sessions").unwrap();
+    assert_eq!(styled_cells(&buf, x + 11, y, 1), ["● Magenta/Reset"]);
+    let (x, y) = find(&buf, "5 Inbox 4").unwrap();
+    assert_eq!(styled_cells(&buf, x + 8, y, 1), ["4 Cyan/Reset"]);
+    // The line runs across the full width.
+    assert_eq!(styled_cells(&buf, 99, y + 1, 1), ["─ DarkGray/Reset"]);
+}
+
+#[test]
+fn header_keeps_the_name_left_and_drops_status_parts_from_the_least_useful() {
+    let app = sample::app();
+    let buf = render(&app, 100, 30);
+    assert_eq!(styled_cells(&buf, 1, 0, 1), ["w Cyan/Reset +BOLD"]);
+    let (x, y) = find(&buf, "3 repos").unwrap();
+    assert_eq!(styled_cells(&buf, x, y, 1), ["3 Gray/Reset"]);
+    let (x, y) = find(&buf, "PR ✓").unwrap();
+    assert_eq!(styled_cells(&buf, x, y, 1), ["P Gray/Reset"]);
+    let (x, y) = find(&buf, "synced").unwrap();
+    assert_eq!(styled_cells(&buf, x, y, 1), ["s DarkGray/Reset"]);
+    let (x, y) = find(&buf, "⟳ syncing").unwrap();
+    assert_eq!(styled_cells(&buf, x, y, 1), ["⟳ Cyan/Reset"]);
+    for (w, want, gone) in [
+        (60, "⟳ syncing 3/7   3 repos · 9 items · PR ✓", "synced"),
+        (48, "⟳ syncing 3/7   9 items · PR ✓", "repos"),
+        (40, "⟳ syncing 3/7   PR ✓", "items"),
+    ] {
+        let text = screen(&app, w, 20);
+        let header = text.lines().next().unwrap();
+        assert!(header.starts_with(" worktrack"), "{header}");
+        assert!(header.ends_with(want), "{w}: {header}");
+        assert!(!header.contains(gone), "{w}: {header}");
+    }
+}
+
+#[test]
+fn bars_get_a_blank_row_under_them_unless_the_terminal_is_short() {
+    for tab in ["2", "4"] {
+        let app = sample_on(tab);
+        let text = screen(&app, 100, 30);
+        let lines: Vec<&str> = text.lines().collect();
+        let bar = lines.iter().position(|l| l.contains("  ·  ")).unwrap();
+        assert_eq!(bar, 6, "{text}");
+        assert_eq!(
+            lines[bar + 1].trim_matches(|c| c == '│' || c == ' ' || c == '█' || c == '║'),
+            "",
+            "{text}"
+        );
+        // The list starts right after the blank row.
+        assert!(
+            lines[bar + 2].contains('▾') || lines[bar + 2].contains("[~]"),
+            "{text}"
+        );
+        let text = screen(&app, 100, 20);
+        let lines: Vec<&str> = text.lines().collect();
+        assert!(lines[3].contains(" · "), "{text}");
+        assert!(lines[4].contains('▾') || lines[4].contains("[~]"), "{text}");
+    }
+}
+
+/// Every tab (and overlay, and forced layout) at sizes across the breakpoints and both
+/// tab-bar thresholds: no panic, nothing wider than the terminal, and the list cursor (moved
+/// to the last row too) stays on screen.
+#[test]
+fn every_tab_renders_across_sizes_with_the_cursor_visible() {
+    let widths = [40, 43, 44, 57, 58, 67, 68, 80, 119, 120, 200];
+    let heights = [10, 12, 13, 20, 23, 24, 30, 60];
+    for tab in ["1", "2", "3", "4", "5"] {
+        for layout in 0..4 {
+            for end in [false, true] {
+                let mut app = sample_on(tab);
+                for _ in 0..layout {
+                    keys(&mut app, "v");
+                }
+                if end {
+                    key(&mut app, KeyCode::End);
+                }
+                for &w in &widths {
+                    for &h in &heights {
+                        let buf = render(&app, w, h);
+                        for line in buffer_text(&buf).lines() {
+                            assert!(line.width() <= w as usize, "{tab} {w}x{h}: {line}");
+                        }
+                        assert_eq!(
+                            cursor_rows(&buf).len(),
+                            1,
+                            "tab {tab} layout {layout} end {end} {w}x{h}\n{}",
+                            buffer_text(&buf)
+                        );
+                        if layout == 0 && !end {
+                            let mut with_overlay = sample_on(tab);
+                            keys(&mut with_overlay, "?");
+                            render(&with_overlay, w, h);
+                            keys(&mut with_overlay, "?i");
+                            render(&with_overlay, w, h);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn todos_at_the_smallest_and_compact_box_sizes() {
+    let mut app = sample_on("2");
+    app.todo_filter = crate::app::TodoFilter::All;
+    insta::assert_snapshot!("todos_40x10", screen(&app, 40, 10));
+    insta::assert_snapshot!("todos_60x24", screen(&app, 60, 24));
+    insta::assert_snapshot!("todos_44x24", screen(&app, 44, 24));
 }

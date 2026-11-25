@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: "screen(&app, 60, 20)"
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Details ─────────────────────────────────────── esc back ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ Details ─────────────────────────────────────── esc back ╮
 │feature/PROJ-123-retry                         PROJ-123 ↗ ▲
 │State    ✎ PR needs work (since 13:20)                    █
 │Repo     API/upload-svc                                   █
@@ -19,6 +19,6 @@ expression: "screen(&app, 60, 20)"
 │Todos (1)                                                 █
 │  [~] (A) Finish upload retry logic                       ║
 │                                                          ▼
-└────────────────────────────────────────────── j/k scroll ┘
+╰────────────────────────────────────────────── j/k scroll ╯
 
  esc back · j/k scroll · ? help · q quit

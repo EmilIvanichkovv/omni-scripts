@@ -1,0 +1,28 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: "screen(&app, 60, 24)"
+---
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+ ╭──────╮ ╭───────╮ ╭────────────╮ ╭─────────╮ ╭─────────╮
+ │1 Work│ │2 Todos│ │3 Sessions ●│ │4 Summary│ │5 Inbox 4│
+─┴──────┴─╯       ╰─┴────────────┴─┴─────────┴─┴─────────┴──
+
+╭───────────────────────────────────────────────── 6 todos ╮
+│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
+│                                                          │
+│▌[~] A  Finish upload retry … upload-svc:feature/PR…      │
+│ [ ] B  Write migration doc                               │
+│ [ ]    Call Ivan about stag…                             │
+│ [x]    Fix flaky auth test   auth:bugfix/flaky      Tue  │
+│ [-]    Old banner experiment                        Tue  │
+│ [ ]    Review SSO rollout p… auth:feature/PROJ-118…      │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+╰─────────────────────────────────────────── enter details ╯
+
+ a add · space done · s status · e edit · ? help · q quit

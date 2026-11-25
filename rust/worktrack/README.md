@@ -129,7 +129,7 @@ headers too; there `Enter` / `Space` fold and the details pane sums up the group
 folded across refreshes; a search shows every group open. Keys that act on one item only show a hint
 on a header.
 
-The filter and section bars of Todos and Summary also take a mouse click.
+The tabs and the filter and section bars of Todos and Summary also take a mouse click.
 
 The editor is `ui.editor`, else `$VISUAL`, else `$EDITOR`, else `vi`.
 

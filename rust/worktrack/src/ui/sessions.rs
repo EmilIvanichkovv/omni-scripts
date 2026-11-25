@@ -173,10 +173,11 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .filter(|s| s.is_live(app.now_ts()))
         .count();
-    let mut title = vec![Span::styled(" Sessions ", theme::accent())];
+    // The tab names the pane; the title only counts live sessions.
+    let mut title = Vec::new();
     if live > 0 {
         title.push(Span::styled(
-            format!("· {live} live "),
+            format!(" ● {live} live "),
             Style::new().fg(theme::LIVE),
         ));
     }

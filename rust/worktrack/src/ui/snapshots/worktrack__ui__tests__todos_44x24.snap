@@ -1,0 +1,28 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: "screen(&app, 44, 24)"
+---
+ worktrack   ⟳ syncing 3/7   9 items · PR ✓
+ ╭─────╮ ╭─────╮ ╭───────╮ ╭─────╮ ╭───────╮
+ │ 1 W │ │ 2 T │ │ 3 S ● │ │ 4 S │ │ 5 I 4 │
+─┴─────┴─╯     ╰─┴───────┴─┴─────┴─┴───────┴
+
+╭───────────────────────────────── 6 todos ╮
+│ Drop 1 ‹ All 6 › Act 4       group: none │
+│                                          │
+│▌[~] A  Finish upload … upload-svc:…      │
+│ [ ] B  Write migratio…                   │
+│ [ ]    Call Ivan abou…                   │
+│ [x]    Fix flaky auth… auth:bugfix… Tue  │
+│ [-]    Old banner exp…              Tue  │
+│ [ ]    Review SSO rol… auth:featur…      │
+│                                          │
+│                                          │
+│                                          │
+│                                          │
+│                                          │
+│                                          │
+│                                          │
+╰─────────────────────────── enter details ╯
+
+ a add · space done · ? help · q quit

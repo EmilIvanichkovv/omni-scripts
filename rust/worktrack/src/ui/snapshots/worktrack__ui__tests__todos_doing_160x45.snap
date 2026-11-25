@@ -2,12 +2,15 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Todos  Group: none ───────────────────────────────────────────────────────────────── 1 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
-│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                     ││Finish upload retry logic                                     │
-│▌[~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Status   [~] doing · priority A                               │
-│                                                                                              ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─╯         ╰─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────
+
+╭───────────────────────────────────────────────────────────────────────────────────── 1 todos ╮╭ Todo ────────────────────────────────────────────────────────╮
+│ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: none ││Finish upload retry logic                                     │
+│                                                                                              ││Status   [~] doing · priority A                               │
+│▌[~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
 │                                                                                              ││         work                                                 │
 │                                                                                              ││Jira     PROJ-123                                             │
 │                                                                                              ││Source   manual                                               │
@@ -41,9 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
  a add · space done · s status · e edit · L link · h/l filter · ? help · q quit

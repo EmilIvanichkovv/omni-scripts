@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Filter: Unfinished ▾  Sort: activity ─────────── 4 items ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ Filter: Unfinished ▾  Sort: activity ─────────── 4 items ╮
 │ / @state:pr                                              │
 │ ▾ API/upload-svc ───────────────────────────────────── 2 │
 │▌  ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
@@ -19,6 +19,6 @@ expression: text
 │                                                          │
 │                                                          │
 │                                                          │
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  enter keep · esc clear · ↑↓ move

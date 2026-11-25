@@ -277,9 +277,10 @@ impl SummarySection {
     }
 }
 
-/// A clickable label of a filter/section bar, recorded by the renderer.
+/// A clickable label of the tab bar or a filter/section bar, recorded by the renderer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BarHit {
+    Tab(Tab),
     Todo(TodoFilter),
     Summary(SummarySection),
 }
@@ -494,7 +495,8 @@ pub struct RenderFeedback {
     pub details_max_scroll: Cell<usize>,
     pub overlay_max_scroll: Cell<usize>,
     pub too_small: Cell<bool>,
-    /// Screen areas of the filter/section bar labels drawn in the last frame (mouse clicks).
+    /// Screen areas of the tabs and filter/section bar labels drawn in the last frame
+    /// (mouse clicks).
     pub bar_hits: RefCell<Vec<(Rect, BarHit)>>,
     /// First visible row of each tab's list.
     pub list_offset: [Cell<usize>; 5],
@@ -2703,7 +2705,7 @@ impl App {
         Vec::new()
     }
 
-    /// Left click: select a filter / section label of the bar under the pointer.
+    /// Left click: select the tab or the filter / section label under the pointer.
     fn click(&mut self, pos: Position) {
         if self.overlay.is_some() || self.input.is_some() {
             return;
@@ -2716,6 +2718,7 @@ impl App {
             .find(|(r, _)| r.contains(pos))
             .map(|(_, h)| *h);
         match hit {
+            Some(BarHit::Tab(tab)) => self.switch_tab(tab),
             Some(BarHit::Todo(f)) if self.tab == Tab::Todos => self.set_todo_filter(f),
             Some(BarHit::Summary(sec)) if self.tab == Tab::Summary => self.set_summary_section(sec),
             _ => {}

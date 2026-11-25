@@ -2,9 +2,12 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Inbox ──────────────────────────────────────────────────────────────────────────── 4 pending ┐┌ Suggestion ──────────────────────────────────────────────────┐
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─┴─────────┴─┴──────────────┴─┴───────────┴─╯           ╰────────────────────────────────────────────────────────────────────────────────────────────
+
+╭─────────────────────────────────────────────────────────────────────────────────── 4 pending ╮╭ Suggestion ──────────────────────────────────────────────────╮
 │▌pr_needs_work         + Address review on PR #44           upload-svc:feature/PROJ-123-retry ││+ Address review on PR #44                                    │
 │ session_unfinished    + Integration test for retry fails   upload-svc:feature/PROJ-123-retry ││Rule     pr_needs_work                                        │
 │ pr_declined           ? PR #31 declined: keep or abandon   auth:feature/PROJ-101-legacy      ││Created  13:30                                                │
@@ -41,9 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
  enter accept · x reject · e edit · k/b keep/abandon · A/X all · ? help · q quit

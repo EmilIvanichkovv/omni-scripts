@@ -2,10 +2,10 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Todos  Group: none ───────────────────────────── 4 todos ┐
-│ ┌ Link todo ───────────────────────────────────────────┐ │
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭───────────────────────────────────────────────── 4 todos ╮
+│ ╭ Link todo ───────────────────────────────────────────╮ │
 │ │Link to › re▏                                         │ │
 │ │                                                      │ │
 │▌│▌✎ API/upload-svc:feature/PROJ-123-retry              │ │
@@ -17,8 +17,8 @@ expression: text
 │ │ – WEB/portal:fix/old-banner                          │ │
 │ │                                                      │ │
 │ │↑↓ move · enter link · esc cancel                     │ │
-│ └──────────────────────────────────────────────────────┘ │
+│ ╰──────────────────────────────────────────────────────╯ │
 │                                                          │
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  a add · space done · s status · e edit · ? help · q quit

@@ -2,23 +2,23 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Todos  Group: repo ───────────────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
-│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                     ││Finish upload retry logic                                     │
-│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Status   [~] doing · priority A                               │
-│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
-│                                                                                              ││         work                                                 │
-│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Jira     PROJ-123                                             │
-│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Source   manual                                               │
-│                                                                                              ││Created  Fri 2026-11-20                                       │
-│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││                                                              │
-│   [ ] B  Write migration doc                                                                 ││Notes                                                         │
-│   [ ]    Call Ivan about staging access                                                      ││  Backoff with jitter.                                        │
-│                                                                                              ││  Check the integration test.                                 │
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─╯         ╰─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────
+
+╭───────────────────────────────────────────────────────────────────────────────────── 4 todos ╮╭ Todo ────────────────────────────────────────────────────────╮
+│ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: repo ││Finish upload retry logic                                     │
+│                                                                                              ││Status   [~] doing · priority A                               │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
+│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││         work                                                 │
+│                                                                                              ││Jira     PROJ-123                                             │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Source   manual                                               │
+│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Created  Fri 2026-11-20                                       │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││Notes                                                         │
+│   [ ] B  Write migration doc                                                                 ││  Backoff with jitter.                                        │
+│   [ ]    Call Ivan about staging access                                                      ││  Check the integration test.                                 │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
@@ -44,6 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │ new todo › Call the bank                                                                     ││                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
  enter save · esc cancel

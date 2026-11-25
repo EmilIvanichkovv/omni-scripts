@@ -59,7 +59,8 @@ fn suggestion_line(s: &Suggestion, width: usize) -> Line<'static> {
 }
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
-    let title = Line::from(Span::styled(" Inbox ", theme::accent()));
+    // The tab names the pane; the count on the right says the rest.
+    let title = Line::default();
     let visible = app.pending_suggestions();
     let rows_area = super::list_pane(
         frame,

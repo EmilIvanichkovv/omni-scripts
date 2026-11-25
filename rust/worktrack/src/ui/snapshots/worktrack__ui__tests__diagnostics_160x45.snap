@@ -2,9 +2,12 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                                                                              ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 7 items ┐┌ Details ─────────────────────────────────────────────────────┐
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─╯        ╰─┴─────────┴─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────
+
+╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 7 items ╮╭ Details ─────────────────────────────────────────────────────╮
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 4 ││feature/PROJ-123-retry                             PROJ-123 ↗ │
 │▌  ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││State    ✎ PR needs work (since 13:20)                        │
 │   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Repo     API/upload-svc                                       │
@@ -13,14 +16,11 @@ expression: text
 │                                                                                              ││         session live                                         │
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 2 ││PR #44   Add retry with backoff to uploads                    │
 │   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││         ivan ✗ needs work · maria ○ unapproved               │
-│   ✕ feature/PROJ-101-legacy                         PR #31                        4d T0 S0   ││         4 comments                                           │
-│                                                                                              ││Commits  3 ahead of trunk · last 2m                           │
-│ ▾ WEB/portal ───────────────────────────────────────────────────────────────────────────── 1 ││                                                              │
-│   ↑ feature/PROJ-140-webpack  ┌ Diagnostics ─────────────────────────────────────────────────────────────────────────────────┐                               │
-│                               │Bitbucket:                                                                                    │ogic                           │
-│                               │  token  set (BITBUCKET_TOKEN)                                                                │                               │
-│                               │  user   dev                                                                                  │                               │
-│                               │Hook:                                                                                         │                               │
+│   ✕ feature/PROJ-101-legacy   ╭ Diagnostics ─────────────────────────────────────────────────────────────────────────────────╮                               │
+│                               │Bitbucket:                                                                                    │t 2m                           │
+│ ▾ WEB/portal ─────────────────│  token  set (BITBUCKET_TOKEN)                                                                │                               │
+│   ↑ feature/PROJ-140-webpack  │  user   dev                                                                                  │                               │
+│                               │Hook:                                                                                         │ogic                           │
 │                               │  SessionEnd hook installed                                                                   │                               │
 │                               │Paths:                                                                                        │                               │
 │                               │  config ~/.config/worktrack/config.toml                                                      │                               │
@@ -31,7 +31,7 @@ expression: text
 │                               │                                                                                              │                               │
 │                               │Recent errors                                                                                 │                               │
 │                               │  API/auth: git fetch failed                                                                  │                               │
-│                               └──────────────────────────────────────────────────────────────────────────────────────────────┘                               │
+│                               ╰──────────────────────────────────────────────────────────────────────────────────────────────╯                               │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
@@ -44,6 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
  o PR · c resume · t todo · f filter · / search · ? help · q quit

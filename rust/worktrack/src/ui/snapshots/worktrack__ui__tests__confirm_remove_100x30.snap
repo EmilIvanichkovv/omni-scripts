@@ -2,33 +2,33 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────────── 1 items ┐
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─╯        ╰─┴─────────┴─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────────── 1 items ╮
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 1 │
 │▌  ✔ bugfix/flaky                                        PR #41          ⌫            20h T1 S0   │
 │                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│             ┌ Remove worktree ─────────────────────────────────────────────────────┐             │
+│             ╭ Remove worktree ─────────────────────────────────────────────────────╮             │
 │             │Clean up bugfix/flaky? These commands run:                            │             │
-└─────────────│                                                                      │─────────────┘
-┌ Details ────│  git worktree remove '/home/dev/work/auth-wt/flaky'                  │─────────────┐
-│bugfix/flaky │  git branch -d 'bugfix/flaky'                                        │             │
-│State    ✔ me│                                                                      │             │
-│Repo     API/│No --force: git refuses a worktree with changes, and -d refuses       │             │
-│Path     ~/wo│unmerged branches.                                                    │             │
-│Flags    clea│                                                                      │             │
-│PR #41   Fix │y confirm · n/esc cancel                                              │             │
-│         no r└──────────────────────────────────────────────────────────────────────┘             │
-│Commits  3 ahead of trunk · last 20h                                                              │
-│                                                                                                  │
-│Todos (1)                                                                                         │
-│  [x] Fix flaky auth test                                                                         │
-│                                                                                                  │
-│Sessions (0)                                                                                      │
-│  none                                                                                            │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+│             │                                                                      │             │
+│             │  git worktree remove '/home/dev/work/auth-wt/flaky'                  │             │
+╰─────────────│  git branch -d 'bugfix/flaky'                                        │─────────────╯
+╭ Details ────│                                                                      │─────────────╮
+│bugfix/flaky │No --force: git refuses a worktree with changes, and -d refuses       │             ▲
+│State    ✔ me│unmerged branches.                                                    │             █
+│Repo     API/│                                                                      │             █
+│Path     ~/wo│y confirm · n/esc cancel                                              │             █
+│Flags    clea╰──────────────────────────────────────────────────────────────────────╯             █
+│PR #41   Fix flaky auth test                                                                      █
+│         no reviewers                                                                             █
+│Commits  3 ahead of trunk · last 20h                                                              █
+│                                                                                                  █
+│Todos (1)                                                                                         █
+│  [x] Fix flaky auth test                                                                         ║
+│                                                                                                  ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
  o PR · c resume · t todo · f filter · / search · ? help · q quit

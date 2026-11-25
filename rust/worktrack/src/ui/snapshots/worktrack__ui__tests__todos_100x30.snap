@@ -2,19 +2,22 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synced 2m ago                                  ⟳ syncing 3/7
-  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
-┌ Todos  Group: none ───────────────────────────────────────────────────────────────────── 6 todos ┐
-│ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6                                         │
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─╯         ╰─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭───────────────────────────────────────────────────────────────────────────────────────── 6 todos ╮
+│ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6                   group: none │
+│                                                                                                  │
 │▌[~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
 │ [ ] B  Write migration doc                                                                       │
 │ [ ]    Call Ivan about staging access                                                            │
 │ [x]    Fix flaky auth test                             auth:bugfix/flaky                    Tue  │
 │ [-]    Old banner experiment                                                                Tue  │
 │ [ ]    Review SSO rollout plan                         auth:feature/PROJ-118-sso                 │
-│                                                                                                  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-┌ Todo ────────────────────────────────────────────────────────────────────────────────────────────┐
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ Todo ────────────────────────────────────────────────────────────────────────────────────────────╮
 │Finish upload retry logic                                                                         │
 │Status   [~] doing · priority A                                                                   │
 │Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
@@ -26,9 +29,6 @@ expression: text
 │  Backoff with jitter.                                                                            │
 │  Check the integration test.                                                                     │
 │                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
  a add · space done · s status · e edit · L link · h/l filter · ? help · q quit

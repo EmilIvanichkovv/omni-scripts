@@ -74,18 +74,12 @@ fn todo_line(app: &App, t: &Todo, width: usize, indent: usize) -> Line<'static> 
 }
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
-    let mut title = vec![
-        Span::styled(" Todos ", theme::accent()),
-        Span::styled(" Group: ", theme::muted()),
-        Span::styled(
-            if app.todo_grouped { "repo" } else { "none" },
-            theme::accent(),
-        ),
-        Span::raw(" "),
-    ];
+    // The tab names the pane; the title only carries a todo file error. The grouping sits
+    // on the right of the filter bar.
+    let mut title = Vec::new();
     if app.todo_error.is_some() {
         title.push(Span::styled(
-            "⚠ parse error ",
+            " ⚠ parse error ",
             Style::new().fg(theme::DANGER).add_modifier(Modifier::BOLD),
         ));
     }
@@ -106,7 +100,17 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
         area,
         Line::from(title),
         format!("{} todos", visible.len()),
-        Some(bar),
+        Some(super::PaneBar {
+            items: bar,
+            aside: vec![
+                Span::styled("group: ", theme::muted()),
+                Span::styled(
+                    if app.todo_grouped { "repo" } else { "none" },
+                    theme::soft(),
+                ),
+                Span::raw(" "),
+            ],
+        }),
     );
     if visible.is_empty() {
         super::render_empty(

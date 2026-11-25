@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Sessions · 1 live ─────────────────────────── 5 sessions ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ ● 1 live ──────────────────────────────────── 5 sessions ╮
 │▌▾ Today ────────────────────────────────────────────── 2 │
 │ 13:59 ● feature/PROJ-123-retry     Add backoff to uploa… │
 │ 09:00 ✓ feature/PROJ-118-sso       Fix SAML redirect     │
@@ -19,6 +19,6 @@ expression: text
 │                                                          │
 │                                                          │
 │                                                          │
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  enter/space toggle · z fold · ? help · q quit

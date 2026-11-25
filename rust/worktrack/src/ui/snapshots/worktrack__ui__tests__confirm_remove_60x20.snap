@@ -2,11 +2,11 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Filter: Cleanup ▾  Sort: activity ────────────── 1 items ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ Filter: Cleanup ▾  Sort: activity ────────────── 1 items ╮
 │ ▾ API/auth ─────────────────────────────────────────── 1 │
-│▌┌ Remove worktree ─────────────────────────────────────┐ │
+│▌╭ Remove worktree ─────────────────────────────────────╮ │
 │ │Clean up bugfix/flaky? These commands run:            │ │
 │ │                                                      │ │
 │ │  git worktree remove '/home/dev/work/auth-wt/flaky'  │ │
@@ -16,9 +16,9 @@ expression: text
 │ │-d refuses unmerged branches.                         │ │
 │ │                                                      │ │
 │ │y confirm · n/esc cancel                              │ │
-│ └──────────────────────────────────────────────────────┘ │
+│ ╰──────────────────────────────────────────────────────╯ │
 │                                                          │
 │                                                          │
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  enter details · o PR · c resume · ? help · q quit

@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  ┌ Keys ────────────────────────────────────────────────┐
-┌ │Global                                                ▲ ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  ╭ Keys ────────────────────────────────────────────────╮
+╭ │Global                                                ▲ ╮
 │ │  1–5  Tab  Shift-Tab                                 █ │
 │▌│      switch tab                                      █ │
 │ │  j k ↓ ↑                                             ║ │
@@ -19,6 +19,6 @@ expression: text
 │ │      search (@repo: @state: in Work); esc clears     ║ │
 │ │  f                                                   ║ │
 │ │      cycle filter (Summary: section)                 ▼ │
-└─│  v                                                   │ ┘
-  └──────────────────────── ↑↓ scroll · other keys close ┘
+╰─│  v                                                   │ ╯
+  ╰──────────────────────── ↑↓ scroll · other keys close ╯
  enter details · o PR · c resume · ? help · q quit

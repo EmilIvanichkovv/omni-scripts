@@ -8,7 +8,8 @@ use ratatui::layout::{Margin, Position, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+    Block, BorderType, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Wrap,
 };
 use ratatui::Frame;
 
@@ -146,10 +147,11 @@ pub fn hint_line_pinned(
     hint_line(kept, width)
 }
 
-/// Bordered pane block with a title.
+/// Bordered pane block with a title: rounded muted borders, like the tab boxes.
 pub fn pane_block(title: Line<'static>) -> Block<'static> {
     Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme::muted())
         .title(title)
 }
@@ -510,7 +512,10 @@ pub fn render_modal(
         border.add_modifier(ratatui::style::Modifier::BOLD),
     );
     let viewport = height.saturating_sub(2 + footer_rows) as usize;
-    let mut outer = Block::bordered().border_style(border).title(title.clone());
+    let mut outer = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(border)
+        .title(title.clone());
     if content_rows > viewport {
         outer = outer.title_bottom(
             Line::from(Span::styled(MODAL_SCROLL_HINT, theme::muted())).right_aligned(),
@@ -523,6 +528,7 @@ pub fn render_modal(
     };
     let body = Block::new()
         .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
+        .border_type(BorderType::Rounded)
         .border_style(border)
         .title(title);
     let scroll = render_scrolled(frame, body, lines, body_area, offset, None);
@@ -738,21 +744,22 @@ fn bar_style(item: &BarItem) -> Style {
     }
 }
 
-/// One-row filter / section bar: ` Done 1 · In progress 2 · Todo 5 `, the active label
-/// accent, bold and underlined. Falls back to short labels, then to `Prev ‹ Active N › Next`
-/// (neighbours only when they fit), so it never overflows `area`. Returns the line and the
-/// screen area of each label for mouse clicks.
+/// One-row filter / section bar: ` Done 1  ·  In progress 2  ·  Todo 5 `, the active label
+/// accent, bold and underlined. Falls back to tighter separators (` · `), then short labels,
+/// then to `Prev ‹ Active N › Next` (neighbours only when they fit), so it never overflows
+/// `area`. Returns the line and the screen area of each label for mouse clicks.
 pub fn filter_bar(items: &[BarItem], area: Rect) -> (Line<'static>, Vec<(Rect, BarHit)>) {
     let width = area.width as usize;
     let hit_rect = |x: usize, w: usize| Rect::new(area.x + x as u16, area.y, w as u16, 1);
-    for short in [false, true] {
+    // Labels carry a space on each side, so these give `  ·  ` and ` · ` between labels.
+    for (short, sep) in [(false, " · "), (false, "·"), (true, " · "), (true, "·")] {
         let mut spans = Vec::new();
         let mut hits = Vec::new();
         let mut x = 0;
         for (i, it) in items.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled("·", theme::muted()));
-                x += 1;
+                spans.push(Span::styled(sep, theme::muted()));
+                x += str_width(sep);
             }
             let text = format!("{} {}", if short { it.short } else { it.label }, it.count);
             let w = str_width(&text) + 2;

@@ -2,9 +2,9 @@
 source: worktrack/src/ui/tests.rs
 expression: text
 ---
- worktrack  3 repos · 9 items · PR ✓ · synce… ⟳ syncing 3/7
-  1W  2T  3S●  4S  5I·4
-┌ Inbox ──────────────────────────────────────── 4 pending ┐
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭─────────────────────────────────────────────── 4 pending ╮
 │▌+ Address review on PR #44    upload-svc:feature/PROJ-12…│
 │ + Integration test for retry… upload-svc:feature/PROJ-12…│
 │ ? PR #31 declined: keep or a… auth:feature/PROJ-101-lega…│
@@ -19,6 +19,6 @@ expression: text
 │                                                          │
 │                                                          │
 │                                                          │
-└─────────────────────────────────────────── enter details ┘
+╰─────────────────────────────────────────── enter details ╯
 
  enter accept · x reject · e edit · ? help · q quit

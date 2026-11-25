@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: All ▾  Group: none ───────────────────────────────────────────────────────── 6 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
+│ [~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Finish upload retry logic                                     │
+│ [ ] B  Write migration doc                                                                   ││Status  [~] doing · priority A                                │
+│ [ ]    Call Ivan about staging access                                                        ││Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work│
+│ [x]    Fix flaky auth test                         auth:bugfix/flaky                    Tue  ││Jira    PROJ-123                                              │
+│ [-]    Old banner experiment                                                            Tue  ││Source  manual                                                │
+│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││Created Fri 2026-11-20                                        │
+│                                                                                              ││                                                              │
+│                                                                                              ││Notes                                                         │
+│                                                                                              ││  Backoff with jitter.                                        │
+│                                                                                              ││  Check the integration test.                                 │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ a add  e edit  space done  s status  p prio  L link  +/- move  d delete  f filter  G group  E/O editor  ? help  q quit

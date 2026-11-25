@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────────── 1 items ┐
+│ ▾ API/auth                                                                                     1 │
+│   ✔ bugfix/flaky                                         PR #41          ⌫            20h T1 S0  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│             ┌ Remove worktree ─────────────────────────────────────────────────────┐             │
+│             │Clean up bugfix/flaky? These commands run:                            │             │
+│             │                                                                      │             │
+│             │  git worktree remove '/home/dev/work/auth-wt/flaky'                  │             │
+│             │  git branch -d 'bugfix/flaky'                                        │             │
+│             │                                                                      │             │
+│             │No --force: git refuses a worktree with changes, and -d refuses       │             │
+│             │unmerged branches.                                                    │             │
+└─────────────│                                                                      │─────────────┘
+┌ Details ────│y confirm · n/esc cancel                                              │─────────────┐
+│bugfix/flaky └──────────────────────────────────────────────────────────────────────┘             ▲
+│State   ✔ merged (since Tue)                                                                      █
+│Repo    API/auth                                                                                  █
+│Path    ~/work/auth-wt/flaky                                                                      █
+│Flags   cleanup (X removes)                                                                       ║
+│PR #41  Fix flaky auth test                                                                       ║
+│        no reviewers                                                                              ║
+│Commits 3 ahead of trunk · last 20h                                                               ▼
+└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+
+ j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove …

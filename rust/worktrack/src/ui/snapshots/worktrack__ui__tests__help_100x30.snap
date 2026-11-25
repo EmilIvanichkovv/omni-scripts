@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2┌ Keys ────────────────────────────────────────────────────────────────────┐
+┌ Filter: Un│Global                                                                    ▲── 7 items ┐
+│ ▾ API/uplo│  1–5  Tab  Shift-Tab   switch tab                                        █         4 │
+│   ✎ featur│  j k ↓ ↑               move                                              █ 2m T1 S2  │
+│   ◐ featur│  g G  Home End         top / bottom (G groups in Todos)                  █ 1h T0 S1  │
+│   ○ chore/│  Ctrl-d Ctrl-u         half page down / up                               █ 3h T1 S0  │
+│   ↑ spike/│  J K                   scroll details                                    █16d T0 S1  │
+│ ▾ API/auth│  /                     search (@repo: @state: in Work); esc clears       █         2 │
+│   ✓ featur│  f                     cycle filter                                      █ 1d T1 S2  │
+│   ✕ featur│  v                     cycle layout: auto / side / stacked / list        █ 4d T0 S0  │
+│ ▾ WEB/port│  Enter / Esc           details full screen on narrow layouts / back      █         1 │
+│   ↑ featur│  r / R                 local reload / full sync                          █ 2d T0 S1  │
+│           │  i                     diagnostics                                       █           │
+│           │  ? / q                 help / quit                                       ║           │
+│           │                                                                          ║           │
+│           │Work                                                                      ║           │
+└───────────│  Enter                 collapse / expand group                           ║───────────┘
+┌ Details ──│  o                     open PR in browser (Jira if no PR)                ║───────────┐
+│API/upload-│  y / Y                 copy branch name / worktree path                  ║           │
+│Items   4 s│  t                     add todo linked to this item                      ║           │
+│Path    ~/w│  c                     copy resume command of latest session             ║           │
+│Trunk   mai│  A / U                 mark abandoned (confirm) / unmark                 ║           │
+│Remote  htt│  X                     remove worktree, cleanup items only (confirm)     ║           │
+│           │                                                                          ║           │
+│enter colla│Todos                                                                     ║           │
+│           │  a / e / E             add / edit title / edit notes in editor           ▼           │
+└───────────│  Space                 toggle done                                       │───────────┘
+            └──────────────────────────────────────────── ↑↓ scroll · other keys close ┘
+ j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove …

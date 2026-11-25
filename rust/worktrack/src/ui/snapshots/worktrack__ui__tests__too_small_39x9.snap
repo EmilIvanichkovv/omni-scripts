@@ -1,0 +1,10 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: "screen(&app, 39, 9)"
+---
+
+
+
+          terminal too small
+           39×9, need 40×10
+                q quits

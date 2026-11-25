@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Active ▾  Group: repo ────────────────────────────────────────────────────────── 4 todos ┐
+│ ▾ API/auth                                                                                       │
+│   [ ]    Review SSO rollout plan                       auth:feature/PROJ-118-sso                 │
+│ ▾ API/upload-svc                                                                                 │
+│   [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         │
+│ ▾ (no link)                                                                                      │
+│   [ ] B  Write migration doc                                                                     │
+│   [ ]    Call Ivan about staging access                                                          │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│ new todo › Call the bank                                                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Todo ────────────────────────────────────────────────────────────────────────────────────────────┐
+│Finish upload retry logic                                                                         ▲
+│Status  [~] doing · priority A                                                                    █
+│Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                    █
+│Jira    PROJ-123                                                                                  █
+│Source  manual                                                                                    █
+│Created Fri 2026-11-20                                                                            █
+│                                                                                                  ║
+│Notes                                                                                             ▼
+└────────────────────────────────────────────────────────────────────────────────────── J/K scroll ┘
+
+ enter save  esc cancel

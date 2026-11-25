@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 4 items ┐
+│ / @state:pr                                                                                      │
+│ ▾ API/upload-svc                                                                               2 │
+│   ✎ feature/PROJ-123-retry                               PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2  │
+│   ◐ feature/PROJ-130-chunking                            PR #47  …ci     ↓3 ∅          1h T0 S1  │
+│ ▾ API/auth                                                                                     2 │
+│   ✓ feature/PROJ-118-sso                                 PR #39  ✓ci                   1d T1 S2  │
+│   ✕ feature/PROJ-101-legacy                              PR #31                        4d T0 S0  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ Details ─────────────────────────────────────────────────────────────────────────────────────────┐
+│API/upload-svc                                                                                    │
+│Items   2 shown                                                                                   │
+│Path    ~/work/upload-svc                                                                         │
+│Trunk   main                                                                                      │
+│Remote  https://bitbucket.example.com                                                             │
+│                                                                                                  │
+│enter collapses this group                                                                        │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ enter keep  esc clear  ↑↓ move  @repo: @state: prefixes

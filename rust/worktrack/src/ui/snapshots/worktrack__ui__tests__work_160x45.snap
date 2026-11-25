@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 7 items ┐┌ Details ─────────────────────────────────────────────────────┐
+│ ▾ API/upload-svc                                                                           4 ││feature/PROJ-123-retry                             PROJ-123 ↗ │
+│   ✎ feature/PROJ-123-retry                           PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2  ││State   ✎ PR needs work (since 13:20)                         │
+│   ◐ feature/PROJ-130-chunking                        PR #47  …ci     ↓3 ∅          1h T0 S1  ││Repo    API/upload-svc                                        │
+│   ○ chore/bump-deps                                  —               * ↑2          3h T1 S0  ││Path    ~/work/upload-svc-wt/retry                            │
+│   ↑ spike/s3-multipart                               —               ∅ z          16d T0 S1  ││Flags   dirty · ahead 1 · ci failed · 2 open tasks · session  │
+│ ▾ API/auth                                                                                 2 ││live                                                          │
+│   ✓ feature/PROJ-118-sso                             PR #39  ✓ci                   1d T1 S2  ││PR #44  Add retry with backoff to uploads                     │
+│   ✕ feature/PROJ-101-legacy                          PR #31                        4d T0 S0  ││        ivan ✗ needs work · maria ○ unapproved                │
+│ ▾ WEB/portal                                                                               1 ││        4 comments                                            │
+│   ↑ feature/PROJ-140-webpack                         —               ∅             2d T0 S1  ││Commits 3 ahead of trunk · last 2m                            │
+│                                                                                              ││                                                              │
+│                                                                                              ││Todos (1)                                                     │
+│                                                                                              ││  [~] (A) Finish upload retry logic                           │
+│                                                                                              ││                                                              │
+│                                                                                              ││Sessions (1)                                                  │
+│                                                                                              ││  13:59 Add backoff to uploads                                │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ j/k move  enter open  o PR  t todo  c resume  y/Y copy  f filter  / search  A abandon  X remove  ? help  q quit

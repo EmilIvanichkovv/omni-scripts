@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  1W  2T  3S●  4S  5I·4
+┌ Sessions · 1 live ─────────────────────────── 5 sessions ┐
+│ 13:59 ● upload-svc   feature/PROJ-… Add backof… 14 turns │
+│ 09:00 ✓ auth         feature/PROJ-… Fix SAML r… 22 turns │
+│ Tue   ✓ —            (no branch)    Explain we…  3 turns │
+│ Tue   ! upload-svc   spike/s3-mult… Try multip…  8 turns │
+│ Mon   … upload-svc   feature/PROJ-… Chunk size…  5 turns │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+└─────────────────────────────────────────── enter details ┘
+
+ j/k move  c resume  s resummarize  enter work item …

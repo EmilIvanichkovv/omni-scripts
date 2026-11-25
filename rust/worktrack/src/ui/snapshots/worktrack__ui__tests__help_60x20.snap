@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  ┌ Keys ────────────────────────────────────────────────┐
+┌ │Global                                                ▲ ┐
+│ │  1–5  Tab  Shift-Tab                                 █ │
+│ │      switch tab                                      █m│
+│ │  j k ↓ ↑                                             ║h│
+│ │      move                                            ║h│
+│ │  g G  Home End                                       ║d│
+│ │      top / bottom (G groups in Todos)                ║ │
+│ │  Ctrl-d Ctrl-u                                       ║d│
+│ │      half page down / up                             ║d│
+│ │  J K                                                 ║ │
+│ │      scroll details                                  ║d│
+│ │  /                                                   ║ │
+│ │      search (@repo: @state: in Work); esc clears     ║ │
+│ │  f                                                   ║ │
+│ │      cycle filter                                    ▼ │
+└─│  v                                                   │ ┘
+  └──────────────────────── ↑↓ scroll · other keys close ┘
+ j/k move  enter open  o PR  t todo  c resume  y/Y copy …

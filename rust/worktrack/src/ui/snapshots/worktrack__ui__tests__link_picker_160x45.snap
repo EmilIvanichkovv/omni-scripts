@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Active ▾  Group: none ────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
+│ [~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Call Ivan about staging access                                │
+│ [ ] B  Write migration doc                                                                   ││Status  [ ] todo                                              │
+│ [ ]    Call Ivan about staging access                                                        ││Link    none (L links)                                        │
+│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││Source  manual                                                │
+│                                                                                              ││Created Fri 2026-11-20                                        │
+│                                                                                              ││                                                              │
+│                                                                                              ││Notes                                                         │
+│                                                                                              ││  none (E edits)                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                              ┌ Link todo ─────────────────────────────────────────────────────┐                                              │
+│                                              │Link to › re▏                                                   │                                              │
+│                                              │                                                                │                                              │
+│                                              │✎ API/upload-svc:feature/PROJ-123-retry                         │                                              │
+│                                              │◐ API/upload-svc:feature/PROJ-130-chunking                      │                                              │
+│                                              │○ API/upload-svc:chore/bump-deps                                │                                              │
+│                                              │✓ API/auth:feature/PROJ-118-sso                                 │                                              │
+│                                              │↑ WEB/portal:feature/PROJ-140-webpack                           │                                              │
+│                                              │✕ API/auth:feature/PROJ-101-legacy                              │                                              │
+│                                              │– WEB/portal:fix/old-banner                                     │                                              │
+│                                              │                                                                │                                              │
+│                                              │↑↓ move · enter link · esc cancel                               │                                              │
+│                                              └────────────────────────────────────────────────────────────────┘                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ a add  e edit  space done  s status  p prio  L link  +/- move  d delete  f filter  G group  E/O editor  ? help  q quit

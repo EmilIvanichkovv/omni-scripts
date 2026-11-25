@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  1W  2T  3S●  4S  5I·4
+┌ Summary since Tue 2026-11-24 ([ ] to shift) ─────────────┐
+│Summary — Wed 2026-11-25 (since Tue 2026-11-24)           ▲
+│                                                          █
+│Done                                                      █
+│                                                          █
+│• API/auth bugfix/flaky — PR #41 merged                   █
+│  ◦ Fix flaky auth test                                   █
+│                                                          █
+│In progress                                               █
+│                                                          █
+│• API/upload-svc feature/PROJ-123-retry — PR #44 needs    ║
+│work · ci failed · 2 tasks                                ║
+│  ◦ Session: Added exponential backoff; integration test  ║
+│still failing                                             ║
+│                                                          ▼
+└────────────────────────────────────────────── j/k scroll ┘
+
+ [ ] shift  y copy  w write  j/k scroll  ? help  q quit

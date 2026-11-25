@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  1W  2T  3S●  4S  5I·4
+┌ Filter: Active ▾  Group: repo ────────────────── 4 todos ┐
+│ ▾ API/auth                                               │
+│   [ ]    Review SSO rollout … auth:feature/PROJ-11…      │
+│ ▾ API/upload-svc                                         │
+│   [~] A  Finish upload retry… upload-svc:feature/P…      │
+│ ▾ (no link)                                              │
+│   [ ] B  Write migration doc                             │
+│   [ ]    Call Ivan about sta…                            │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│                                                          │
+│ new todo › Call the bank                                 │
+└─────────────────────────────────────────── enter details ┘
+
+ enter save  esc cancel

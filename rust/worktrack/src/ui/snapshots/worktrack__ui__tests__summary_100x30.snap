@@ -1,0 +1,34 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Summary since Tue 2026-11-24 ([ ] to shift) ─────────────────────────────────────────────────────┐
+│Summary — Wed 2026-11-25 (since Tue 2026-11-24)                                                   │
+│                                                                                                  │
+│Done                                                                                              │
+│                                                                                                  │
+│• API/auth bugfix/flaky — PR #41 merged                                                           │
+│  ◦ Fix flaky auth test                                                                           │
+│                                                                                                  │
+│In progress                                                                                       │
+│                                                                                                  │
+│• API/upload-svc feature/PROJ-123-retry — PR #44 needs work · ci failed · 2 tasks                 │
+│  ◦ Session: Added exponential backoff; integration test still failing                            │
+│                                                                                                  │
+│Todo                                                                                              │
+│                                                                                                  │
+│• (A) Finish upload retry logic                                                                   │
+│• Write migration doc                                                                             │
+│                                                                                                  │
+│Blockers                                                                                          │
+│                                                                                                  │
+│• PR #44: reviewer requested changes                                                              │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ [ ] shift  y copy  w write  j/k scroll  ? help  q quit

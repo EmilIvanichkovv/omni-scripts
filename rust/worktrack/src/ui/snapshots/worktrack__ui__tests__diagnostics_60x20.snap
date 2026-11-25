@@ -1,0 +1,24 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · syn… ⟳ syncing 3/7
+  ┌ Diagnostics ─────────────────────────────────────────┐
+┌ │Bitbucket:                                            │ ┐
+│ │  token  set (BITBUCKET_TOKEN)                        │ │
+│ │  user   dev                                          │m│
+│ │Hook:                                                 │h│
+│ │  SessionEnd hook installed                           │h│
+│ │Paths:                                                │d│
+│ │  config ~/.config/worktrack/config.toml              │ │
+│ │  db     ~/.local/share/worktrack/worktrack.db        │d│
+│ │                                                      │d│
+│ │Skipped repos                                         │ │
+│ │  ~/work/scratch/.git  origin is not Bitbucket Data   │d│
+│ │Center                                                │ │
+│ │                                                      │ │
+│ │Recent errors                                         │ │
+│ │  API/auth: git fetch failed                          │ │
+└─└──────────────────────────────────────────────────────┘ ┘
+
+ j/k move  enter open  o PR  t todo  c resume  y/Y copy …

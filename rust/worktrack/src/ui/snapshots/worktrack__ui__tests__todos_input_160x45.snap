@@ -1,0 +1,49 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack ── 3 repos · 9 items · PR ✓ · synced 2m ago                                                                                            ⟳ syncing 3/7
+  1 Work   2 Todos   3 Sessions·live   4 Summary   5 Inbox·4
+┌ Filter: Active ▾  Group: repo ────────────────────────────────────────────────────── 4 todos ┐┌ Todo ────────────────────────────────────────────────────────┐
+│ ▾ API/auth                                                                                   ││Finish upload retry logic                                     │
+│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││Status  [~] doing · priority A                                │
+│ ▾ API/upload-svc                                                                             ││Link    API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work│
+│   [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Jira    PROJ-123                                              │
+│ ▾ (no link)                                                                                  ││Source  manual                                                │
+│   [ ] B  Write migration doc                                                                 ││Created Fri 2026-11-20                                        │
+│   [ ]    Call Ivan about staging access                                                      ││                                                              │
+│                                                                                              ││Notes                                                         │
+│                                                                                              ││  Backoff with jitter.                                        │
+│                                                                                              ││  Check the integration test.                                 │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│ new todo › Call the bank                                                                     ││                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────────────┘
+
+ enter save  esc cancel

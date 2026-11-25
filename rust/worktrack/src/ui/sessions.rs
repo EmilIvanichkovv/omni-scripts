@@ -483,7 +483,7 @@ pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
             Style::new().fg(theme::WARN),
         ))),
         None => lines.push(Line::from(Span::styled(
-            "  no worktree known for this session",
+            "  no recorded directory for this session",
             theme::muted(),
         ))),
     }

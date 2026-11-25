@@ -1149,9 +1149,19 @@ impl App {
             .map(|w| w.path.clone())
     }
 
-    /// The resume command for a session, or `None` when no worktree is known.
+    /// The resume command for a session (spec 6.5), or `None` when its directory is unknown.
+    ///
+    /// Claude Code stores sessions per project directory, derived from the directory `claude`
+    /// was started in, so the `cd` target is the session's recorded `cwd`, not the worktree
+    /// root (they differ when `claude` ran in a subdirectory) and not dependent on worktrack
+    /// having discovered the repo. Falls back to the linked worktree for sessions without a
+    /// recorded `cwd`.
     pub fn session_resume(&self, s: &Session) -> Option<String> {
-        self.session_worktree(s)
+        s.cwd
+            .as_deref()
+            .filter(|c| !c.trim().is_empty())
+            .map(PathBuf::from)
+            .or_else(|| self.session_worktree(s))
             .map(|path| resume_command(&path, &s.id))
     }
 
@@ -1976,7 +1986,7 @@ impl App {
                 vec![Effect::CopyToClipboard(cmd)]
             }
             None => {
-                self.set_error("no worktree known for this session; nothing copied");
+                self.set_error("this session has no recorded directory; nothing copied");
                 Vec::new()
             }
         }
@@ -3509,17 +3519,56 @@ mod tests {
     }
 
     #[test]
-    fn resume_without_a_worktree_copies_nothing() {
+    fn resume_uses_the_session_cwd_without_a_known_worktree() {
         let mut app = sample::app();
         press(&mut app, "3");
         select_session_row(&mut app, "s-nobranch");
+        let cwd = app.selected_session().unwrap().cwd.clone().unwrap();
+        match press(&mut app, "c").as_slice() {
+            [Effect::CopyToClipboard(cmd)] => {
+                assert_eq!(
+                    cmd,
+                    &format!("cd {} && claude --resume s-nobranch", shell_quote(&cwd))
+                )
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn resume_prefers_the_session_cwd_over_the_worktree_root() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-live");
+        let s = app.sessions.iter_mut().find(|s| s.id == "s-live").unwrap();
+        s.cwd = Some("/home/dev/work/upload-svc-wt/retry/src/api".into());
+        match press(&mut app, "c").as_slice() {
+            [Effect::CopyToClipboard(cmd)] => assert_eq!(
+                cmd,
+                "cd '/home/dev/work/upload-svc-wt/retry/src/api' && claude --resume s-live"
+            ),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn resume_without_any_directory_copies_nothing() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-nobranch");
+        let s = app
+            .sessions
+            .iter_mut()
+            .find(|s| s.id == "s-nobranch")
+            .unwrap();
+        s.cwd = None;
         assert!(press(&mut app, "c").is_empty());
         assert!(app
             .status
             .as_ref()
             .unwrap()
             .text
-            .contains("no worktree known"));
+            .contains("no recorded directory"));
     }
 
     #[test]

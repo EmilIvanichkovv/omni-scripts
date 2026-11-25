@@ -119,6 +119,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if has_log {
         render_action_log(frame, app, chunks[idx]);
         idx += 1;
+    } else {
+        app.action_log_area = None;
     }
     render_footer(frame, app, chunks[idx], compact);
 
@@ -1320,13 +1322,25 @@ fn render_details_pane(frame: &mut Frame, app: &App, area: Rect, scroll: usize) 
     render_details_block(frame, lines, area, scroll)
 }
 
-/// Render the action log panel
-fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
+/// Render the action log panel: newest entry first, scrolled past
+/// `app.action_log_scroll` entries. When the entries do not all fit, the
+/// title shows which ones are in view and the bottom border a `[/]` hint.
+fn render_action_log(frame: &mut Frame, app: &mut App, area: Rect) {
+    let viewport = area.height.saturating_sub(2) as usize;
+    let total = app.action_log.len();
+    app.action_log_area = Some(area);
+    app.action_log_viewport = viewport;
+    app.action_log_scroll = app
+        .action_log_scroll
+        .min(total.saturating_sub(viewport.max(1)));
+    let scroll = app.action_log_scroll;
+
     let log_lines: Vec<Line> = app
         .action_log
         .iter()
-        .rev() // Show most recent first, as many as fit
-        .take(area.height.saturating_sub(2) as usize)
+        .rev() // Most recent first
+        .skip(scroll)
+        .take(viewport)
         .map(|entry| {
             if entry.success {
                 Line::from(vec![
@@ -1346,19 +1360,45 @@ fn render_action_log(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    let overflows = total > viewport;
+    let range = if overflows && viewport > 0 {
+        format!(
+            " · {}-{} of {}",
+            scroll + 1,
+            (scroll + viewport).min(total),
+            total
+        )
+    } else {
+        String::new()
+    };
     let title = format!(
-        " Action Log ({} success, {} failed) ",
+        " Action Log ({} success, {} failed){} ",
         app.deletion_success_count(),
-        app.deletion_failure_count()
+        app.deletion_failure_count(),
+        range
     );
 
-    let log = Paragraph::new(log_lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(COLOR_MUTED))
-            .title(title)
-            .title_style(Style::default().fg(COLOR_ACCENT)),
-    );
+    let mut block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(COLOR_MUTED))
+        .title(title)
+        .title_style(Style::default().fg(COLOR_ACCENT));
+    if overflows {
+        block = block.title_bottom(
+            Line::from(vec![
+                Span::raw(" "),
+                Span::styled(
+                    "[/]",
+                    Style::default()
+                        .fg(COLOR_ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(" scroll ", Style::default().fg(COLOR_MUTED)),
+            ])
+            .right_aligned(),
+        );
+    }
+    let log = Paragraph::new(log_lines).block(block);
 
     frame.render_widget(log, area);
 }
@@ -2112,6 +2152,18 @@ fn render_help_modal(frame: &mut Frame, app: &mut App) {
             ),
             Span::styled(
                 "Scroll the details pane (also Shift+↓ / ↑)",
+                Style::default().fg(COLOR_MUTED),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                "    ] / [         ",
+                Style::default()
+                    .fg(COLOR_SUCCESS)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Scroll the action log to older / newer entries",
                 Style::default().fg(COLOR_MUTED),
             ),
         ]),
@@ -3253,6 +3305,11 @@ fn worktree_help_lines() -> Vec<Line<'static>> {
             COLOR_SUCCESS,
         ),
         help_row(
+            "] / [",
+            "Scroll the action log to older / newer entries",
+            COLOR_SUCCESS,
+        ),
+        help_row(
             "Mouse wheel",
             "Scroll the pane under the pointer",
             COLOR_SUCCESS,
@@ -3940,6 +3997,59 @@ mod tests {
         app.scroll_at(list.x + 2, list.y + 2, true);
         assert_eq!(app.modal_scroll, 3);
         assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn action_log_scrolls_through_all_entries() {
+        let mut app = many_branches_app(3);
+        app.log_actions((1..=10).map(|i| crate::app::ActionLogEntry {
+            branch_name: format!("log-entry-{i:02}"),
+            success: true,
+            message: "Deleted (-d)".to_string(),
+        }));
+
+        // Newest first, the range in the title and a scroll hint
+        let text = screen_rows(&mut app, 140, 40).join("\n");
+        assert!(text.contains("1-4 of 10"));
+        assert!(text.contains("[/] scroll"));
+        assert!(text.contains("log-entry-10"));
+        assert!(!text.contains("log-entry-01"));
+
+        // `]` scrolls towards older entries and stops at the oldest
+        app.scroll_action_log(100);
+        let text = screen_rows(&mut app, 140, 40).join("\n");
+        assert!(text.contains("7-10 of 10"));
+        assert!(text.contains("log-entry-01"));
+        assert!(!text.contains("log-entry-10"));
+
+        // The wheel over the panel scrolls it too
+        let area = app.action_log_area.unwrap();
+        app.scroll_at(area.x + 2, area.y + 1, false);
+        assert_eq!(app.action_log_scroll, 3);
+
+        // A new entry scrolls back to the newest
+        app.log_actions([crate::app::ActionLogEntry {
+            branch_name: "log-entry-11".to_string(),
+            success: false,
+            message: "failed".to_string(),
+        }]);
+        let text = screen_rows(&mut app, 140, 40).join("\n");
+        assert!(text.contains("1-4 of 11"));
+        assert!(text.contains("log-entry-11"));
+    }
+
+    #[test]
+    fn action_log_has_no_range_when_everything_fits() {
+        let mut app = many_branches_app(3);
+        app.log_actions((1..=2).map(|i| crate::app::ActionLogEntry {
+            branch_name: format!("log-entry-{i}"),
+            success: true,
+            message: "Deleted (-d)".to_string(),
+        }));
+        let text = screen_rows(&mut app, 140, 40).join("\n");
+        assert!(text.contains("Action Log (2 success, 0 failed) "));
+        assert!(!text.contains(" of 2"));
+        assert!(!text.contains("[/] scroll"));
     }
 
     #[test]

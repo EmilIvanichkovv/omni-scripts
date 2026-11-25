@@ -170,6 +170,13 @@ pub struct App {
     pub show_confirmation: bool,
     /// Action log entries
     pub action_log: Vec<ActionLogEntry>,
+    /// Entries the action log is scrolled past, from the newest (clamped
+    /// while rendering); a new entry scrolls it back to the newest
+    pub action_log_scroll: usize,
+    /// Entries the action log panel showed last frame
+    pub action_log_viewport: usize,
+    /// Where the action log was drawn last frame (`None` when hidden)
+    pub action_log_area: Option<Rect>,
     /// Force mode for deleting unmerged branches
     pub force_mode: bool,
     /// Current filter mode
@@ -281,6 +288,9 @@ impl App {
             trunk,
             show_confirmation: false,
             action_log: Vec::new(),
+            action_log_scroll: 0,
+            action_log_viewport: 0,
+            action_log_area: None,
             force_mode: false,
             current_filter: FilterMode::All,
             show_help: false,
@@ -336,6 +346,22 @@ impl App {
         }
     }
 
+    /// Add `entries` to the action log and scroll it back to the newest
+    pub fn log_actions(&mut self, entries: impl IntoIterator<Item = ActionLogEntry>) {
+        self.action_log.extend(entries);
+        self.action_log_scroll = 0;
+    }
+
+    /// Scroll the action log by `delta` entries (positive = towards older
+    /// ones), stopping when the oldest entry is in view
+    pub fn scroll_action_log(&mut self, delta: isize) {
+        let max = self
+            .action_log
+            .len()
+            .saturating_sub(self.action_log_viewport.max(1));
+        self.action_log_scroll = self.action_log_scroll.saturating_add_signed(delta).min(max);
+    }
+
     /// Identity of the item under the cursor: branch name or worktree path
     fn cursor_item_key(&self) -> Option<String> {
         match self.view {
@@ -373,6 +399,8 @@ impl App {
             self.scroll_modal(rows);
         } else if self.details_area.is_some_and(|area| area.contains(pos)) {
             self.scroll_details(rows);
+        } else if self.action_log_area.is_some_and(|area| area.contains(pos)) {
+            self.scroll_action_log(rows);
         } else if self.list_area.contains(pos) {
             // Like ↓ / ↑: with suggestions showing they move through them;
             // otherwise search mode ends, so the next key is not typed into
@@ -1073,18 +1101,18 @@ impl App {
                 Ok(_) => {
                     let method = if use_force { "-D" } else { "-d" };
                     self.forget_cached_pr(branch_name);
-                    self.action_log.push(ActionLogEntry {
+                    self.log_actions([ActionLogEntry {
                         branch_name: branch_name.clone(),
                         success: true,
                         message: format!("Deleted ({})", method),
-                    });
+                    }]);
                 }
                 Err(e) => {
-                    self.action_log.push(ActionLogEntry {
+                    self.log_actions([ActionLogEntry {
                         branch_name: branch_name.clone(),
                         success: false,
                         message: e.to_string(),
-                    });
+                    }]);
                 }
             }
         }
@@ -1544,7 +1572,7 @@ impl App {
         for name in &deleted {
             self.forget_cached_pr(name);
         }
-        self.action_log.extend(log);
+        self.log_actions(log);
         self.show_confirmation = false;
         if !self.dry_run {
             self.refresh_branches();

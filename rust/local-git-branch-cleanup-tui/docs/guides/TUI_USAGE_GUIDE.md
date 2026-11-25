@@ -52,9 +52,10 @@ Nothing is cut off silently:
   whenever their content is longer than the space they have.
 
 The mouse wheel scrolls whatever is under the pointer: over the details pane it scrolls the details
-(3 rows per notch), over the list it moves the cursor, and while help, about or a confirmation is
-open it scrolls that. Because the TUI captures the mouse for this, select text with `Shift`+drag
-(most terminals, including Windows Terminal; `Option`+drag in iTerm2).
+(3 rows per notch), over the action log it scrolls the log, over the list it moves the cursor, and
+while help, about or a confirmation is open it scrolls that. Because the TUI captures the mouse for
+this, select text with `Shift`+drag (most terminals, including Windows Terminal; `Option`+drag in
+iTerm2).
 
 ---
 
@@ -74,6 +75,7 @@ open it scrolls that. Because the TUI captures the mouse for this, select text w
 | `Page Down`       | Move down by one page                          |
 | `J` / `K`         | Scroll the details pane down / up              |
 | `Shift+↓` / `↑`   | Scroll the details pane down / up              |
+| `]` / `[`         | Scroll the action log to older / newer entries |
 | `v`               | Cycle the pane layout (see Terminal Size)      |
 | `q` / `Esc` `Esc` | Quit application (press `Esc` twice within 1s) |
 
@@ -507,7 +509,8 @@ category:
 - **Selection** — Space, a (all), c (clear), and which statuses are not selectable (protected,
   protected-wt, current)
 - **Actions** — Enter (delete), f (force), d (dry run)
-- **Layout & scrolling** — v (layout), J / K (scroll details), mouse wheel (pane under the pointer)
+- **Layout & scrolling** — v (layout), J / K (scroll details), ] / [ (scroll the action log), mouse
+  wheel (pane under the pointer)
 - **Other** — w (worktree view), i (info), ? (help), q (quit)
 
 In the worktree view the help modal lists that view's keys instead (filters, `y` copy path, `b` in

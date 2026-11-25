@@ -184,6 +184,9 @@ Compare behavior with the original bash script:
 - [ ] Details pane shows PR state and number
 - [ ] `o` key opens PR URL in browser
 - [ ] `o` key does nothing when no PR associated
+- [ ] `o` with a failing opener (e.g. WSL without `rundll32.exe`, or `PATH` without `xdg-open`):
+      nothing is drawn over the TUI; an error popup `⚠ Cannot open the pull request` shows the
+      opener's error output and the URL, and any key closes it
 - [ ] Footer shows `o pr` hint when GitHub enabled
 - [ ] Help modal includes GitHub section
 - [ ] Error handling when `gh` CLI not installed

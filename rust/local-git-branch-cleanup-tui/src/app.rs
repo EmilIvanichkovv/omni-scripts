@@ -141,6 +141,13 @@ fn collect_authors(branches: &[BranchInfo]) -> Vec<String> {
     authors
 }
 
+/// An error shown in its own popup until the user closes it
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorPopup {
+    pub title: String,
+    pub message: String,
+}
+
 /// Log entry for deletion actions
 #[derive(Debug, Clone)]
 pub struct ActionLogEntry {
@@ -261,6 +268,12 @@ pub struct App {
     /// Whether the last frame was the "terminal too small" screen, which
     /// hides everything: keys other than `q` are ignored meanwhile
     pub too_small: bool,
+    /// The error popup on screen, if any
+    pub error_popup: Option<ErrorPopup>,
+    /// Errors waiting for the popup, also from background threads (a
+    /// browser opener that failed); shown one at a time
+    error_tx: std::sync::mpsc::Sender<ErrorPopup>,
+    error_rx: std::sync::mpsc::Receiver<ErrorPopup>,
 }
 
 /// Rows one mouse-wheel notch scrolls the details pane or a modal by
@@ -277,6 +290,7 @@ impl App {
         current_git_user: String,
     ) -> Self {
         let unique_authors = collect_authors(&branches);
+        let (error_tx, error_rx) = std::sync::mpsc::channel();
 
         Self {
             branches,
@@ -330,6 +344,9 @@ impl App {
             details_area: None,
             modal_overflows: false,
             too_small: false,
+            error_popup: None,
+            error_tx,
+            error_rx,
         }
     }
 
@@ -420,9 +437,33 @@ impl App {
         }
     }
 
-    /// Whether a modal that scrolls (help, about, confirmation) is open
+    /// Whether a modal that scrolls (help, about, confirmation, error) is open
     pub fn modal_open(&self) -> bool {
-        self.show_help || self.show_info || self.show_confirmation
+        self.show_help || self.show_info || self.show_confirmation || self.error_popup.is_some()
+    }
+
+    /// Queue an error for the error popup
+    pub fn show_error(&mut self, title: impl Into<String>, message: impl Into<String>) {
+        let _ = self.error_tx.send(ErrorPopup {
+            title: title.into(),
+            message: message.into(),
+        });
+    }
+
+    /// Show the next queued error when no error popup is open
+    pub fn poll_errors(&mut self) {
+        if self.error_popup.is_none() {
+            if let Ok(error) = self.error_rx.try_recv() {
+                self.error_popup = Some(error);
+                self.modal_scroll = 0;
+            }
+        }
+    }
+
+    /// Close the error popup; the next queued error, if any, follows
+    pub fn close_error_popup(&mut self) {
+        self.error_popup = None;
+        self.modal_scroll = 0;
     }
 
     /// Scroll the open modal by `delta` rows (positive = down)
@@ -1357,7 +1398,7 @@ impl App {
     pub fn reload_worktrees_if_loaded(&mut self) {
         if self.worktrees.is_some() {
             if let Err(e) = self.load_worktrees() {
-                self.flash = Some(format!("Cannot list worktrees: {}", e));
+                self.show_error("Cannot list worktrees", e.to_string());
             }
         }
     }
@@ -1372,14 +1413,32 @@ impl App {
         self.action_log.iter().filter(|e| !e.success).count()
     }
 
-    /// Open the PR URL for the item under the cursor in the default browser
-    /// Returns true if a PR URL was opened, false if no PR is associated
-    pub fn open_selected_pr(&self) -> bool {
-        let pr_info = match self.view {
+    /// Open the PR URL for the item under the cursor in the default browser.
+    /// Returns false if no PR is associated. When the browser cannot be
+    /// opened, the error popup says why (also when the opener fails later,
+    /// in the background).
+    pub fn open_selected_pr(&mut self) -> bool {
+        let url = match self.view {
             ViewMode::Branches => self.selected_branch().and_then(|b| b.pr_info.as_ref()),
             ViewMode::Worktrees => self.selected_worktree().and_then(|w| w.pr_info.as_ref()),
+        }
+        .map(|pr| pr.url.clone());
+        let Some(url) = url else {
+            return false;
         };
-        pr_info.is_some_and(|pr| git::open_url_in_browser(&pr.url).is_ok())
+        const TITLE: &str = "Cannot open the pull request";
+        let tx = self.error_tx.clone();
+        let link = url.clone();
+        let result = git::open_url_in_browser(&url, move |message| {
+            let _ = tx.send(ErrorPopup {
+                title: TITLE.to_string(),
+                message: format!("{message}\n\nURL: {link}"),
+            });
+        });
+        if let Err(e) = result {
+            self.show_error(TITLE, format!("{e:#}\n\nURL: {url}"));
+        }
+        true
     }
 
     /// Number of rows in the list on screen (after filter and search)
@@ -1400,7 +1459,7 @@ impl App {
         };
         if target == ViewMode::Worktrees && self.worktrees.is_none() {
             if let Err(e) = self.load_worktrees() {
-                self.flash = Some(format!("Cannot list worktrees: {}", e));
+                self.show_error("Cannot list worktrees", e.to_string());
                 return;
             }
         }

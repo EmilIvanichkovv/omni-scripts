@@ -268,8 +268,10 @@ The details pane shows additional PR information:
 
 ### Opening PRs in Browser
 
-Press `o` when a branch with an associated PR is selected to open the PR URL in your default
-browser.
+Press `o` when a branch with an associated PR is selected to open the PR URL in your default browser
+(`xdg-open` on Linux, `open` on macOS, `start` on Windows). The opener's output never reaches the
+screen; when it fails (for example under WSL without a browser bridge: `rundll32.exe: not found`),
+an error popup shows its error output and the URL. Any key closes it.
 
 ### Cache Behaviour
 

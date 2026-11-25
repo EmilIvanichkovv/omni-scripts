@@ -173,6 +173,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if app.show_info {
         render_info_modal(frame, app);
     }
+
+    // An error popup goes on top of everything
+    if app.error_popup.is_some() {
+        render_error_popup(frame, app);
+    }
 }
 
 /// Shown instead of the layout when the terminal is below the minimum size
@@ -2332,6 +2337,46 @@ fn render_help_modal(frame: &mut Frame, app: &mut App) {
 }
 
 /// Render the info modal
+/// Render the error popup: its title on the border, the message (one line
+/// per message line, wrapped) and how to close it
+fn render_error_popup(frame: &mut Frame, app: &mut App) {
+    let Some(error) = &app.error_popup else {
+        return;
+    };
+    let mut lines = vec![Line::from("")];
+    lines.extend(error.message.lines().map(|line| {
+        Line::from(Span::styled(
+            format!("  {line}"),
+            Style::default().fg(Color::White),
+        ))
+    }));
+    lines.push(Line::from(""));
+    let footer = Line::from(vec![
+        Span::styled("  Press ", Style::default().fg(COLOR_MUTED)),
+        Span::styled(
+            "Esc",
+            Style::default()
+                .fg(COLOR_ACCENT)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(" or any key to close", Style::default().fg(COLOR_MUTED)),
+    ]);
+    let title = format!(" ⚠ {} ", error.title);
+    let scroll = render_modal(
+        frame,
+        &title,
+        COLOR_DANGER,
+        80,
+        lines,
+        Some(footer),
+        app.modal_scroll,
+        MODAL_SCROLL_HINT,
+    );
+    app.modal_scroll = scroll.offset;
+    app.modal_viewport = scroll.viewport;
+    app.modal_overflows = scroll.overflows();
+}
+
 fn render_info_modal(frame: &mut Frame, app: &mut App) {
     let view = app.view;
 
@@ -3863,6 +3908,38 @@ mod tests {
         let text = screen_at(&mut app, 80, 16);
         assert!(!text.contains(" Details "));
         assert!(text.contains("details hidden"));
+    }
+
+    #[test]
+    fn errors_show_in_a_popup_one_at_a_time() {
+        let mut app = many_branches_app(5);
+        app.show_error(
+            "Cannot open the pull request",
+            "`xdg-open` failed (exit status: 3):\n/usr/bin/xdg-open: 1050: rundll32.exe: not found",
+        );
+        app.show_error("Cannot list worktrees", "second error");
+        // Nothing until the loop polls the queue
+        assert!(!screen_at(&mut app, 120, 40).contains("Cannot open"));
+
+        app.poll_errors();
+        assert!(app.modal_open());
+        let text = screen_at(&mut app, 120, 40);
+        assert!(text.contains("⚠ Cannot open the pull request"));
+        assert!(text.contains("rundll32.exe: not found"));
+        assert!(text.contains("or any key to close"));
+        assert!(!text.contains("second error"));
+
+        // Closing it brings the next one
+        app.close_error_popup();
+        app.poll_errors();
+        let text = screen_at(&mut app, 120, 40);
+        assert!(text.contains("⚠ Cannot list worktrees"));
+        assert!(text.contains("second error"));
+
+        app.close_error_popup();
+        app.poll_errors();
+        assert!(!app.modal_open());
+        assert!(!screen_at(&mut app, 120, 40).contains('⚠'));
     }
 
     #[test]

@@ -27,10 +27,10 @@ axoasset.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
+tempfile.workspace = true
 # omni-lib.workspace = true  # Uncomment when extracting shared code
 
 [dev-dependencies]
-tempfile.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
 wiremock.workspace = true

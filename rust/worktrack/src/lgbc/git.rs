@@ -89,23 +89,34 @@ pub fn is_protected_branch(branch: &str) -> bool {
 }
 
 /// Open a URL in the default browser
+///
+/// The opener's stdio is detached: the TUI owns the terminal, and anything the opener prints
+/// (xdg-open errors are common under WSL) would land on top of the drawn screen and push it
+/// out of sync with ratatui's buffer.
 pub fn open_url_in_browser(url: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open").arg(url).spawn()?;
+        detached(Command::new("xdg-open").arg(url)).spawn()?;
     }
 
     #[cfg(target_os = "macos")]
     {
-        Command::new("open").arg(url).spawn()?;
+        detached(Command::new("open").arg(url)).spawn()?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd").args(["/C", "start", "", url]).spawn()?;
+        detached(Command::new("cmd").args(["/C", "start", "", url])).spawn()?;
     }
 
     Ok(())
+}
+
+fn detached(cmd: &mut Command) -> &mut Command {
+    use std::process::Stdio;
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
 }
 
 /// How long `fetch_remote` waits before killing `git fetch`

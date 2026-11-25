@@ -437,9 +437,23 @@ fn event_loop(
             continue;
         }
         let effects = match event::read()? {
+            // Ctrl-L: full repaint. ratatui only sends changed cells, so if anything outside the
+            // TUI wrote to the terminal, the stray text stays until the screen is cleared.
+            Event::Key(k)
+                if k.code == KeyCode::Char('l') && k.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                term.clear()?;
+                Vec::new()
+            }
             Event::Key(k) => app.handle_key(k),
             Event::Mouse(m) => app.handle_mouse(m),
+            Event::Resize(..) => {
+                term.clear()?;
+                Vec::new()
+            }
             Event::FocusGained => {
+                // Other programs may have drawn while the window was in the background.
+                term.clear()?;
                 bg.send(Command::LocalReload);
                 Vec::new()
             }

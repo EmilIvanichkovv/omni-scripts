@@ -15,20 +15,20 @@ expression: text
 │   ↑ spike/│  v                     cycle layout: auto / side / stacked / list        █6d T0 S1   █
 │           │  Enter / Esc           details full screen on narrow layouts / back      █           █
 │ ▾ API/auth│  r / R                 local reload / full sync                          ║──────── 2 █
-│   ✓ featur│  i                     diagnostics                                       ║1d T1 S2   █
-│   ✕ featur│  ? / q                 help / quit                                       ║4d T0 S0   █
-│           │                                                                          ║           ║
-│ ▾ WEB/port│Groups (repos, days, directories)                                         ║──────── 1 ▼
-╰───────────│  Enter / Space         on a group header: fold / unfold it               ║───────────╯
-╭ Details ──│  z                     fold / unfold the group of the selected row       ║───────────╮
-│feature/PRO│  Z                     fold all groups (unfold all when all are folded)  ║PROJ-123 ↗ ▲
-│State    ✎ │  /                     searching shows every group open                  ║           █
-│Repo     AP│                                                                          ║           █
-│Path     ~/│Work                                                                      ║           █
-│Flags    di│  o                     open PR in browser (Jira if no PR)                ║           ║
-│PR #44   Ad│  y / Y                 copy branch name / worktree path                  ║           ║
-│         iv│  t                     add todo linked to this item                      ║           ║
-│         4 │  c                     copy resume command of latest session             ▼           ▼
-╰───────────│  A / U                 mark abandoned (confirm) / unmark                 │J/K scroll ╯
+│   ✓ featur│  ctrl-l                repaint the screen                                ║1d T1 S2   █
+│   ✕ featur│  i                     diagnostics                                       ║4d T0 S0   █
+│           │  ? / q                 help / quit                                       ║           ║
+│ ▾ WEB/port│                                                                          ║──────── 1 ▼
+╰───────────│Groups (repos, days, directories)                                         ║───────────╯
+╭ Details ──│  Enter / Space         on a group header: fold / unfold it               ║───────────╮
+│feature/PRO│  z                     fold / unfold the group of the selected row       ║PROJ-123 ↗ ▲
+│State    ✎ │  Z                     fold all groups (unfold all when all are folded)  ║           █
+│Repo     AP│  /                     searching shows every group open                  ║           █
+│Path     ~/│                                                                          ║           █
+│Flags    di│Work                                                                      ║           ║
+│PR #44   Ad│  o                     open PR in browser (Jira if no PR)                ║           ║
+│         iv│  y / Y                 copy branch name / worktree path                  ║           ║
+│         4 │  t                     add todo linked to this item                      ▼           ▼
+╰───────────│  c                     copy resume command of latest session             │J/K scroll ╯
             ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t todo · f filter · / search · ? help · q quit

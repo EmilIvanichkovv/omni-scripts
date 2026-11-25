@@ -26,6 +26,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
                 "details full screen on narrow layouts / back",
             ),
             ("r / R", "local reload / full sync"),
+            ("ctrl-l", "repaint the screen"),
             ("i", "diagnostics"),
             ("? / q", "help / quit"),
         ],

@@ -109,6 +109,7 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | `/`, `f`, `v`                 | search, cycle filter, cycle layout                                                            |
 | `Enter` / `Esc`               | details full screen in the list-only layout / back                                            |
 | `r` / `R`                     | local reload / full sync                                                                      |
+| `Ctrl-l`                      | repaint the screen                                                                            |
 | `i`, `?`, `q`                 | diagnostics, help, quit                                                                       |
 | Work: `o`, `t`, `c`           | open PR (or Jira), add a linked todo, copy resume command                                     |
 | Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                            |

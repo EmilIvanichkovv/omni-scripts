@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 24-11-2026 20:12
+**Last Updated:** 25-11-2026 17:52
 
 ---
 
@@ -30,7 +30,146 @@ _No open critical issues._
 
 ## UI/UX Issues
 
-_No open UI/UX issues._
+### Issue #29: Show errors from external commands in a popup instead of over the screen
+
+- **Status:** 🔴 Open
+- **Reported:** 25-11-2026
+- **Category:** UI/UX / Bug
+- **GitHub:** [#88](https://github.com/EmilIvanichkovv/omni-scripts/issues/88)
+- **Description:**
+  - When opening a PR in the browser (`o`) fails, the opener's error text is printed straight onto
+    the terminal over the TUI, e.g. `/usr/bin/xdg-open: 1050: rundll32.exe: not found` under WSL. It
+    stays there, breaking the layout, until something forces a full redraw.
+  - Root cause: `git::open_url_in_browser` runs `Command::new("xdg-open").arg(url).spawn()` (and
+    `open` / `cmd /C start` on macOS / Windows) without setting stdio, so the child inherits the
+    TUI's stdout/stderr and writes into the alternate screen. `spawn` returns as soon as the process
+    starts, so its exit status and error output are never checked, and `App::open_selected_pr`
+    reports success.
+  - There is no error popup to show such a failure in: errors go to the one-line `flash` message in
+    the footer, which is cut off for long text and clears on the next key.
+- **Steps to Reproduce:**
+  1. In WSL without a working browser bridge (no `rundll32.exe` on `PATH`), start the TUI with PR
+     integration on.
+  2. Put the cursor on a branch with a PR and press `o`.
+- **Expected Behavior:**
+  - Nothing from a child process is written to the terminal while the TUI runs.
+  - A failed open shows an error popup (title, the command that failed, its error output) that the
+    user dismisses with `Esc`/`Enter`, and the error is written to the log file (TUI-30).
+- **Actual Behavior:** The opener's stderr is drawn over the app, and the TUI behaves as if the PR
+  had opened.
+- **Proposed Fix:**
+  - In `open_url_in_browser`, set `stdin`/`stdout` to `Stdio::null()` and `stderr` to
+    `Stdio::piped()`, and wait for the opener on a background thread (`xdg-open` exits once the
+    browser is handed the URL). On a non-zero exit, send the trimmed stderr to the app through the
+    existing event channel.
+  - Add an error modal to `App` (`error_popup: Option<ErrorPopup { title, message }>`), include it
+    in `modal_open` so it takes keys and the mouse wheel, and render it like the other modals with
+    wrapped, scrollable text. Use it for other user-facing failures that do not fit the footer
+    `flash` (failed worktree listing, failed refresh).
+  - Audit the other `Command`s: the `git` and `gh` calls use `.output()` (captured) and the
+    clipboard nulls its stdio, so `open_url_in_browser` is the only one that inherits the terminal
+    today. Add a comment there so new spawns follow the same rule.
+
+---
+
+### Issue #28: Show the active filter in the header
+
+- **Status:** 🔴 Open
+- **Reported:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#85](https://github.com/EmilIvanichkovv/omni-scripts/issues/85)
+- **Description:**
+  - Nothing on screen says which filter is active unless the filter bar is open. The bar is hidden
+    by default (`show_filter: false`, toggled with `F`), but `Tab`, `1`-`4` and `F1`-`F4` change
+    `current_filter` (branches) or `WorktreeFilter` (worktrees) with the bar hidden too.
+  - `header_lines` in `ui.rs` shows indicators for force, dry run, sort (`🔀`) and layout (`▥`), but
+    none for the filter, and the list titles (`Branches (N shown, M selected)`, `Worktrees (...)`)
+    only give a count. A filtered list looks like a repo with fewer branches.
+- **Steps to Reproduce:**
+  1. Start the TUI with the filter bar hidden (the default).
+  2. Press `1` (or `Tab`) to switch to SAFE MERGED.
+  3. Look for any sign that the list is filtered.
+- **Expected Behavior:** While a filter other than ALL is active, the header shows an indicator with
+  its name (e.g. `⏷ SAFE MERGED`), like the sort and layout indicators, in both the branch and
+  worktree views. It shows whether or not the filter bar is open.
+- **Actual Behavior:** With the filter bar hidden, the only change is that fewer rows are listed.
+- **Proposed Fix:**
+  - In `header_lines`, push a group with the active filter's `label()` when it is not `All`:
+    `app.current_filter` in the branch view, the worktree view's `filter` in the worktree view.
+    Style it like the sort indicator (`COLOR_ACCENT`).
+  - Optional: show it only while the filter bar is hidden, since the bar already highlights the
+    active tab. Showing it always is simpler and keeps the header consistent.
+  - Add a render test that the indicator appears for a non-ALL filter and not for ALL, and list it
+    with the other header indicators in the README / usage guide.
+
+---
+
+### Issue #27: Move the legend to a full-width box above the footer
+
+- **Status:** 🔴 Open
+- **Reported:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#84](https://github.com/EmilIvanichkovv/omni-scripts/issues/84)
+- **Description:**
+  - The legend sits inside the list column, not at the bottom of the screen. `render_branch_list`
+    and `render_worktree_list` call `render_legend` on the list pane's `area`, which carves the
+    legend box out of the bottom of that area. In side by side it is only as wide as the list (the
+    details pane runs past it to the action log/footer), and in stacked it sits between the list and
+    the details pane, in the middle of the screen.
+  - Because the legend is squeezed into the list width, it wraps sooner and falls back to
+    `… i about` more often than a full-width row would.
+- **Steps to Reproduce:**
+  1. Start the TUI in a wide terminal (side by side): the legend ends where the details pane begins.
+  2. Press `v` until the layout is stacked: the legend appears between the list and the details.
+- **Expected Behavior:** The legend is a full-width box at the bottom of the screen, directly above
+  the footer (the key-hint box), in every arrangement and in both the branch and worktree views.
+- **Actual Behavior:** The legend is part of the list column: narrower than the screen in side by
+  side, and above the details pane in stacked.
+- **Proposed Fix:**
+  - Take `render_legend` out of `render_branch_list`/`render_worktree_list` and give it its own
+    vertical chunk in `draw`, between the action log and the footer, sized like the footer from
+    `flow_lines` on the full inner width (at most 2 lines, `… i about` on overflow).
+  - Keep the space rule: drop the legend to fewer lines, then none, before the content area falls
+    below its minimum, so short terminals still show the list. Compact mode keeps the borderless
+    `Legend:` row.
+  - Update the `legend_has_its_own_box_below_the_list` test and the layout description in the README
+    / usage guide.
+
+---
+
+### Issue #26: Make the action log scrollable
+
+- **Status:** 🔴 Open
+- **Reported:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#83](https://github.com/EmilIvanichkovv/omni-scripts/issues/83)
+- **Description:**
+  - The action log panel shows only the newest entries that fit in its box, and nothing can scroll
+    back to older ones. `draw` in `ui.rs` caps the panel at 4 rows (1 in compact mode) via
+    `log_rows`, and `render_action_log` takes `.rev().take(height)` of `app.action_log`, so after a
+    bulk delete of more than 4 branches the earlier results (including failures) are unreachable.
+  - The mouse wheel does nothing over the panel: `App::scroll_at` only routes wheel events to an
+    open modal, the details pane (`details_area`), or the list (`list_area`), and the log area is
+    not recorded.
+- **Steps to Reproduce:**
+  1. Select 6 or more branches and delete them (`Enter`, confirm).
+  2. Look at the Action Log panel and try to see the first results (wheel over the panel, keys).
+- **Expected Behavior:**
+  - The mouse wheel over the action log scrolls through all its entries, newest first.
+  - A keyboard way to scroll it exists too, and the panel shows its position (e.g. `3-6 of 12` in
+    the title) when it holds more entries than fit.
+  - A new action resets the scroll to the newest entry.
+- **Actual Behavior:** Only the newest 4 entries (1 in compact mode) are ever visible; older ones
+  are hidden with no indication that they exist.
+- **Proposed Fix:**
+  - Add `action_log_scroll: usize` and `action_log_area: Option<Rect>` to `App`; set the area in
+    `draw`, and route wheel events over it in `scroll_at` to a new `scroll_action_log`, clamped to
+    `len - visible rows`.
+  - `render_action_log` skips `action_log_scroll` entries before `take`, and shows the range in the
+    title when the log overflows. Reset the scroll to 0 wherever entries are pushed.
+  - Keyboard: bind a free key pair (e.g. `[` / `]`) and list it in the footer, help modal, README
+    and usage guide. Alternative: a full-screen log modal (`L`) reusing the modal scroll keys, which
+    also helps long failure messages that the one-line rows truncate. Worth deciding before fixing.
 
 ---
 
@@ -42,7 +181,36 @@ _No open performance issues._
 
 ## Minor/Cosmetic Issues
 
-_No open minor/cosmetic issues._
+### Issue #30: Write a log file for diagnosing errors
+
+- **Status:** 🔴 Open
+- **Reported:** 25-11-2026
+- **Category:** Minor/Cosmetic / Enhancement
+- **GitHub:** [#89](https://github.com/EmilIvanichkovv/omni-scripts/issues/89)
+- **Description:**
+  - The TUI keeps no log. Errors are shown once in the footer `flash`, the action log panel or
+    (before the TUI starts) `eprintln!` in `main.rs`, and are gone after the session, so there is
+    nothing to examine after something goes wrong (failed deletes, PR fetch errors, cache problems,
+    a failing browser opener).
+- **Expected Behavior:**
+  - Each run appends to a log file in a fixed, documented folder: `$XDG_STATE_HOME` (or
+    `~/.local/state`) `/local-git-branch-cleanup-tui/logs/` on Linux, the platform's local data
+    folder on macOS and Windows.
+  - Errors and warnings are always logged with a timestamp and context (command, branch, exit code,
+    stderr); more detail is available with a log level setting (e.g. `--log-level debug` or an env
+    var).
+  - Old files are rotated (e.g. daily, keep the last 7) so the folder does not grow forever.
+  - The info modal (`i`) and the error popup (TUI-29) show the log file path.
+- **Proposed Fix:**
+  - Add `tracing`, `tracing-subscriber` and `tracing-appender` (daily rolling, non-blocking writer)
+    and initialise them in `main` before the terminal is set up; keep the worker guard alive until
+    exit. Never log to stdout/stderr while the TUI owns the screen.
+  - Resolve the folder like `cache::cache_root` does: an absolute `$XDG_STATE_HOME` first, then
+    `dirs::state_dir()`, falling back to `dirs::data_local_dir()` (macOS/Windows have no state dir).
+    If the folder cannot be created, run without a log instead of failing.
+  - Log at the existing error sites: `flash` messages, failed `ActionLogEntry`s, PR provider and
+    cache errors, refresh/fetch failures, the panic hook, and the opener failure from TUI-29.
+  - Document the location and level setting in the README and usage guide.
 
 ---
 
@@ -1014,3 +1182,8 @@ _No open minor/cosmetic issues._
 | 19-11-2026 | 17:24 | #24   | Resolved: `f` keeps the selection, dropping only force-only rows       |
 | 24-11-2026 | 20:06 | #25   | Reported: Fetch and prune the remote when the TUI starts               |
 | 24-11-2026 | 20:12 | #25   | Resolved: `git fetch --prune` in the background on startup             |
+| 25-11-2026 | 15:40 | #26   | Reported: Make the action log scrollable                               |
+| 25-11-2026 | 15:42 | #27   | Reported: Move the legend to a full-width box above the footer         |
+| 25-11-2026 | 15:44 | #28   | Reported: Show the active filter in the header                         |
+| 25-11-2026 | 17:52 | #29   | Reported: Show external command errors in a popup, not over the screen |
+| 25-11-2026 | 17:52 | #30   | Reported: Write a log file for diagnosing errors                       |

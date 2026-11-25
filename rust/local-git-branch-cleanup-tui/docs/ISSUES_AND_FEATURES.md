@@ -1,6 +1,6 @@
 # Issues, Bugs & Feature Requests
 
-**Last Updated:** 25-11-2026 18:02
+**Last Updated:** 25-11-2026 18:08
 
 ---
 
@@ -104,39 +104,6 @@ _No open critical issues._
 
 ---
 
-### Issue #27: Move the legend to a full-width box above the footer
-
-- **Status:** 🔴 Open
-- **Reported:** 25-11-2026
-- **Category:** UI/UX / Enhancement
-- **GitHub:** [#84](https://github.com/EmilIvanichkovv/omni-scripts/issues/84)
-- **Description:**
-  - The legend sits inside the list column, not at the bottom of the screen. `render_branch_list`
-    and `render_worktree_list` call `render_legend` on the list pane's `area`, which carves the
-    legend box out of the bottom of that area. In side by side it is only as wide as the list (the
-    details pane runs past it to the action log/footer), and in stacked it sits between the list and
-    the details pane, in the middle of the screen.
-  - Because the legend is squeezed into the list width, it wraps sooner and falls back to
-    `… i about` more often than a full-width row would.
-- **Steps to Reproduce:**
-  1. Start the TUI in a wide terminal (side by side): the legend ends where the details pane begins.
-  2. Press `v` until the layout is stacked: the legend appears between the list and the details.
-- **Expected Behavior:** The legend is a full-width box at the bottom of the screen, directly above
-  the footer (the key-hint box), in every arrangement and in both the branch and worktree views.
-- **Actual Behavior:** The legend is part of the list column: narrower than the screen in side by
-  side, and above the details pane in stacked.
-- **Proposed Fix:**
-  - Take `render_legend` out of `render_branch_list`/`render_worktree_list` and give it its own
-    vertical chunk in `draw`, between the action log and the footer, sized like the footer from
-    `flow_lines` on the full inner width (at most 2 lines, `… i about` on overflow).
-  - Keep the space rule: drop the legend to fewer lines, then none, before the content area falls
-    below its minimum, so short terminals still show the list. Compact mode keeps the borderless
-    `Legend:` row.
-  - Update the `legend_has_its_own_box_below_the_list` test and the layout description in the README
-    / usage guide.
-
----
-
 ## Performance Issues
 
 _No open performance issues._
@@ -179,6 +146,43 @@ _No open performance issues._
 ---
 
 ## Resolved Issues
+
+### Issue #27: Move the legend to a full-width box above the footer
+
+- **Status:** 🟢 Resolved
+- **Reported:** 25-11-2026
+- **Resolved:** 25-11-2026
+- **Category:** UI/UX / Enhancement
+- **GitHub:** [#84](https://github.com/EmilIvanichkovv/omni-scripts/issues/84)
+- **Description:**
+  - The legend sat inside the list column, not at the bottom of the screen. `render_branch_list` and
+    `render_worktree_list` called `render_legend` on the list pane's `area`, which carved the legend
+    box out of the bottom of that area. In side by side it was only as wide as the list (the details
+    pane ran past it to the action log/footer), and in stacked it sat between the list and the
+    details pane, in the middle of the screen.
+  - Because the legend was squeezed into the list width, it wrapped sooner and fell back to
+    `… i about` more often than a full-width row would.
+- **Steps to Reproduce:**
+  1. Start the TUI in a wide terminal (side by side): the legend ends where the details pane begins.
+  2. Press `v` until the layout is stacked: the legend appears between the list and the details.
+- **Expected Behavior:** The legend is a full-width box at the bottom of the screen, directly above
+  the footer (the key-hint box), in every arrangement and in both the branch and worktree views.
+- **Actual Behavior:** The legend was part of the list column: narrower than the screen in side by
+  side, and above the details pane in stacked.
+- **Fix:**
+  - `render` in `ui.rs` builds the legend itself (new `legend_lines`, from `branch_legend_groups` or
+    `worktree_legend_groups`) on the full inner width and gives it its own chunk between the action
+    log and the footer; `render_legend` only draws that box. The list functions no longer touch the
+    legend.
+  - The space rule moved with it: the legend gets at most 2 lines, then 1, then none, before the
+    content area (list and details) would get fewer than `CONTENT_MIN_HEIGHT` (5) rows. Compact mode
+    keeps the borderless `Legend:` row.
+  - Replaced the list-column legend tests with tests for the full-width position in all three
+    arrangements, line flowing, and the space rule; updated the usage guide diagram,
+    `RESPONSIVE_LAYOUT.md` and `TESTING.md`.
+- **Commit:** `feat(tui): Move the legend to a full-width box above the footer`
+
+---
 
 ### Issue #26: Make the action log scrollable
 
@@ -1192,3 +1196,4 @@ _No open performance issues._
 | 25-11-2026 | 17:52 | #29   | Reported: Show external command errors in a popup, not over the screen |
 | 25-11-2026 | 17:52 | #30   | Reported: Write a log file for diagnosing errors                       |
 | 25-11-2026 | 18:02 | #26   | Resolved: Action log scrolls with the wheel and `]` / `[`              |
+| 25-11-2026 | 18:08 | #27   | Resolved: Legend is a full-width box above the footer                  |

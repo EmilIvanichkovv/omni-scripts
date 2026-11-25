@@ -3,6 +3,19 @@
 All notable changes to `local-git-branch-cleanup-tui` are recorded here. Starting after 0.2.0, each
 release adds its entry automatically from conventional commit messages.
 
+## 0.10.0 - 25-11-2026
+
+### Features
+
+- **tui:** Make the layout responsive to the terminal size
+- **tui:** Give the legend its own box below the list
+
+### Bug fixes
+
+- **tui:** Address review findings in the responsive layout
+- **tui:** Address the second review of the responsive layout
+- **tui:** Address the final review of the responsive layout
+
 ## 0.9.1 - 23-11-2026
 
 ### Bug fixes

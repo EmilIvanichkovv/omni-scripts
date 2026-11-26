@@ -707,6 +707,7 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
         let mut g = vec![key_hint("esc", "back"), key_hint("j/k", "scroll")];
         match app.tab {
             Tab::Sessions => g.push(key_hint("enter", "work item")),
+            Tab::Todos => g.push(key_hint("enter", "session")),
             Tab::Summary => g.extend([
                 key_hint("enter", "open"),
                 key_hint("o", "PR"),
@@ -750,6 +751,7 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
         Tab::Todos => vec![
             key_hint("a", "add"),
             key_hint("space", "done"),
+            key_hint("enter", "session"),
             key_hint("s", "status"),
             key_hint("e", "edit"),
             key_hint("L", "link"),

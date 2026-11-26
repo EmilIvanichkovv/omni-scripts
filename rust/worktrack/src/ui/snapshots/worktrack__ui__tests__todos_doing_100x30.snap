@@ -22,13 +22,13 @@ expression: text
 │Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
 │Jira     PROJ-123                                                                                 │
 │Source   manual                                                                                   │
+│Session  Add backoff to uploads  latest on branch · enter opens                                   │
 │Created  Fri 2026-11-20                                                                           │
 │                                                                                                  │
 │Notes                                                                                             │
 │  Backoff with jitter.                                                                            │
 │  Check the integration test.                                                                     │
 │                                                                                                  │
-│                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
- a add · space done · s status · e edit · L link · h/l filter · ? help · q quit
+ a add · space done · enter session · s status · e edit · L link · h/l filter · ? help · q quit

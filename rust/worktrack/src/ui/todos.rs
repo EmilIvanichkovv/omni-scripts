@@ -286,6 +286,19 @@ pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
     if let Some(s) = &t.source {
         lines.push(field("Source", vec![Span::raw(clean(s))]));
     }
+    if let Some((s, kind)) = app.todo_session(t) {
+        let how = match kind {
+            crate::app::TodoSessionKind::CreatedFrom => "created from",
+            crate::app::TodoSessionKind::LatestOnBranch => "latest on branch",
+        };
+        lines.push(field(
+            "Session",
+            vec![
+                Span::raw(clean(&app.session_title(s))),
+                Span::styled(format!("  {how} · enter opens"), theme::muted()),
+            ],
+        ));
+    }
     if let Some(d) = t.created {
         lines.push(field(
             "Created",

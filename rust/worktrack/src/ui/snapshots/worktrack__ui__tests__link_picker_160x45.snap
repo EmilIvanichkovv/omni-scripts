@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
- a add · space done · s status · e edit · L link · h/l filter · ? help · q quit
+ a add · space done · enter session · s status · e edit · L link · h/l filter · ? help · q quit

@@ -25,7 +25,7 @@ expression: text
 │                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
 │                                         │  /                     searching shows every group open                  █to uploads                               │
 │                                         │                                                                          █                                         │
-│                                         │Work                                                                      █                                         │
+│                                         │Work                                                                      ║                                         │
 │                                         │  o                     open PR in browser (Jira if no PR)                ║                                         │
 │                                         │  y / Y                 copy branch name / worktree path                  ║                                         │
 │                                         │  t                     new todo dialog, linked to this item              ║                                         │
@@ -43,7 +43,7 @@ expression: text
 │                                         │Todos                                                                     ║                                         │
 │                                         │  a / e / E             add / edit title / edit notes in editor           ║                                         │
 │                                         │  Space                 mark done (enter confirms) / reopen               ║                                         │
-│                                         │  s / p                 cycle status / cycle priority                     ▼                                         │
-╰─────────────────────────────────────────│  L                     link to a work item                               │─────────────────────────────────────────╯
+│                                         │  Enter                 go to the todo's session (the one it came from,   ▼                                         │
+╰─────────────────────────────────────────│else the latest on its branch)                                            │─────────────────────────────────────────╯
                                           ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t new todo · f filter · / search · ? help · q quit

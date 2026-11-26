@@ -116,6 +116,7 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                          |
 | Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                                                         |
 | Todos: `Space` `s` `p` `L`    | mark done (`Enter` confirms) / reopen, cycle status, cycle priority, link to a branch            |
+| Todos: `Enter`                | go to the todo's session: the one it was created from, else the latest on its branch             |
 | Todos: `O`                    | open the whole todo file in the editor                                                           |
 | Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                                |
 | Work / Sessions: `t`          | New todo dialog: link shown, `Tab` priority, `↑↓` + `Enter` takes a session suggestion           |

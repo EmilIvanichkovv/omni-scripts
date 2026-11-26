@@ -711,6 +711,15 @@ pub fn fuzzy_score(needle: &str, hay: &str) -> Option<usize> {
     best
 }
 
+/// How `App::todo_session` found a todo's session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TodoSessionKind {
+    /// The todo was created from this session (`source=session:<id>`).
+    CreatedFrom,
+    /// The newest session on the todo's linked branch.
+    LatestOnBranch,
+}
+
 /// Last branch seen in the session's transcript: the branch it was working on when it ended.
 pub fn working_branch(s: &Session) -> Option<&str> {
     s.branches.last().map(String::as_str)
@@ -1458,6 +1467,43 @@ impl App {
         self.sessions.iter().find(|s| s.id == id)
     }
 
+    /// The session a todo leads to: the one it was created from (`source=session:<id>`),
+    /// else the newest session on its linked branch. The flag says which.
+    pub fn todo_session(&self, t: &Todo) -> Option<(&Session, TodoSessionKind)> {
+        if let Some(s) = t
+            .source
+            .as_deref()
+            .and_then(|src| src.strip_prefix("session:"))
+            .and_then(|id| self.find_session(id))
+        {
+            return Some((s, TodoSessionKind::CreatedFrom));
+        }
+        let item = self.item_for_link(t.link.as_deref()?)?;
+        let latest = *self.item_sessions(item).first()?;
+        Some((latest, TodoSessionKind::LatestOnBranch))
+    }
+
+    /// Enter in Todos: show the todo's session (see `todo_session`) in the Sessions tab.
+    fn jump_to_todo_session(&mut self) -> Vec<Effect> {
+        let Some(t) = self.selected_todo() else {
+            return Vec::new();
+        };
+        match self.todo_session(t).map(|(s, kind)| (s.id.clone(), kind)) {
+            Some((id, kind)) => {
+                self.select_session(id);
+                self.set_status(match kind {
+                    TodoSessionKind::CreatedFrom => "the session this todo came from",
+                    TodoSessionKind::LatestOnBranch => "the latest session on this todo's branch",
+                });
+            }
+            None if t.link.is_none() => {
+                self.set_status("this todo has no session and no branch link (L links one)")
+            }
+            None => self.set_status("no session on this todo's branch yet"),
+        }
+        Vec::new()
+    }
+
     /// The pending suggestion an Inbox summary entry stands for (same message), if any.
     pub fn suggestion_for_entry(&self, entry: &Entry) -> Option<&Suggestion> {
         self.suggestions.iter().find(|s| {
@@ -1684,6 +1730,7 @@ impl App {
                 }
                 KeyCode::Enter if self.tab == Tab::Sessions => return self.jump_to_session_item(),
                 KeyCode::Enter if self.tab == Tab::Summary => return self.jump_to_summary_target(),
+                KeyCode::Enter if self.tab == Tab::Todos => return self.jump_to_todo_session(),
                 KeyCode::Enter => return Vec::new(),
                 _ => {}
             }
@@ -2283,6 +2330,9 @@ impl App {
         let none = Some(Vec::new());
         let today = self.today();
         match key.code {
+            KeyCode::Enter if self.arrangement() != Arrangement::ListOnly => {
+                Some(self.jump_to_todo_session())
+            }
             KeyCode::Char('O') => Some(vec![Effect::OpenEditor {
                 kind: EditorTarget::WholeFile,
             }]),
@@ -3857,6 +3907,48 @@ mod tests {
                 }
             }]
         );
+    }
+
+    #[test]
+    fn enter_on_a_todo_goes_to_its_session() {
+        let mut app = sample::app();
+        press(&mut app, "2");
+        // t_1 is linked to feature/PROJ-123-retry and was typed by hand: the latest session
+        // on that branch.
+        select_todo(&mut app, "t_1");
+        let latest = {
+            let t = app.selected_todo().unwrap();
+            let (s, kind) = app.todo_session(t).unwrap();
+            assert_eq!(kind, TodoSessionKind::LatestOnBranch);
+            s.id.clone()
+        };
+        assert!(app.handle_key(key(KeyCode::Enter)).is_empty());
+        assert_eq!(app.tab, Tab::Sessions);
+        assert_eq!(app.selected_session().unwrap().id, latest);
+
+        // A todo created from a session goes to that session, even if newer ones exist.
+        press(&mut app, "2");
+        let t = app
+            .todos
+            .iter_mut()
+            .find(|t| t.id.as_deref() == Some("t_1"))
+            .unwrap();
+        t.source = Some("session:s-sso".into());
+        select_todo(&mut app, "t_1");
+        assert_eq!(
+            app.todo_session(app.selected_todo().unwrap()).unwrap().1,
+            TodoSessionKind::CreatedFrom
+        );
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Sessions);
+        assert_eq!(app.selected_session().unwrap().id, "s-sso");
+
+        // No session and no link: stay, explain.
+        press(&mut app, "2");
+        select_todo(&mut app, "t_3");
+        app.handle_key(key(KeyCode::Enter));
+        assert_eq!(app.tab, Tab::Todos);
+        assert!(app.status.as_ref().unwrap().text.contains("no session"));
     }
 
     #[test]

@@ -14,8 +14,10 @@ expression: text
 │ [ ] B  Write migration doc                                                                   ││         work                                                 │
 │ [ ]    Call Ivan about staging access                                                        ││Jira     PROJ-123                                             │
 │ [x]    Fix flaky auth test                         auth:bugfix/flaky                    Tue  ││Source   manual                                               │
-│ [-]    Old banner experiment                                                            Tue  ││Created  Fri 2026-11-20                                       │
-│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││                                                              │
+│ [-]    Old banner experiment                                                            Tue  ││Session  Add backoff to uploads  latest on branch · enter     │
+│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││         opens                                                │
+│                                                                                              ││Created  Fri 2026-11-20                                       │
+│                                                                                              ││                                                              │
 │                                                                                              ││Notes                                                         │
 │                                                                                              ││  Backoff with jitter.                                        │
 │                                                                                              ││  Check the integration test.                                 │
@@ -42,8 +44,6 @@ expression: text
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
- a add · space done · s status · e edit · L link · h/l filter · ? help · q quit
+ a add · space done · enter session · s status · e edit · L link · h/l filter · ? help · q quit

@@ -66,6 +66,10 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         &[
             ("a / e / E", "add / edit title / edit notes in editor"),
             ("Space", "mark done (enter confirms) / reopen"),
+            (
+                "Enter",
+                "go to the todo's session (the one it came from, else the latest on its branch)",
+            ),
             ("s / p", "cycle status / cycle priority"),
             ("L", "link to a work item"),
             ("h l  ← →", "previous / next status filter (f cycles)"),

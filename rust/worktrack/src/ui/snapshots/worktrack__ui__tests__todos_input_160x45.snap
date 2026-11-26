@@ -14,13 +14,13 @@ expression: text
 │   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││         work                                                 │
 │                                                                                              ││Jira     PROJ-123                                             │
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Source   manual                                               │
-│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Created  Fri 2026-11-20                                       │
-│                                                                                              ││                                                              │
-│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││Notes                                                         │
-│   [ ] B  Write migration doc                                                                 ││  Backoff with jitter.                                        │
-│   [ ]    Call Ivan about staging access                                                      ││  Check the integration test.                                 │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Session  Add backoff to uploads  latest on branch · enter     │
+│                                                                                              ││         opens                                                │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││Created  Fri 2026-11-20                                       │
+│   [ ] B  Write migration doc                                                                 ││                                                              │
+│   [ ]    Call Ivan about staging access                                                      ││Notes                                                         │
+│                                                                                              ││  Backoff with jitter.                                        │
+│                                                                                              ││  Check the integration test.                                 │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

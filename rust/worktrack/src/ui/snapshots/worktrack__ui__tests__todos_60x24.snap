@@ -25,4 +25,4 @@ expression: "screen(&app, 60, 24)"
 │                                                          │
 ╰─────────────────────────────────────────── enter details ╯
 
- a add · space done · s status · e edit · ? help · q quit
+ a add · space done · enter session · ? help · q quit

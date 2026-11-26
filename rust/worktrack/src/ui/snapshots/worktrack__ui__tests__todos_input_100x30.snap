@@ -26,9 +26,9 @@ expression: text
 │Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   █
 │Jira     PROJ-123                                                                                 █
 │Source   manual                                                                                   █
-│Created  Fri 2026-11-20                                                                           █
-│                                                                                                  ║
-│Notes                                                                                             ▼
+│Session  Add backoff to uploads  latest on branch · enter opens                                   ║
+│Created  Fri 2026-11-20                                                                           ║
+│                                                                                                  ▼
 ╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
  enter save · esc cancel

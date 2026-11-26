@@ -489,6 +489,21 @@ pub fn render_modal(
     footer: Option<Line<'static>>,
     offset: usize,
 ) -> Scroll {
+    render_modal_body(frame, title, color, max_width, lines, footer, offset).0
+}
+
+/// [`render_modal`], also returning the screen area of its body text (inside the borders,
+/// above the footer), for dialogs that draw an input or record click targets over it.
+#[allow(clippy::too_many_arguments)]
+pub fn render_modal_body(
+    frame: &mut Frame,
+    title: &str,
+    color: Color,
+    max_width: u16,
+    lines: Vec<Line<'static>>,
+    footer: Option<Line<'static>>,
+    offset: usize,
+) -> (Scroll, Rect) {
     let area = frame.area();
     let width = max_width.min(area.width.saturating_sub(4));
     let content_rows = Paragraph::new(lines.clone())
@@ -531,6 +546,7 @@ pub fn render_modal(
         .border_type(BorderType::Rounded)
         .border_style(border)
         .title(title);
+    let inner = body.inner(body_area);
     let scroll = render_scrolled(frame, body, lines, body_area, offset, None);
     if let Some(footer) = footer {
         let footer_area = Rect {
@@ -544,7 +560,7 @@ pub fn render_modal(
         };
         frame.render_widget(Paragraph::new(vec![Line::from(""), footer]), footer_area);
     }
-    scroll
+    (scroll, inner)
 }
 
 /// Width of the label column of details rows (`Commits  3 ahead`).

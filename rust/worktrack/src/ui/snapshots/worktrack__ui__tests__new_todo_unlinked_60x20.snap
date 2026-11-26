@@ -1,0 +1,22 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: "screen(&app, 60, 20)"
+---
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ ● 1 live ──────────────────────────────────── 5 sessions ╮
+│ ▾ Today ────────────────────────────────────────────── 2 │
+│ ╭ New todo ────────────────────────────────────────────╮ │
+│ │ Link     no link                                     │ │
+│ │ Priority none · A · B · C                            │ │
+│ │                                                      │ │
+│▌│ Title                                                │ │
+│ │                                                      │ │
+│ │ Suggestions                                          │ │
+│ │ no suggestions from sessions                         │ │
+│ │                                                      │ │
+│ │ enter add · ↑↓ suggestion · tab priority · esc cancel│ │
+│ ╰──────────────────────────────────────────────────────╯ │
+│                                                          │
+│                                                          │
+╰─────────────────────────────────────────── enter details ╯

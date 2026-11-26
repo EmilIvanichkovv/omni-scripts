@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
- c resume · enter work item · s resummarize · / search · ? help · q quit
+ c resume · t new todo · enter work item · s resummarize · / search · ? help · q quit

@@ -45,7 +45,7 @@ use crate::model::{CiState, Repo, WorkItem, WorkState, Worktree};
 use crate::refresh::{AppEvent, Command, PrStatus};
 use crate::sessions::{Session, SessionLink};
 use crate::summary::{Entry, Summary, Target};
-use crate::todos::rules::{Suggestion, SuggestionPayload, SuggestionStatus};
+use crate::todos::rules::{normalize_title, Suggestion, SuggestionPayload, SuggestionStatus};
 use crate::todos::{Priority, Todo, TodoOp, TodoPatch, TodoStatus};
 
 /// Wall clock as seen by the app; its offset is the local time zone used for display.
@@ -283,6 +283,8 @@ pub enum BarHit {
     Tab(Tab),
     Todo(TodoFilter),
     Summary(SummarySection),
+    /// A suggestion row of the New todo dialog.
+    Seed(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -364,8 +366,8 @@ impl LineInput {
 pub enum InputPurpose {
     /// Typing the search query of the current tab.
     Search,
-    /// New todo, optionally linked (`a` in Todos, `t` in Work).
-    AddTodo { link: Option<String> },
+    /// New unlinked todo (`a` in Todos; Work and Sessions use the New todo dialog).
+    AddTodo,
     /// New title of a todo (`e`).
     EditTodo { id: String },
     /// Edited text of an AddTodo suggestion, accepted on Enter (`e` in Inbox).
@@ -421,12 +423,73 @@ pub enum PickerEntry {
     Item(usize),
 }
 
+/// Which list of a session summary a New todo suggestion comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedKind {
+    Unfinished,
+    /// A summary todo or an explicit todo of the transcript.
+    Todo,
+    Blocker,
+}
+
+impl SeedKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Unfinished => "unfinished",
+            Self::Todo => "todo",
+            Self::Blocker => "blocker",
+        }
+    }
+}
+
+/// A suggestion of the New todo dialog, taken from a session summary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TodoSeed {
+    /// Sanitized single-line text.
+    pub text: String,
+    pub kind: SeedKind,
+    /// The session it came from (the todo's `source` when it is used).
+    pub session_id: String,
+    /// A todo with the same normalized title exists already.
+    pub exists: bool,
+}
+
+/// The New todo dialog (`t` in Work and Sessions): a title input, a priority and
+/// suggestions from the linked sessions' summaries. The input keeps the focus; `↑`/`↓`
+/// highlight a suggestion and `Enter` copies it into the input, a second `Enter` adds it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewTodo {
+    /// `PROJECT/repo:branch` the new todo links to.
+    pub link: Option<String>,
+    pub input: LineInput,
+    pub priority: Option<Priority>,
+    pub seeds: Vec<TodoSeed>,
+    /// Highlighted suggestion.
+    pub selected: Option<usize>,
+    /// The suggestion the input text was copied from; the todo's source is its session
+    /// until the input is cleared.
+    pub picked: Option<usize>,
+}
+
+/// Next priority of the cycle none → A → B → C → none (backwards with `back`).
+pub fn cycle_priority(p: Option<Priority>, back: bool) -> Option<Priority> {
+    const ORDER: [Option<Priority>; 4] = [
+        None,
+        Some(Priority::A),
+        Some(Priority::B),
+        Some(Priority::C),
+    ];
+    let i = ORDER.iter().position(|o| *o == p).unwrap_or(0);
+    ORDER[if back { (i + 3) % 4 } else { (i + 1) % 4 }]
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Overlay {
     Help,
     Diagnostics,
     Confirm(Confirm),
     LinkPicker(LinkPicker),
+    NewTodo(NewTodo),
 }
 
 /// A group header of a grouped list (a Work repo, a Todos repo, a Sessions day, a Summary
@@ -1891,15 +1954,9 @@ impl App {
             }
             KeyCode::Char('t') => {
                 let item = item?;
-                if self.refuse_todo_edit() {
-                    return none;
-                }
-                self.input = Some(ActiveInput {
-                    purpose: InputPurpose::AddTodo {
-                        link: Some(item.link_ref()),
-                    },
-                    input: LineInput::default(),
-                });
+                let sessions: Vec<Session> =
+                    self.item_sessions(&item).into_iter().cloned().collect();
+                self.open_new_todo(Some(item.link_ref()), &sessions);
                 none
             }
             KeyCode::Char('c') => {
@@ -2015,6 +2072,173 @@ impl App {
         }
     }
 
+    /// `PROJECT/repo:branch` of a session's working branch, when its repo is known.
+    pub fn session_link_ref(&self, s: &Session) -> Option<String> {
+        let link = working_link(s)?;
+        let repo = self.repo_name(&link.repo_id)?;
+        Some(format!("{repo}:{}", link.branch))
+    }
+
+    /// New todo suggestions from the sessions' summaries (in the order given): unfinished
+    /// work, summary todos, blockers, then the transcript's explicit todos. Deduplicated by
+    /// normalized text (the first one wins) and marked when a todo has that title already.
+    pub fn todo_seeds(&self, sessions: &[Session]) -> Vec<TodoSeed> {
+        let existing: HashSet<String> = self
+            .todos
+            .iter()
+            .map(|t| normalize_title(&t.title))
+            .collect();
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        for s in sessions {
+            let summary = s.summary.as_ref();
+            let lists = [
+                (SeedKind::Unfinished, summary.map(|x| &x.unfinished)),
+                (SeedKind::Todo, summary.map(|x| &x.todos)),
+                (SeedKind::Blocker, summary.map(|x| &x.blockers)),
+                (SeedKind::Todo, Some(&s.explicit_todos)),
+            ];
+            for (kind, list) in lists {
+                for text in list.into_iter().flatten() {
+                    let text = crate::sanitize::clean_line(text).trim().to_string();
+                    let norm = normalize_title(&text);
+                    if norm.is_empty() || !seen.insert(norm.clone()) {
+                        continue;
+                    }
+                    out.push(TodoSeed {
+                        exists: existing.contains(&norm),
+                        text,
+                        kind,
+                        session_id: s.id.clone(),
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    /// Open the New todo dialog for a todo linked to `link`, with suggestions from
+    /// `sessions` (newest first). Refused while the todo file does not parse.
+    fn open_new_todo(&mut self, link: Option<String>, sessions: &[Session]) {
+        if self.refuse_todo_edit() {
+            return;
+        }
+        let seeds = self.todo_seeds(sessions);
+        self.open_overlay(Overlay::NewTodo(NewTodo {
+            link,
+            input: LineInput::default(),
+            priority: None,
+            seeds,
+            selected: None,
+            picked: None,
+        }));
+    }
+
+    /// The `TodoOp::Add` effect of a new todo created today.
+    fn add_todo(
+        &self,
+        title: String,
+        priority: Option<Priority>,
+        link: Option<String>,
+        session: Option<&str>,
+    ) -> Effect {
+        let mut todo = Todo::new(title);
+        todo.priority = priority;
+        todo.link = link;
+        todo.created = Some(self.today());
+        todo.source = Some(match session {
+            Some(id) => format!("session:{id}"),
+            None => "manual".into(),
+        });
+        Effect::Command(Command::Todo(TodoOp::Add(todo)))
+    }
+
+    /// Keys of the New todo dialog. The title input keeps the focus: editing keys type,
+    /// `↑`/`↓` (`Ctrl-n`/`Ctrl-p`) highlight a suggestion, `Tab`/`Shift-Tab` cycle the
+    /// priority, `Enter` picks the highlighted suggestion or adds the todo, `Alt-Enter` /
+    /// `Ctrl-Enter` / `Ctrl-s` add it and keep the dialog open for the next one.
+    ///
+    /// Without the kitty keyboard protocol most terminals send plain `Enter` for
+    /// `Ctrl-Enter`, and some take `Alt-Enter` for themselves (Windows Terminal: full
+    /// screen), so `Ctrl-s` is the binding that always works.
+    fn new_todo_key(&mut self, mut d: NewTodo, key: KeyEvent) -> Vec<Effect> {
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        let n = d.seeds.len();
+        match key.code {
+            KeyCode::Esc => {
+                self.set_status("cancelled");
+                return Vec::new();
+            }
+            KeyCode::Enter => return self.new_todo_enter(d, ctrl || alt),
+            // Ctrl-Enter arrives as Ctrl-j in terminals that send a line feed for it.
+            KeyCode::Char('s' | 'j') if ctrl => return self.new_todo_enter(d, true),
+            KeyCode::Tab => d.priority = cycle_priority(d.priority, false),
+            KeyCode::BackTab => d.priority = cycle_priority(d.priority, true),
+            KeyCode::Down if n > 0 => {
+                d.selected = Some(d.selected.map_or(0, |i| (i + 1).min(n - 1)));
+            }
+            KeyCode::Char('n') if ctrl && n > 0 => {
+                d.selected = Some(d.selected.map_or(0, |i| (i + 1).min(n - 1)));
+            }
+            // Up from the first suggestion leaves the list.
+            KeyCode::Up => d.selected = d.selected.and_then(|i| i.checked_sub(1)),
+            KeyCode::Char('p') if ctrl => d.selected = d.selected.and_then(|i| i.checked_sub(1)),
+            _ => {
+                d.input.edit(key);
+                if d.input.text.trim().is_empty() {
+                    d.picked = None;
+                }
+            }
+        }
+        self.overlay = Some(Overlay::NewTodo(d));
+        Vec::new()
+    }
+
+    /// `Enter` in the New todo dialog. With a highlighted suggestion and an input that is
+    /// empty or still holds an earlier pick, the suggestion is copied into the input (a
+    /// second `Enter` adds it). Otherwise a non-empty title is added; `keep_open` clears
+    /// the input for the next todo instead of closing.
+    fn new_todo_enter(&mut self, mut d: NewTodo, keep_open: bool) -> Vec<Effect> {
+        let untouched = d.input.text.trim().is_empty()
+            || d.picked.is_some_and(|p| d.seeds[p].text == d.input.text);
+        if let Some(sel) = d.selected.filter(|_| untouched) {
+            if d.picked != Some(sel) {
+                d.input = LineInput::with_text(&d.seeds[sel].text);
+                d.picked = Some(sel);
+                self.overlay = Some(Overlay::NewTodo(d));
+                return Vec::new();
+            }
+        }
+        let title = d.input.text.trim().to_string();
+        if title.is_empty() {
+            self.set_status("type a title or pick a suggestion (↑↓, enter)");
+            self.overlay = Some(Overlay::NewTodo(d));
+            return Vec::new();
+        }
+        let session = d.picked.map(|p| d.seeds[p].session_id.clone());
+        let effect = self.add_todo(
+            title.clone(),
+            d.priority,
+            d.link.clone(),
+            session.as_deref(),
+        );
+        self.set_status(TODO_ADDED);
+        if keep_open {
+            let norm = normalize_title(&title);
+            for s in &mut d.seeds {
+                if normalize_title(&s.text) == norm {
+                    s.exists = true;
+                }
+            }
+            d.input = LineInput::default();
+            d.picked = None;
+            d.selected = None;
+            self.overlay = Some(Overlay::NewTodo(d));
+        }
+        vec![effect]
+    }
+
     /// The selected todo's id, with a status message when it has none (yet).
     fn selected_todo_id(&mut self) -> Option<String> {
         let todo = self.selected_todo()?;
@@ -2073,7 +2297,7 @@ impl App {
             KeyCode::Char('a') => {
                 if !self.refuse_todo_edit() {
                     self.input = Some(ActiveInput {
-                        purpose: InputPurpose::AddTodo { link: None },
+                        purpose: InputPurpose::AddTodo,
                         input: LineInput::default(),
                     });
                 }
@@ -2216,10 +2440,16 @@ impl App {
     }
 
     fn sessions_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
-        if matches!(key.code, KeyCode::Char('c' | 's')) && self.selected_session().is_none() {
+        if matches!(key.code, KeyCode::Char('c' | 's' | 't')) && self.selected_session().is_none() {
             return self.needs_item();
         }
         match key.code {
+            KeyCode::Char('t') => {
+                let s = self.selected_session()?.clone();
+                let link = self.session_link_ref(&s);
+                self.open_new_todo(link, std::slice::from_ref(&s));
+                Some(Vec::new())
+            }
             KeyCode::Char('c') => {
                 let s = self.selected_session()?.clone();
                 Some(self.copy_resume(&s))
@@ -2543,13 +2773,9 @@ impl App {
                 self.set_status("empty text; nothing saved");
                 Vec::new()
             }
-            InputPurpose::AddTodo { link } => {
-                let mut todo = Todo::new(text);
-                todo.link = link;
-                todo.created = Some(self.today());
-                todo.source = Some("manual".into());
+            InputPurpose::AddTodo => {
                 self.set_status("todo added");
-                vec![Effect::Command(Command::Todo(TodoOp::Add(todo)))]
+                vec![self.add_todo(text, None, None, None)]
             }
             InputPurpose::EditTodo { id } => self.todo_update(
                 id,
@@ -2608,6 +2834,7 @@ impl App {
                     Vec::new()
                 }
             },
+            Overlay::NewTodo(d) => self.new_todo_key(d, key),
             Overlay::LinkPicker(mut picker) => {
                 let count = self.picker_entries(&picker).len();
                 match key.code {
@@ -2707,6 +2934,15 @@ impl App {
         if self.overlay.is_some() {
             if let Some(Overlay::LinkPicker(p)) = &mut self.overlay {
                 p.cursor = p.cursor.saturating_add_signed(delta.signum());
+            } else if let Some(Overlay::NewTodo(d)) = &mut self.overlay {
+                let last = d.seeds.len().checked_sub(1);
+                d.selected = match (d.selected, last) {
+                    (_, None) => None,
+                    (None, Some(_)) if delta > 0 => Some(0),
+                    (None, _) => None,
+                    (Some(i), Some(last)) if delta > 0 => Some((i + 1).min(last)),
+                    (Some(i), _) => i.checked_sub(1),
+                };
             } else {
                 self.scroll_overlay(delta);
             }
@@ -2728,18 +2964,25 @@ impl App {
         Vec::new()
     }
 
-    /// Left click: select the tab or the filter / section label under the pointer.
+    /// Left click: select the tab or the filter / section label under the pointer; in the
+    /// New todo dialog, highlight the suggestion under it.
     fn click(&mut self, pos: Position) {
+        let hits = self.feedback.bar_hits.borrow().clone();
+        if let Some(Overlay::NewTodo(d)) = &mut self.overlay {
+            // The dialog covers the bars; only its own rows count.
+            let seed = hits.iter().find_map(|(r, h)| match h {
+                BarHit::Seed(i) if r.contains(pos) => Some(*i),
+                _ => None,
+            });
+            if let Some(i) = seed.filter(|i| *i < d.seeds.len()) {
+                d.selected = Some(i);
+            }
+            return;
+        }
         if self.overlay.is_some() || self.input.is_some() {
             return;
         }
-        let hit = self
-            .feedback
-            .bar_hits
-            .borrow()
-            .iter()
-            .find(|(r, _)| r.contains(pos))
-            .map(|(_, h)| *h);
+        let hit = hits.iter().find(|(r, _)| r.contains(pos)).map(|(_, h)| *h);
         match hit {
             Some(BarHit::Tab(tab)) => self.switch_tab(tab),
             Some(BarHit::Todo(f)) if self.tab == Tab::Todos => self.set_todo_filter(f),
@@ -2748,6 +2991,9 @@ impl App {
         }
     }
 }
+
+/// Status line after a todo is added: where to find it.
+const TODO_ADDED: &str = "todo added · 2 Todos";
 
 /// Branch names in status messages, sanitized.
 fn clean_status(s: &str) -> String {
@@ -3274,17 +3520,311 @@ mod tests {
         assert!(app.input.is_none());
     }
 
-    #[test]
-    fn t_in_work_adds_a_linked_todo() {
-        let mut app = sample::app();
-        app.cursor[0] = 1; // first item of the first group
-        let link = app.selected_work_item().unwrap().link_ref();
-        press(&mut app, "tFollow up");
-        let ops = todo_ops(app.handle_key(key(KeyCode::Enter)));
-        match ops.as_slice() {
-            [TodoOp::Add(t)] => assert_eq!(t.link.as_deref(), Some(link.as_str())),
+    /// Put the Work cursor on the item of `branch`.
+    fn select_work_row(app: &mut App, branch: &str) {
+        app.cursor[0] = app
+            .list_rows(Tab::Work)
+            .iter()
+            .position(|r| matches!(r, ListRow::Item(i) if app.work_items[*i].branch == branch))
+            .unwrap();
+    }
+
+    fn new_todo(app: &App) -> &NewTodo {
+        match &app.overlay {
+            Some(Overlay::NewTodo(d)) => d,
+            other => panic!("no New todo dialog: {other:?}"),
+        }
+    }
+
+    fn seed_texts(d: &NewTodo) -> Vec<(&str, SeedKind, &str, bool)> {
+        d.seeds
+            .iter()
+            .map(|s| (s.text.as_str(), s.kind, s.session_id.as_str(), s.exists))
+            .collect()
+    }
+
+    fn only_add(effects: Vec<Effect>) -> Todo {
+        match todo_ops(effects).as_slice() {
+            [TodoOp::Add(t)] => t.clone(),
             other => panic!("{other:?}"),
         }
+    }
+
+    #[test]
+    fn t_in_work_opens_the_new_todo_dialog_with_the_item_link() {
+        let mut app = sample::app();
+        select_work_row(&mut app, "feature/PROJ-118-sso");
+        assert!(press(&mut app, "t").is_empty());
+        let d = new_todo(&app);
+        assert_eq!(d.link.as_deref(), Some("API/auth:feature/PROJ-118-sso"));
+        assert_eq!(d.priority, None);
+        assert_eq!(
+            seed_texts(d),
+            vec![
+                ("Logout flow untested", SeedKind::Unfinished, "s-sso", false),
+                ("Test logout on staging", SeedKind::Todo, "s-sso", false),
+                (
+                    "Waiting for IdP metadata from IT",
+                    SeedKind::Blocker,
+                    "s-sso",
+                    false
+                ),
+            ]
+        );
+        assert!(app.input.is_none(), "no inline input any more");
+    }
+
+    #[test]
+    fn typing_a_title_and_enter_adds_one_linked_todo() {
+        let mut app = sample::app();
+        select_work_row(&mut app, "feature/PROJ-118-sso");
+        press(&mut app, "tFollow up with QA");
+        app.handle_key(key(KeyCode::Tab)); // none → A
+        app.handle_key(key(KeyCode::Tab)); // A → B
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.title, "Follow up with QA");
+        assert_eq!(t.priority, Some(Priority::B));
+        assert_eq!(t.link.as_deref(), Some("API/auth:feature/PROJ-118-sso"));
+        assert_eq!(t.created, Some(app.today()));
+        assert_eq!(t.source.as_deref(), Some("manual"));
+        assert_eq!(t.status, TodoStatus::Todo);
+        assert!(t.id.is_none(), "the background assigns the id");
+        assert!(app.overlay.is_none());
+        assert_eq!(app.status.as_ref().unwrap().text, "todo added · 2 Todos");
+    }
+
+    #[test]
+    fn tab_and_shift_tab_cycle_the_priority() {
+        assert_eq!(cycle_priority(None, false), Some(Priority::A));
+        assert_eq!(cycle_priority(Some(Priority::C), false), None);
+        assert_eq!(cycle_priority(None, true), Some(Priority::C));
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        app.handle_key(key(KeyCode::BackTab));
+        assert_eq!(new_todo(&app).priority, Some(Priority::C));
+        // Typing letters never changes it.
+        press(&mut app, "abc");
+        assert_eq!(new_todo(&app).priority, Some(Priority::C));
+        assert_eq!(new_todo(&app).input.text, "abc");
+    }
+
+    #[test]
+    fn t_on_a_group_header_only_hints() {
+        let mut app = sample::app();
+        app.cursor[0] = 0;
+        assert!(press(&mut app, "t").is_empty());
+        assert!(app.overlay.is_none());
+        assert!(app.status.as_ref().unwrap().text.contains("select an item"));
+
+        let mut app = sample::app();
+        press(&mut app, "3");
+        app.cursor[2] = 0;
+        assert!(app.on_group_header(Tab::Sessions));
+        assert!(press(&mut app, "t").is_empty());
+        assert!(app.overlay.is_none());
+        assert!(app.status.as_ref().unwrap().text.contains("select an item"));
+    }
+
+    #[test]
+    fn t_in_sessions_links_the_working_branch_and_a_suggestion_sets_the_source() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        assert_eq!(
+            new_todo(&app).link.as_deref(),
+            Some("API/auth:feature/PROJ-118-sso")
+        );
+        app.handle_key(key(KeyCode::Down));
+        app.handle_key(key(KeyCode::Down));
+        assert_eq!(new_todo(&app).selected, Some(1));
+        // First Enter copies the suggestion into the input for editing.
+        assert!(app.handle_key(key(KeyCode::Enter)).is_empty());
+        assert_eq!(new_todo(&app).input.text, "Test logout on staging");
+        // The second adds it, sourced from the session.
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.title, "Test logout on staging");
+        assert_eq!(t.source.as_deref(), Some("session:s-sso"));
+        assert_eq!(t.link.as_deref(), Some("API/auth:feature/PROJ-118-sso"));
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn an_edited_suggestion_keeps_its_session_until_the_input_is_cleared() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        app.handle_key(key(KeyCode::Down));
+        app.handle_key(key(KeyCode::Enter));
+        press(&mut app, " today");
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.title, "Logout flow untested today");
+        assert_eq!(t.source.as_deref(), Some("session:s-sso"));
+
+        press(&mut app, "t");
+        app.handle_key(key(KeyCode::Down));
+        app.handle_key(key(KeyCode::Enter));
+        app.handle_key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
+        press(&mut app, "Something else");
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.source.as_deref(), Some("manual"));
+    }
+
+    #[test]
+    fn work_suggestions_come_from_every_linked_session_newest_first() {
+        let mut app = sample::app();
+        let mut older = app.find_session("s-sso").unwrap().clone();
+        older.id = "s-old".into();
+        older.last_activity_at = older.last_activity_at.map(|t| t - 86_400);
+        older.summary = Some(crate::sessions::SessionSummary {
+            unfinished: vec!["logout  FLOW untested".into(), "Rotate the SP cert".into()],
+            ..Default::default()
+        });
+        app.sessions.push(older);
+        select_work_row(&mut app, "feature/PROJ-118-sso");
+        press(&mut app, "t");
+        let d = new_todo(&app);
+        let texts: Vec<(&str, &str)> = d
+            .seeds
+            .iter()
+            .map(|s| (s.text.as_str(), s.session_id.as_str()))
+            .collect();
+        assert_eq!(
+            texts,
+            vec![
+                ("Logout flow untested", "s-sso"),
+                ("Test logout on staging", "s-sso"),
+                ("Waiting for IdP metadata from IT", "s-sso"),
+                ("Rotate the SP cert", "s-old"),
+            ]
+        );
+        // Picking the older session's suggestion sources it from that session.
+        for _ in 0..4 {
+            app.handle_key(key(KeyCode::Down));
+        }
+        app.handle_key(key(KeyCode::Enter));
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.source.as_deref(), Some("session:s-old"));
+    }
+
+    #[test]
+    fn suggestions_are_deduplicated_and_marked_when_the_todo_exists() {
+        let mut app = sample::app();
+        let s = app.sessions.iter_mut().find(|s| s.id == "s-sso").unwrap();
+        s.explicit_todos = vec![
+            "test  logout ON staging".into(),
+            "Review SSO rollout plan".into(),
+            "   ".into(),
+        ];
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        assert_eq!(
+            seed_texts(new_todo(&app)),
+            vec![
+                ("Logout flow untested", SeedKind::Unfinished, "s-sso", false),
+                ("Test logout on staging", SeedKind::Todo, "s-sso", false),
+                (
+                    "Waiting for IdP metadata from IT",
+                    SeedKind::Blocker,
+                    "s-sso",
+                    false
+                ),
+                ("Review SSO rollout plan", SeedKind::Todo, "s-sso", true),
+            ]
+        );
+    }
+
+    #[test]
+    fn esc_closes_the_dialog_without_effects() {
+        let mut app = sample::app();
+        select_work_row(&mut app, "feature/PROJ-118-sso");
+        press(&mut app, "tnope");
+        assert!(app.handle_key(key(KeyCode::Esc)).is_empty());
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn an_empty_title_only_hints() {
+        let mut app = sample::app();
+        select_work_row(&mut app, "feature/PROJ-118-sso");
+        press(&mut app, "t   ");
+        assert!(app.handle_key(key(KeyCode::Enter)).is_empty());
+        assert!(matches!(app.overlay, Some(Overlay::NewTodo(_))));
+        assert!(app.status.as_ref().unwrap().text.contains("type a title"));
+    }
+
+    #[test]
+    fn the_new_todo_dialog_is_refused_while_the_todo_file_does_not_parse() {
+        for tab in ["1", "3"] {
+            let mut app = sample::app();
+            app.todo_error = Some("line 3: bad".into());
+            press(&mut app, tab);
+            if tab == "1" {
+                select_work_row(&mut app, "feature/PROJ-118-sso");
+            } else {
+                select_session_row(&mut app, "s-sso");
+            }
+            assert!(press(&mut app, "t").is_empty());
+            assert!(app.overlay.is_none());
+            assert!(app.status.as_ref().unwrap().text.contains("parse error"));
+        }
+    }
+
+    #[test]
+    fn an_unlinked_session_still_makes_a_todo_without_link() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-nobranch");
+        press(&mut app, "t");
+        let d = new_todo(&app);
+        assert_eq!(d.link, None);
+        assert!(d.seeds.is_empty());
+        press(&mut app, "Read the webpack docs");
+        let t = only_add(app.handle_key(key(KeyCode::Enter)));
+        assert_eq!(t.link, None);
+        assert_eq!(t.source.as_deref(), Some("manual"));
+    }
+
+    #[test]
+    fn ctrl_s_and_alt_enter_add_and_keep_the_dialog_open() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        app.handle_key(key(KeyCode::Down));
+        app.handle_key(key(KeyCode::Enter));
+        let t = only_add(app.handle_key(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL)));
+        assert_eq!(t.title, "Logout flow untested");
+        let d = new_todo(&app);
+        assert_eq!(d.input.text, "");
+        assert_eq!(d.selected, None);
+        assert!(d.seeds[0].exists, "the added suggestion is marked");
+        press(&mut app, "Second one");
+        let t = only_add(app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::ALT)));
+        assert_eq!(t.title, "Second one");
+        assert_eq!(t.source.as_deref(), Some("manual"));
+        assert!(matches!(app.overlay, Some(Overlay::NewTodo(_))));
+        assert_eq!(app.status.as_ref().unwrap().text, "todo added · 2 Todos");
+    }
+
+    #[test]
+    fn up_from_the_first_suggestion_leaves_the_list() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-sso");
+        press(&mut app, "t");
+        for _ in 0..9 {
+            app.handle_key(key(KeyCode::Down));
+        }
+        assert_eq!(new_todo(&app).selected, Some(2));
+        for _ in 0..3 {
+            app.handle_key(key(KeyCode::Up));
+        }
+        assert_eq!(new_todo(&app).selected, None);
     }
 
     #[test]

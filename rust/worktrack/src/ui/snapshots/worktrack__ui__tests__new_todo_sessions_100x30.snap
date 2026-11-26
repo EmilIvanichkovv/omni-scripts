@@ -1,0 +1,32 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─┴─────────┴─╯              ╰─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭ ● 1 live ──────────────────────────────────────────────────────────────────────────── 5 sessions ╮
+│ ▾ Today ────────────────────────────────────────────────────────────────────────────────────── 2 │
+│ 13:59 ● upload-svc  feature/PROJ-123-retry     Add backoff to uploads                   14 turns │
+│▌09:00 ✓ au╭ New todo ────────────────────────────────────────────────────────────────╮  22 turns │
+│           │ Link     API/auth:feature/PROJ-118-sso                                   │           │
+│ ▾ Yesterda│ Priority none · A · B · C                                                │──────── 2 │
+│ 14:00 ✓ — │                                                                          │   3 turns │
+│ 12:00 ! up│ Title                                                                    │   8 turns │
+│           │                                                                          │           │
+│ ▾ Mon 23 N│ Suggestions                                                              │──────── 1 │
+│ 14:00 … up│ Logout flow untested                                          unfinished │   5 turns │
+╰───────────│▌Test logout on staging                                              todo │───────────╯
+╭ Session ──│ Waiting for IdP metadata from IT                                 blocker │───────────╮
+│✓ Fix SAML │ Review SSO rollout plan                                   ✓ exists  todo │           ▲
+│When     08│                                                                          │           █
+│Branch   fe│ enter add · ↑↓ suggestion · tab priority · esc cancel                    │           █
+│Cwd      ~/╰──────────────────────────────────────────────────────────────────────────╯           ║
+│                                                                                                  ║
+│Summary                                                                                           ║
+│  Fixed the SAML redirect loop; login works against staging IdP.                                  ║
+│                                                                                                  ║
+│Done                                                                                              ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯

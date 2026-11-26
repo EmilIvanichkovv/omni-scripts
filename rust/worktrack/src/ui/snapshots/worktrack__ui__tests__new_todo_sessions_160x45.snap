@@ -1,0 +1,47 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack                                                                                             ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─┴────────┴─┴─────────┴─╯              ╰─┴───────────┴─┴───────────┴────────────────────────────────────────────────────────────────────────────────────────────
+
+╭ ● 1 live ──────────────────────────────────────────────────────────────────────── 5 sessions ╮╭ Session ─────────────────────────────────────────────────────╮
+│ ▾ Today ────────────────────────────────────────────────────────────────────────────────── 2 ││✓ Fix SAML redirect                                           │
+│ 13:59 ● upload-svc  feature/PROJ-123-retry     Add backoff to uploads               14 turns ││When     08:20 – 09:00 · 22 turns · ended                     │
+│▌09:00 ✓ auth        feature/PROJ-118-sso       Fix SAML redirect                    22 turns ││Branch   feature/PROJ-118-sso  API/auth                       │
+│                                                                                              ││Cwd      ~/work/auth-wt/sso                                   │
+│ ▾ Yesterday ────────────────────────────────────────────────────────────────────────────── 2 ││                                                              │
+│ 14:00 ✓ —           (no branch)                Explain webpack config                3 turns ││Summary                                                       │
+│ 12:00 ! upload-svc  spike/s3-multipart         Try multipart API · summary failed    8 turns ││  Fixed the SAML redirect loop; login works against staging   │
+│                                                                                              ││  IdP.                                                        │
+│ ▾ Mon 23 Nov ───────────────────────────────────────────────────────────────────────────── 1 ││                                                              │
+│ 14:00 … upload-svc  feature/PROJ-130-chu╭ New todo ────────────────────────────────────────────────────────────────╮                                         │
+│                                         │ Link     API/auth:feature/PROJ-118-sso                                   │ed                                       │
+│                                         │ Priority none · A · B · C                                                │                                         │
+│                                         │                                                                          │                                         │
+│                                         │ Title                                                                    │ted                                      │
+│                                         │                                                                          │                                         │
+│                                         │ Suggestions                                                              │                                         │
+│                                         │ Logout flow untested                                          unfinished │aging                                    │
+│                                         │▌Test logout on staging                                              todo │t plan                                   │
+│                                         │ Waiting for IdP metadata from IT                                 blocker │                                         │
+│                                         │ Review SSO rollout plan                                   ✓ exists  todo │                                         │
+│                                         │                                                                          │etadata from IT                          │
+│                                         │ enter add · ↑↓ suggestion · tab priority · esc cancel                    │                                         │
+│                                         ╰──────────────────────────────────────────────────────────────────────────╯                                         │
+│                                                                                              ││  src/saml.rs                                                 │
+│                                                                                              ││                                                              │
+│                                                                                              ││Resume  c copies                                              │
+│                                                                                              ││  cd '/home/dev/work/auth-wt/sso' && claude --resume s-sso    │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+│                                                                                              ││                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯

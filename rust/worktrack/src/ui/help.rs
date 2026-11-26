@@ -45,10 +45,20 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         &[
             ("o", "open PR in browser (Jira if no PR)"),
             ("y / Y", "copy branch name / worktree path"),
-            ("t", "add todo linked to this item"),
+            ("t", "new todo dialog, linked to this item"),
             ("c", "copy resume command of latest session"),
             ("A / U", "mark abandoned (confirm) / unmark"),
             ("X", "remove worktree, cleanup items only (confirm)"),
+        ],
+    ),
+    (
+        "New todo dialog (t)",
+        &[
+            ("Enter", "add; on a suggestion: copy it in first"),
+            ("↑ ↓  Ctrl-n Ctrl-p", "highlight a suggestion (keep typing)"),
+            ("Tab / Shift-Tab", "cycle priority: none, A, B, C"),
+            ("Alt-Enter  Ctrl-s", "add and keep the dialog open"),
+            ("Esc", "cancel"),
         ],
     ),
     (
@@ -68,6 +78,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         "Sessions",
         &[
             ("c", "copy resume command"),
+            ("t", "new todo dialog, linked to its branch"),
             ("s", "re-summarize"),
             ("Enter", "jump to linked work item"),
         ],

@@ -100,29 +100,31 @@ tab.
 
 The full list is in section 9.6 of the spec and behind `?` in the app.
 
-| Keys                          | Action                                                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------- |
-| `1`–`5`, `Tab`                | Work, Todos, Sessions, Summary, Inbox                                                         |
-| `j` `k` / `↓` `↑`, `g` `G`    | move, top / bottom                                                                            |
-| `Enter` / `Space` on a header | fold / unfold the group (Work and Todos repos, Sessions days, Summary directories)            |
-| `z`, `Z`                      | fold / unfold the selected row's group, fold all (unfold all when all are folded)             |
-| `/`, `f`, `v`                 | search, cycle filter, cycle layout                                                            |
-| `Enter` / `Esc`               | details full screen in the list-only layout / back                                            |
-| `r` / `R`                     | local reload / full sync                                                                      |
-| `Ctrl-l`                      | repaint the screen                                                                            |
-| `i`, `?`, `q`                 | diagnostics, help, quit                                                                       |
-| Work: `o`, `t`, `c`           | open PR (or Jira), add a linked todo, copy resume command                                     |
-| Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                            |
-| Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                       |
-| Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                                                      |
-| Todos: `Space` `s` `p` `L`    | toggle done, cycle status, cycle priority, link to a branch                                   |
-| Todos: `O`                    | open the whole todo file in the editor                                                        |
-| Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                             |
-| Summary: `h` `l` / `←` `→`    | previous / next section (Done, In progress, Todo, Blockers, Cleanup)                          |
-| Summary: `Enter`              | open the entry in its tab; in the list-only layout `Enter` shows details, `Enter` again jumps |
-| Summary: `o`, `Space`         | open the item's PR (or Jira), toggle done on a todo entry                                     |
-| Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file                                               |
-| Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                                                               |
+| Keys                          | Action                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `1`–`5`, `Tab`                | Work, Todos, Sessions, Summary, Inbox                                                            |
+| `j` `k` / `↓` `↑`, `g` `G`    | move, top / bottom                                                                               |
+| `Enter` / `Space` on a header | fold / unfold the group (Work and Todos repos, Sessions days, Summary directories)               |
+| `z`, `Z`                      | fold / unfold the selected row's group, fold all (unfold all when all are folded)                |
+| `/`, `f`, `v`                 | search, cycle filter, cycle layout                                                               |
+| `Enter` / `Esc`               | details full screen in the list-only layout / back                                               |
+| `r` / `R`                     | local reload / full sync                                                                         |
+| `Ctrl-l`                      | repaint the screen                                                                               |
+| `i`, `?`, `q`                 | diagnostics, help, quit                                                                          |
+| Work: `o`, `t`, `c`           | open PR (or Jira), new linked todo (dialog), copy resume command                                 |
+| Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                               |
+| Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                          |
+| Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                                                         |
+| Todos: `Space` `s` `p` `L`    | toggle done, cycle status, cycle priority, link to a branch                                      |
+| Todos: `O`                    | open the whole todo file in the editor                                                           |
+| Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                                |
+| Work / Sessions: `t`          | New todo dialog: link shown, `Tab` priority, `↑↓` + `Enter` takes a session suggestion           |
+| New todo: `Enter`, `Ctrl-s`   | add and close, add and keep open for the next one (also `Alt-Enter` where the terminal sends it) |
+| Summary: `h` `l` / `←` `→`    | previous / next section (Done, In progress, Todo, Blockers, Cleanup)                             |
+| Summary: `Enter`              | open the entry in its tab; in the list-only layout `Enter` shows details, `Enter` again jumps    |
+| Summary: `o`, `Space`         | open the item's PR (or Jira), toggle done on a todo entry                                        |
+| Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file                                                  |
+| Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                                                                  |
 
 Lists are grouped (Work by repo, Todos by repo with `G`, Sessions by day, Summary by working
 directory), with a blank row between groups when the pane has room. The cursor stops on group

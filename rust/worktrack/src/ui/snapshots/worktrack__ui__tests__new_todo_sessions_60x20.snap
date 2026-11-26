@@ -1,0 +1,22 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack         ⟳ syncing 3/7   3 repos · 9 items · PR ✓
+  1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
+╭ ● 1 live ──────────────────────────────────── 5 sessions ╮
+│ ╭ New todo ────────────────────────────────────────────╮ │
+│ │ Link     API/auth:feature/PROJ-118-sso               │ │
+│▌│ Priority none · A · B · C                            │ │
+│ │                                                      │ │
+│ │ Title                                                │ │
+│ │                                                      │ │
+│ │ Suggestions                                          │ │
+│ │ Logout flow untested                      unfinished │ │
+│ │▌Test logout on staging                          todo │ │
+│ │ Waiting for IdP metadata from IT             blocker │ │
+│ │ Review SSO rollout plan               ✓ exists  todo │ │
+│ │                                                      │ │
+│ │ enter add · ↑↓ suggestion · tab priority · esc cancel│ │
+│ ╰──────────────────────────────────────────────────────╯ │
+╰─────────────────────────────────────────── enter details ╯

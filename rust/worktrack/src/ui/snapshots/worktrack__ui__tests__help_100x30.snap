@@ -13,7 +13,7 @@ expression: text
 │   ◐ featur│  /                     search (@repo: @state: in Work); esc clears       █1h T0 S1   █
 │   ○ chore/│  f                     cycle filter (Summary: section)                   █3h T1 S0   █
 │   ↑ spike/│  v                     cycle layout: auto / side / stacked / list        █6d T0 S1   █
-│           │  Enter / Esc           details full screen on narrow layouts / back      █           █
+│           │  Enter / Esc           details full screen on narrow layouts / back      ║           █
 │ ▾ API/auth│  r / R                 local reload / full sync                          ║──────── 2 █
 │   ✓ featur│  ctrl-l                repaint the screen                                ║1d T1 S2   █
 │   ✕ featur│  i                     diagnostics                                       ║4d T0 S0   █
@@ -28,7 +28,7 @@ expression: text
 │Flags    di│Work                                                                      ║           ║
 │PR #44   Ad│  o                     open PR in browser (Jira if no PR)                ║           ║
 │         iv│  y / Y                 copy branch name / worktree path                  ║           ║
-│         4 │  t                     add todo linked to this item                      ▼           ▼
+│         4 │  t                     new todo dialog, linked to this item              ▼           ▼
 ╰───────────│  c                     copy resume command of latest session             │J/K scroll ╯
             ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
- o PR · c resume · t todo · f filter · / search · ? help · q quit
+ o PR · c resume · t new todo · f filter · / search · ? help · q quit

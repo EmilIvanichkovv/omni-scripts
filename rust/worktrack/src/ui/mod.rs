@@ -110,6 +110,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Some(Overlay::Diagnostics) => help::draw_diagnostics(frame, app),
         Some(Overlay::Confirm(c)) => dialogs::draw_confirm(frame, app, c),
         Some(Overlay::LinkPicker(p)) => dialogs::draw_link_picker(frame, app, p),
+        Some(Overlay::NewTodo(d)) => dialogs::draw_new_todo(frame, app, d),
         None => {}
     }
     finish(frame, app);
@@ -337,8 +338,7 @@ pub(crate) fn list_pane(
             let [rest, bottom] =
                 Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(inner);
             let prompt = match &active.purpose {
-                InputPurpose::AddTodo { link: Some(_) } => " new linked todo › ",
-                InputPurpose::AddTodo { link: None } => " new todo › ",
+                InputPurpose::AddTodo => " new todo › ",
                 InputPurpose::EditTodo { .. } => " title › ",
                 InputPurpose::EditSuggestion { .. } => " accept as › ",
                 InputPurpose::Search => " / ",
@@ -688,6 +688,10 @@ fn render_tab_row(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
+    // The New todo dialog shows its own keys.
+    if matches!(app.overlay, Some(Overlay::NewTodo(_))) {
+        return Vec::new();
+    }
     if let Some(input) = &app.input {
         return match input.purpose {
             InputPurpose::Search => vec![
@@ -737,7 +741,7 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             g.extend([
                 key_hint("o", "PR"),
                 key_hint("c", "resume"),
-                key_hint("t", "todo"),
+                key_hint("t", "new todo"),
                 key_hint("f", "filter"),
                 key_hint("/", "search"),
             ]);
@@ -753,6 +757,7 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
         ],
         Tab::Sessions => vec![
             key_hint("c", "resume"),
+            key_hint("t", "new todo"),
             key_hint("enter", if list_only { "details" } else { "work item" }),
             key_hint("s", "resummarize"),
             key_hint("/", "search"),
@@ -800,7 +805,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(hint_line_pinned(
             footer_hints(app),
             // While typing, `?` and `q` are text.
-            if app.input.is_some() {
+            if app.input.is_some() || matches!(app.overlay, Some(Overlay::NewTodo(_))) {
                 Vec::new()
             } else {
                 vec![key_hint("?", "help"), key_hint("q", "quit")]

@@ -269,6 +269,95 @@ fn link_picker() {
     });
 }
 
+/// Sessions tab with the cursor on session `id`.
+fn on_session(app: &mut App, id: &str) {
+    keys(app, "3");
+    app.cursor[2] = app
+        .session_rows()
+        .iter()
+        .position(|r| matches!(r, crate::app::ListRow::Item(i) if app.sessions[*i].id == id))
+        .unwrap();
+}
+
+/// Work tab with the cursor on the item of `branch`.
+fn on_work_item(app: &mut App, branch: &str) {
+    app.cursor[0] = app
+        .list_rows(Tab::Work)
+        .iter()
+        .position(
+            |r| matches!(r, crate::app::ListRow::Item(i) if app.work_items[*i].branch == branch),
+        )
+        .unwrap();
+}
+
+/// The SSO session also lists an explicit todo that is a todo already.
+fn sso_with_existing_todo(app: &mut App) {
+    let s = app.sessions.iter_mut().find(|s| s.id == "s-sso").unwrap();
+    s.explicit_todos = vec!["Review SSO rollout plan".into()];
+}
+
+#[test]
+fn new_todo_dialog_in_sessions() {
+    snap_all("new_todo_sessions", |app| {
+        sso_with_existing_todo(app);
+        on_session(app, "s-sso");
+        keys(app, "t");
+        key(app, KeyCode::Tab);
+        key(app, KeyCode::Down);
+        key(app, KeyCode::Down);
+    });
+}
+
+#[test]
+fn new_todo_dialog_in_work() {
+    snap_all("new_todo_work", |app| {
+        on_work_item(app, "feature/PROJ-118-sso");
+        keys(app, "tFollow up with QA on the logout flow");
+    });
+}
+
+#[test]
+fn new_todo_dialog_without_link_or_suggestions() {
+    let mut app = sample::app();
+    on_session(&mut app, "s-nobranch");
+    keys(&mut app, "t");
+    insta::assert_snapshot!("new_todo_unlinked_60x20", screen(&app, 60, 20));
+}
+
+#[test]
+fn new_todo_dialog_fits_tiny_terminals_and_clicks_select_suggestions() {
+    for (w, h) in [(40, 10), (41, 11), (60, 20), (100, 30), (160, 45), (10, 5)] {
+        let mut app = sample::app();
+        sso_with_existing_todo(&mut app);
+        on_session(&mut app, "s-sso");
+        keys(&mut app, "t");
+        render(&app, w, h);
+        for _ in 0..6 {
+            key(&mut app, KeyCode::Down);
+            render(&app, w, h);
+        }
+    }
+    let mut app = sample::app();
+    sso_with_existing_todo(&mut app);
+    on_session(&mut app, "s-sso");
+    keys(&mut app, "t");
+    let buf = render(&app, 100, 30);
+    let (x, y) = find(&buf, "Waiting for IdP").expect("suggestion drawn");
+    left_click(&mut app, x, y);
+    match &app.overlay {
+        Some(crate::app::Overlay::NewTodo(d)) => assert_eq!(d.selected, Some(2)),
+        other => panic!("{other:?}"),
+    }
+    // The dialog shows its keys; the footer drops the view's keys and ? / q (text here).
+    let text = screen(&app, 100, 30);
+    assert!(text.contains("enter add · ↑↓ suggestion · tab priority · esc cancel"));
+    let footer = text.lines().last().unwrap();
+    assert!(
+        !footer.contains("quit") && !footer.contains("enter add"),
+        "{footer}"
+    );
+}
+
 #[test]
 fn too_small_screen() {
     let app = sample::app();

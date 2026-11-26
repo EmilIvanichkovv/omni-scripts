@@ -1,0 +1,32 @@
+---
+source: worktrack/src/ui/tests.rs
+expression: text
+---
+ worktrack                                 ⟳ syncing 3/7   3 repos · 9 items · PR ✓ · synced 2m ago
+ ╭────────╮ ╭─────────╮ ╭──────────────╮ ╭───────────╮ ╭───────────╮
+ │ 1 Work │ │ 2 Todos │ │ 3 Sessions ● │ │ 4 Summary │ │ 5 Inbox 4 │
+─╯        ╰─┴─────────┴─┴──────────────┴─┴───────────┴─┴───────────┴────────────────────────────────
+
+╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ╮
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 ▲
+│   ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   █
+│   ◐ featur╭ New todo ────────────────────────────────────────────────────────────────╮1h T0 S1   █
+│   ○ chore/│ Link     API/auth:feature/PROJ-118-sso                                   │3h T1 S0   █
+│   ↑ spike/│ Priority none · A · B · C                                                │6d T0 S1   █
+│           │                                                                          │           █
+│ ▾ API/auth│ Title    Follow up with QA on the logout flow                            │──────── 2 █
+│▌  ✓ featur│                                                                          │1d T1 S2   █
+│   ✕ featur│ Suggestions                                                              │4d T0 S0   █
+│           │ Logout flow untested                                          unfinished │           ║
+│ ▾ WEB/port│ Test logout on staging                                              todo │──────── 1 ▼
+╰───────────│ Waiting for IdP metadata from IT                                 blocker │───────────╯
+╭ Details ──│                                                                          │───────────╮
+│feature/PRO│ enter add · ↑↓ suggestion · tab priority · esc cancel                    │PROJ-118 ↗ ▲
+│State    ✓ ╰──────────────────────────────────────────────────────────────────────────╯           █
+│Repo     API/auth                                                                                 █
+│Path     ~/work/auth-wt/sso                                                                       █
+│Flags    ci passed                                                                                ║
+│PR #39   SAML SSO login                                                                           ║
+│         maria ✓ approved                                                                         ║
+│Commits  3 ahead of trunk · last 1d                                                               ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯

@@ -307,12 +307,38 @@ fn resolve_repo(
     repo
 }
 
+/// The public hosting service behind `host` (`github.com`, `ssh.github.com:443`, ...), if any.
+fn public_host(host: &str) -> Option<&'static str> {
+    let host = host.rsplit('@').next().unwrap_or(host);
+    let host = host.split(':').next().unwrap_or(host).to_ascii_lowercase();
+    let is = |domain: &str| host == domain || host.ends_with(&format!(".{domain}"));
+    if is("github.com") {
+        Some("GitHub")
+    } else if is("gitlab.com") {
+        Some("GitLab")
+    } else if is("bitbucket.org") {
+        Some("Bitbucket Cloud")
+    } else {
+        None
+    }
+}
+
 /// Bitbucket DC identity of `origin` with config overrides applied. Pure.
 pub fn resolve_identity(
     remote: &crate::lgbc::remote::GitRemote,
     base_url_override: &str,
     repo_override: Option<&(String, String)>,
 ) -> std::result::Result<BitbucketIdentity, String> {
+    // An explicit per-repo override wins; otherwise a public hosting service is never Bitbucket
+    // DC, even though its URL shape (`host/owner/repo`) parses like one.
+    if repo_override.is_none() {
+        if let Some(service) = remote.host.as_deref().and_then(public_host) {
+            return Err(format!(
+                "origin `{}` is a {service} remote, not Bitbucket Data Center",
+                remote.raw_url
+            ));
+        }
+    }
     let inferred = infer_bitbucket_repository(remote);
     let base_override = base_url_override.trim().trim_end_matches('/');
     let base_url = if !base_override.is_empty() {
@@ -949,5 +975,36 @@ mod tests {
         assert_eq!(tracked.git_dir_for_commands, f.work);
         let live = list_worktrees(tracked).unwrap();
         assert_eq!(live.len(), 2);
+    }
+
+    #[test]
+    fn public_hosts_are_not_bitbucket_dc() {
+        for (url, service) in [
+            ("git@github.com:EmilIvanichkovv/omni-scripts.git", "GitHub"),
+            ("https://github.com/storytold/pdfcraft", "GitHub"),
+            ("ssh://git@ssh.github.com:443/owner/repo.git", "GitHub"),
+            ("https://gitlab.com/group/repo.git", "GitLab"),
+            ("git@bitbucket.org:team/repo.git", "Bitbucket Cloud"),
+        ] {
+            let remote = parse_remote_url("origin", url);
+            let err = resolve_identity(&remote, "", None).unwrap_err();
+            assert!(err.contains(service), "{url}: {err}");
+            // Even a global base_url does not turn them into Bitbucket DC repos.
+            assert!(resolve_identity(&remote, "https://bitbucket.example.com", None).is_err());
+        }
+        // A Bitbucket DC host is still accepted, and an explicit per-repo override wins.
+        let dc = parse_remote_url(
+            "origin",
+            "ssh://git@bitbucket.example.com:7999/og/crash-games.git",
+        );
+        assert_eq!(resolve_identity(&dc, "", None).unwrap().repo, "crash-games");
+        let gh = parse_remote_url("origin", "git@github.com:owner/repo.git");
+        let id = resolve_identity(
+            &gh,
+            "https://bitbucket.example.com",
+            Some(&("P".to_string(), "r".to_string())),
+        )
+        .unwrap();
+        assert_eq!((id.project.as_str(), id.repo.as_str()), ("P", "r"));
     }
 }

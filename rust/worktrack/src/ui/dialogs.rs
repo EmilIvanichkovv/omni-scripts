@@ -82,6 +82,14 @@ pub fn confirm_lines(c: &Confirm) -> (&'static str, Vec<Line<'static>>) {
                 )),
             ],
         ),
+        Confirm::MarkDone { title, .. } => (
+            "Mark done",
+            vec![Line::from(vec![
+                Span::raw("Mark "),
+                Span::styled(format!("“{}”", clean(title)), theme::bold()),
+                Span::raw(" done?"),
+            ])],
+        ),
         Confirm::AcceptAll { count } => (
             "Accept all",
             vec![Line::from(format!(
@@ -103,7 +111,10 @@ pub fn confirm_lines(c: &Confirm) -> (&'static str, Vec<Line<'static>>) {
 
 pub fn draw_confirm(frame: &mut Frame, app: &App, c: &Confirm) {
     let (title, lines) = confirm_lines(c);
-    let footer = hint(vec![key_hint("y", "confirm"), key_hint("n/esc", "cancel")]);
+    let footer = hint(vec![
+        key_hint("enter/y", "confirm"),
+        key_hint("n/esc", "cancel"),
+    ]);
     let scroll = render_modal(
         frame,
         title,

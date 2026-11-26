@@ -115,14 +115,14 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                               |
 | Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                          |
 | Todos: `a` `e` `E`            | add, edit title, edit notes in `$EDITOR`                                                         |
-| Todos: `Space` `s` `p` `L`    | toggle done, cycle status, cycle priority, link to a branch                                      |
+| Todos: `Space` `s` `p` `L`    | mark done (`Enter` confirms) / reopen, cycle status, cycle priority, link to a branch            |
 | Todos: `O`                    | open the whole todo file in the editor                                                           |
 | Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                                |
 | Work / Sessions: `t`          | New todo dialog: link shown, `Tab` priority, `↑↓` + `Enter` takes a session suggestion           |
 | New todo: `Enter`, `Ctrl-s`   | add and close, add and keep open for the next one (also `Alt-Enter` where the terminal sends it) |
 | Summary: `h` `l` / `←` `→`    | previous / next section (Done, In progress, Todo, Blockers, Cleanup)                             |
 | Summary: `Enter`              | open the entry in its tab; in the list-only layout `Enter` shows details, `Enter` again jumps    |
-| Summary: `o`, `Space`         | open the item's PR (or Jira), toggle done on a todo entry                                        |
+| Summary: `o`, `Space`         | open the item's PR (or Jira), mark a todo entry done (`Enter` confirms)                          |
 | Summary: `[` `]`, `y`, `w`    | shift the window, copy Markdown, write the file                                                  |
 | Inbox: `Enter` / `x`, `k`/`b` | accept / reject, keep / abandon                                                                  |
 

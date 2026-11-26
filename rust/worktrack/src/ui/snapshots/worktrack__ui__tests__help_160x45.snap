@@ -42,7 +42,7 @@ expression: text
 │                                         │                                                                          ║                                         │
 │                                         │Todos                                                                     ║                                         │
 │                                         │  a / e / E             add / edit title / edit notes in editor           ║                                         │
-│                                         │  Space                 toggle done                                       ║                                         │
+│                                         │  Space                 mark done (enter confirms) / reopen               ║                                         │
 │                                         │  s / p                 cycle status / cycle priority                     ▼                                         │
 ╰─────────────────────────────────────────│  L                     link to a work item                               │─────────────────────────────────────────╯
                                           ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯

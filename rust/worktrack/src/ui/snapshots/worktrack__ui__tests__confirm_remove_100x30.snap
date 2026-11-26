@@ -20,7 +20,7 @@ expression: text
 │bugfix/flaky │No --force: git refuses a worktree with changes, and -d refuses       │             ▲
 │State    ✔ me│unmerged branches.                                                    │             █
 │Repo     API/│                                                                      │             █
-│Path     ~/wo│y confirm · n/esc cancel                                              │             █
+│Path     ~/wo│enter/y confirm · n/esc cancel                                        │             █
 │Flags    clea╰──────────────────────────────────────────────────────────────────────╯             █
 │PR #41   Fix flaky auth test                                                                      █
 │         no reviewers                                                                             █

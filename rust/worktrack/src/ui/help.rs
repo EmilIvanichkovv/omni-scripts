@@ -65,7 +65,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         "Todos",
         &[
             ("a / e / E", "add / edit title / edit notes in editor"),
-            ("Space", "toggle done"),
+            ("Space", "mark done (enter confirms) / reopen"),
             ("s / p", "cycle status / cycle priority"),
             ("L", "link to a work item"),
             ("h l  ← →", "previous / next status filter (f cycles)"),
@@ -93,7 +93,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
                 "open the entry in its tab (list-only: details, Enter again)",
             ),
             ("o", "open the item's PR in browser (Jira if no PR)"),
-            ("Space", "toggle done on a todo entry"),
+            ("Space", "mark a todo entry done (enter confirms) / reopen"),
             ("[ / ]", "shift window start by one workday"),
             ("y / w", "copy Markdown / write file"),
         ],

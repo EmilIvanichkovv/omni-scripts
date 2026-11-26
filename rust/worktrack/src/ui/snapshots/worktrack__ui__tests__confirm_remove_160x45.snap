@@ -28,7 +28,7 @@ expression: text
 │                                           │No --force: git refuses a worktree with changes, and -d refuses       │                                           │
 │                                           │unmerged branches.                                                    │                                           │
 │                                           │                                                                      │                                           │
-│                                           │y confirm · n/esc cancel                                              │                                           │
+│                                           │enter/y confirm · n/esc cancel                                        │                                           │
 │                                           ╰──────────────────────────────────────────────────────────────────────╯                                           │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

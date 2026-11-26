@@ -398,6 +398,11 @@ pub enum Confirm {
         id: String,
         title: String,
     },
+    /// `Space` on an open todo: marking done waits for Enter (or `y`).
+    MarkDone {
+        id: String,
+        title: String,
+    },
     AcceptAll {
         count: usize,
     },
@@ -2255,22 +2260,23 @@ impl App {
         vec![Effect::Command(Command::Todo(TodoOp::Update { id, patch }))]
     }
 
-    /// `Space`: done ↔ todo.
+    /// `Space`: an open todo asks for confirmation before it is marked done (Enter/`y`);
+    /// a done one reopens right away.
     fn toggle_done(&mut self, id: String, todo: &Todo) -> Vec<Effect> {
-        let patch = if todo.status == TodoStatus::Done {
-            TodoPatch {
+        if todo.status == TodoStatus::Done {
+            self.set_status("marked not done");
+            let patch = TodoPatch {
                 status: Some(TodoStatus::Todo),
                 done: Some(None),
                 ..Default::default()
-            }
-        } else {
-            TodoPatch {
-                status: Some(TodoStatus::Done),
-                done: Some(Some(self.today())),
-                ..Default::default()
-            }
-        };
-        self.todo_update(id, patch)
+            };
+            return self.todo_update(id, patch);
+        }
+        self.open_overlay(Overlay::Confirm(Confirm::MarkDone {
+            id,
+            title: todo.title.clone(),
+        }));
+        Vec::new()
     }
 
     fn todos_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
@@ -2624,12 +2630,6 @@ impl App {
                     self.set_status("this todo has no id yet; it gets one on the next write");
                     return none;
                 };
-                let done = todo.status != TodoStatus::Done;
-                self.set_status(if done {
-                    "marked done"
-                } else {
-                    "marked not done"
-                });
                 Some(self.toggle_done(id, &todo))
             }
             KeyCode::Char('[') => {
@@ -2905,6 +2905,17 @@ impl App {
             Confirm::DeleteTodo { id, .. } => {
                 self.set_status("todo deleted");
                 Command::Todo(TodoOp::Delete { id })
+            }
+            Confirm::MarkDone { id, .. } => {
+                self.set_status("marked done");
+                Command::Todo(TodoOp::Update {
+                    id,
+                    patch: TodoPatch {
+                        status: Some(TodoStatus::Done),
+                        done: Some(Some(self.today())),
+                        ..Default::default()
+                    },
+                })
             }
             Confirm::AcceptAll { .. } => Command::AcceptAll,
             Confirm::RejectAll { .. } => Command::RejectAll,
@@ -3854,9 +3865,17 @@ mod tests {
         let today = app.today();
         press(&mut app, "2");
         select_todo(&mut app, "t_2");
-        // t_2 is status todo, priority B
+        // t_2 is status todo, priority B. Space asks first; Esc cancels, Enter confirms.
+        assert!(press(&mut app, " ").is_empty());
+        assert!(matches!(
+            app.overlay,
+            Some(Overlay::Confirm(Confirm::MarkDone { .. }))
+        ));
+        assert!(app.handle_key(key(KeyCode::Esc)).is_empty());
+        assert!(app.overlay.is_none());
+        press(&mut app, " ");
         assert_eq!(
-            todo_ops(press(&mut app, " ")),
+            todo_ops(app.handle_key(key(KeyCode::Enter))),
             vec![TodoOp::Update {
                 id: "t_2".into(),
                 patch: TodoPatch {
@@ -4624,8 +4643,9 @@ mod tests {
         let mut app = summary_app();
         let today = app.today();
         select_entry(&mut app, SummarySection::Todo, "migration doc");
+        assert!(press(&mut app, " ").is_empty());
         assert_eq!(
-            todo_ops(press(&mut app, " ")),
+            todo_ops(app.handle_key(key(KeyCode::Enter))),
             vec![TodoOp::Update {
                 id: "t_2".into(),
                 patch: TodoPatch {

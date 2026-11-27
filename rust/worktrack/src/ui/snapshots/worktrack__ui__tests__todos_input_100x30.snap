@@ -11,23 +11,23 @@ expression: text
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6                   group: repo ▲
 │                                                                                                  █
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 1 █
-│   [ ]    Review SSO rollout plan                       auth:feature/PROJ-118-sso                 █
+│   [ ] Review SSO rollout plan                                                                    █
 │                                                                                                  █
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 1 █
-│▌  [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         █
+│▌  [~] Finish upload retry logic                                                                  █
 │                                                                                                  █
 │ ▾ (no link) ────────────────────────────────────────────────────────────────────────────────── 2 █
-│   [ ] B  Write migration doc                                                                     ║
+│   [ ] Write migration doc                                                                        ║
 │ new todo › Call the bank                                                                         ▼
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭ Todo ────────────────────────────────────────────────────────────────────────────────────────────╮
 │Finish upload retry logic                                                                         ▲
-│Status   [~] doing · priority A                                                                   █
-│Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   █
-│Jira     PROJ-123                                                                                 █
-│Source   manual                                                                                   █
-│Session  Add backoff to uploads  latest on branch · enter opens                                   ║
-│Created  Fri 2026-11-20                                                                           ║
+│[~] doing  ·  priority A  ·  added Fri                                                            █
+│                                                                                                  █
+│Work                                                                                              █
+│  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed                                         ║
+│    API/upload-svc  ·  ~/work/upload-svc-wt/retry                                                 ║
+│    Jira PROJ-123 ↗                                                                               ║
 │                                                                                                  ▼
 ╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 

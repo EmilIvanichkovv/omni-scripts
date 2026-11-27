@@ -11,14 +11,14 @@ expression: text
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6                   group: repo │
 │                                                                                                  │
 │▌▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 1 │
-│   [ ]    Review SSO rollout plan                       auth:feature/PROJ-118-sso                 │
+│   [ ] Review SSO rollout plan                                                                    │
 │                                                                                                  │
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 1 │
-│   [~] A  Finish upload retry logic                     upload-svc:feature/PROJ-123-retry         │
+│   [~] Finish upload retry logic                                                                  │
 │                                                                                                  │
 │ ▾ (no link) ────────────────────────────────────────────────────────────────────────────────── 2 │
-│   [ ] B  Write migration doc                                                                     │
-│   [ ]    Call Ivan about staging access                                                          │
+│   [ ] Write migration doc                                                                        │
+│   [ ] Call Ivan about staging access                                                             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭ Repo ────────────────────────────────────────────────────────────────────────────────────────────╮
 │▾ API/auth                                                                                        │

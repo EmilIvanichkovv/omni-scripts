@@ -11,14 +11,14 @@ expression: text
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: repo ││▾ API/auth                                                    │
 │                                                                                              ││Todos    1 shown                                              │
 │▌▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Status   1 [ ] todo                                           │
-│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││Latest   added Fri 2026-11-20                                 │
+│   [ ] Review SSO rollout plan                                                                ││Latest   added Fri 2026-11-20                                 │
 │                                                                                              ││Links    1 branch · 1 tracked in Work                         │
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││                                                              │
-│   [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││enter/space or z collapses this group · Z folds / unfolds all │
+│   [~] Finish upload retry logic                                                              ││enter/space or z collapses this group · Z folds / unfolds all │
 │                                                                                              ││                                                              │
 │ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││                                                              │
-│   [ ] B  Write migration doc                                                                 ││                                                              │
-│   [ ]    Call Ivan about staging access                                                      ││                                                              │
+│   [ ] Write migration doc                                                                    ││                                                              │
+│   [ ] Call Ivan about staging access                                                         ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

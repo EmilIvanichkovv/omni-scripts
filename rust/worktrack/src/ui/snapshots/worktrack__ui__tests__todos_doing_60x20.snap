@@ -6,7 +6,7 @@ expression: text
   1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
 ╭───────────────────────────────────────────────── 1 todos ╮
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
-│▌[~] A  Finish upload retry … upload-svc:feature/PR…      │
+│▌[~] Finish upload retry logic                            │
 │                                                          │
 │                                                          │
 │                                                          │

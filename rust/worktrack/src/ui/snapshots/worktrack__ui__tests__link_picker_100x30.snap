@@ -10,25 +10,25 @@ expression: text
 ╭───────────────────────────────────────────────────────────────────────────────────────── 4 todos ╮
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6                   group: none │
 │                                                                                                  │
-│ [~] A  Finish u╭ Link todo ─────────────────────────────────────────────────────╮3-retry         │
-│ [ ] B  Write mi│Link to › re▏                                                   │                │
-│▌[ ]    Call Iva│                                                                │                │
-│ [ ]    Review S│▌✎ API/upload-svc:feature/PROJ-123-retry                        │                │
+│ [~] Finish uplo╭ Link todo ─────────────────────────────────────────────────────╮                │
+│ [ ] Write migra│Link to › re▏                                                   │                │
+│▌[ ] Call Ivan a│                                                                │                │
+│ [ ] Review SSO │▌✎ API/upload-svc:feature/PROJ-123-retry                        │                │
 │                │ ◐ API/upload-svc:feature/PROJ-130-chunking                     │                │
 ╰────────────────│ ○ API/upload-svc:chore/bump-deps                               │────────────────╯
 ╭ Todo ──────────│ ✓ API/auth:feature/PROJ-118-sso                                │────────────────╮
 │Call Ivan about │ ↑ WEB/portal:feature/PROJ-140-webpack                          │                │
-│Status   [ ] tod│ ✕ API/auth:feature/PROJ-101-legacy                             │                │
-│Link     none (L│ – WEB/portal:fix/old-banner                                    │                │
-│Source   manual │                                                                │                │
-│Created  Fri 202│↑↓ move · enter link · esc cancel                               │                │
+│[ ] todo  ·  add│ ✕ API/auth:feature/PROJ-101-legacy                             │                │
+│                │ – WEB/portal:fix/old-banner                                    │                │
+│Work            │                                                                │                │
+│  not linked to │↑↓ move · enter link · esc cancel                               │                │
 │                ╰────────────────────────────────────────────────────────────────╯                │
 │Notes                                                                                             │
-│  none (E edits)                                                                                  │
+│  none · E writes some                                                                            │
 │                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
-│                                                                                                  │
+│Record                                                                                            │
+│  Added    Fri 20 Nov 2026                                                                        │
+│  Source   added by hand                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
  a add · space done · enter session · s status · e edit · L link · h/l filter · ? help · q quit

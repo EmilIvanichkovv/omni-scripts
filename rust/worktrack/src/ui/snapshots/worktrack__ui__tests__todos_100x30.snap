@@ -10,25 +10,25 @@ expression: text
 ╭───────────────────────────────────────────────────────────────────────────────────────── 6 todos ╮
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6                   group: none │
 │                                                                                                  │
-│▌[~] A  Finish upload retry logic                       upload-svc:feature/PROJ-123-retry         │
-│ [ ] B  Write migration doc                                                                       │
-│ [ ]    Call Ivan about staging access                                                            │
-│ [x]    Fix flaky auth test                             auth:bugfix/flaky                    Tue  │
-│ [-]    Old banner experiment                                                                Tue  │
-│ [ ]    Review SSO rollout plan                         auth:feature/PROJ-118-sso                 │
+│▌[~] Finish upload retry logic                                                                    │
+│ [ ] Write migration doc                                                                          │
+│ [ ] Call Ivan about staging access                                                               │
+│ [x] Fix flaky auth test                                                                          │
+│ [-] Old banner experiment                                                                        │
+│ [ ] Review SSO rollout plan                                                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭ Todo ────────────────────────────────────────────────────────────────────────────────────────────╮
-│Finish upload retry logic                                                                         │
-│Status   [~] doing · priority A                                                                   │
-│Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs work                                   │
-│Jira     PROJ-123                                                                                 │
-│Source   manual                                                                                   │
-│Session  Add backoff to uploads  latest on branch · enter opens                                   │
-│Created  Fri 2026-11-20                                                                           │
-│                                                                                                  │
-│Notes                                                                                             │
-│  Backoff with jitter.                                                                            │
-│  Check the integration test.                                                                     │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+│Finish upload retry logic                                                                         ▲
+│[~] doing  ·  priority A  ·  added Fri                                                            █
+│                                                                                                  █
+│Work                                                                                              █
+│  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed                                         █
+│    API/upload-svc  ·  ~/work/upload-svc-wt/retry                                                 █
+│    Jira PROJ-123 ↗                                                                               ║
+│                                                                                                  ║
+│Session                                                                                           ║
+│  Add backoff to uploads                                                                          ║
+│  latest on the branch · 13:59 · enter opens it                                                   ▼
+╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
  a add · space done · enter session · s status · e edit · L link · h/l filter · ? help · q quit

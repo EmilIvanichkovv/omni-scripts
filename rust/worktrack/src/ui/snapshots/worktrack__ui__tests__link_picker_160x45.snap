@@ -9,17 +9,17 @@ expression: text
 
 ╭───────────────────────────────────────────────────────────────────────────────────── 4 todos ╮╭ Todo ────────────────────────────────────────────────────────╮
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: none ││Call Ivan about staging access                                │
-│                                                                                              ││Status   [ ] todo                                             │
-│ [~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Link     none (L links)                                       │
-│ [ ] B  Write migration doc                                                                   ││Source   manual                                               │
-│▌[ ]    Call Ivan about staging access                                                        ││Created  Fri 2026-11-20                                       │
-│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││                                                              │
+│                                                                                              ││[ ] todo  ·  added Fri                                        │
+│ [~] Finish upload retry logic                                                                ││                                                              │
+│ [ ] Write migration doc                                                                      ││Work                                                          │
+│▌[ ] Call Ivan about staging access                                                           ││  not linked to a branch · L links one                        │
+│ [ ] Review SSO rollout plan                                                                  ││                                                              │
 │                                                                                              ││Notes                                                         │
-│                                                                                              ││  none (E edits)                                              │
+│                                                                                              ││  none · E writes some                                        │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                              ╭ Link todo ─────────────────────────────────────────────────────╮                                              │
-│                                              │Link to › re▏                                                   │                                              │
+│                                                                                              ││Record                                                        │
+│                                              ╭ Link todo ─────────────────────────────────────────────────────╮0 Nov 2026                                    │
+│                                              │Link to › re▏                                                   │ by hand                                      │
 │                                              │                                                                │                                              │
 │                                              │▌✎ API/upload-svc:feature/PROJ-123-retry                        │                                              │
 │                                              │ ◐ API/upload-svc:feature/PROJ-130-chunking                     │                                              │

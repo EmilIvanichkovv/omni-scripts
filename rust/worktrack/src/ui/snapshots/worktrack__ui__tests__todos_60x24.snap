@@ -10,12 +10,12 @@ expression: "screen(&app, 60, 24)"
 ╭───────────────────────────────────────────────── 6 todos ╮
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
 │                                                          │
-│▌[~] A  Finish upload retry … upload-svc:feature/PR…      │
-│ [ ] B  Write migration doc                               │
-│ [ ]    Call Ivan about stag…                             │
-│ [x]    Fix flaky auth test   auth:bugfix/flaky      Tue  │
-│ [-]    Old banner experiment                        Tue  │
-│ [ ]    Review SSO rollout p… auth:feature/PROJ-118…      │
+│▌[~] Finish upload retry logic                            │
+│ [ ] Write migration doc                                  │
+│ [ ] Call Ivan about staging access                       │
+│ [x] Fix flaky auth test                                  │
+│ [-] Old banner experiment                                │
+│ [ ] Review SSO rollout plan                              │
 │                                                          │
 │                                                          │
 │                                                          │

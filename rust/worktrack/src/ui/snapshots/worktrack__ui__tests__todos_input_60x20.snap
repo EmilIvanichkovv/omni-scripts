@@ -7,14 +7,14 @@ expression: text
 ╭───────────────────────────────────────────────── 4 todos ╮
 │ Active 4 · Todo 3 · Doing 1 · Done 1 · Dropped 1 · All 6 │
 │ ▾ API/auth ─────────────────────────────────────────── 1 │
-│   [ ]    Review SSO rollout … auth:feature/PROJ-11…      │
+│   [ ] Review SSO rollout plan                            │
 │                                                          │
 │ ▾ API/upload-svc ───────────────────────────────────── 1 │
-│▌  [~] A  Finish upload retry… upload-svc:feature/P…      │
+│▌  [~] Finish upload retry logic                          │
 │                                                          │
 │ ▾ (no link) ────────────────────────────────────────── 2 │
-│   [ ] B  Write migration doc                             │
-│   [ ]    Call Ivan about sta…                            │
+│   [ ] Write migration doc                                │
+│   [ ] Call Ivan about staging access                     │
 │                                                          │
 │                                                          │
 │                                                          │

@@ -9,24 +9,24 @@ expression: text
 
 ╭───────────────────────────────────────────────────────────────────────────────────── 4 todos ╮╭ Todo ────────────────────────────────────────────────────────╮
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: repo ││Finish upload retry logic                                     │
-│                                                                                              ││Status   [~] doing · priority A                               │
-│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
-│   [ ]    Review SSO rollout plan                   auth:feature/PROJ-118-sso                 ││         work                                                 │
-│                                                                                              ││Jira     PROJ-123                                             │
-│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││Source   manual                                               │
-│▌  [~] A  Finish upload retry logic                 upload-svc:feature/PROJ-123-retry         ││Session  Add backoff to uploads  latest on branch · enter     │
-│                                                                                              ││         opens                                                │
-│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││Created  Fri 2026-11-20                                       │
-│   [ ] B  Write migration doc                                                                 ││                                                              │
-│   [ ]    Call Ivan about staging access                                                      ││Notes                                                         │
+│                                                                                              ││[~] doing  ·  priority A  ·  added Fri                        │
+│ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││                                                              │
+│   [ ] Review SSO rollout plan                                                                ││Work                                                          │
+│                                                                                              ││  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed     │
+│ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 1 ││    API/upload-svc  ·  ~/work/upload-svc-wt/retry             │
+│▌  [~] Finish upload retry logic                                                              ││    Jira PROJ-123 ↗                                           │
+│                                                                                              ││                                                              │
+│ ▾ (no link) ────────────────────────────────────────────────────────────────────────────── 2 ││Session                                                       │
+│   [ ] Write migration doc                                                                    ││  Add backoff to uploads                                      │
+│   [ ] Call Ivan about staging access                                                         ││  latest on the branch · 13:59 · enter opens it               │
+│                                                                                              ││                                                              │
+│                                                                                              ││Notes                                                         │
 │                                                                                              ││  Backoff with jitter.                                        │
 │                                                                                              ││  Check the integration test.                                 │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│                                                                                              ││Record                                                        │
+│                                                                                              ││  Added    Fri 20 Nov 2026                                    │
+│                                                                                              ││  Source   added by hand                                      │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

@@ -9,24 +9,24 @@ expression: text
 
 ╭───────────────────────────────────────────────────────────────────────────────────── 6 todos ╮╭ Todo ────────────────────────────────────────────────────────╮
 │ Active 4  ·  Todo 3  ·  Doing 1  ·  Done 1  ·  Dropped 1  ·  All 6               group: none ││Finish upload retry logic                                     │
-│                                                                                              ││Status   [~] doing · priority A                               │
-│▌[~] A  Finish upload retry logic                   upload-svc:feature/PROJ-123-retry         ││Link     API/upload-svc:feature/PROJ-123-retry  ✎ PR needs    │
-│ [ ] B  Write migration doc                                                                   ││         work                                                 │
-│ [ ]    Call Ivan about staging access                                                        ││Jira     PROJ-123                                             │
-│ [x]    Fix flaky auth test                         auth:bugfix/flaky                    Tue  ││Source   manual                                               │
-│ [-]    Old banner experiment                                                            Tue  ││Session  Add backoff to uploads  latest on branch · enter     │
-│ [ ]    Review SSO rollout plan                     auth:feature/PROJ-118-sso                 ││         opens                                                │
-│                                                                                              ││Created  Fri 2026-11-20                                       │
+│                                                                                              ││[~] doing  ·  priority A  ·  added Fri                        │
+│▌[~] Finish upload retry logic                                                                ││                                                              │
+│ [ ] Write migration doc                                                                      ││Work                                                          │
+│ [ ] Call Ivan about staging access                                                           ││  ✎ feature/PROJ-123-retry  PR #44 needs work · ci failed     │
+│ [x] Fix flaky auth test                                                                      ││    API/upload-svc  ·  ~/work/upload-svc-wt/retry             │
+│ [-] Old banner experiment                                                                    ││    Jira PROJ-123 ↗                                           │
+│ [ ] Review SSO rollout plan                                                                  ││                                                              │
+│                                                                                              ││Session                                                       │
+│                                                                                              ││  Add backoff to uploads                                      │
+│                                                                                              ││  latest on the branch · 13:59 · enter opens it               │
 │                                                                                              ││                                                              │
 │                                                                                              ││Notes                                                         │
 │                                                                                              ││  Backoff with jitter.                                        │
 │                                                                                              ││  Check the integration test.                                 │
 │                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
-│                                                                                              ││                                                              │
+│                                                                                              ││Record                                                        │
+│                                                                                              ││  Added    Fri 20 Nov 2026                                    │
+│                                                                                              ││  Source   added by hand                                      │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

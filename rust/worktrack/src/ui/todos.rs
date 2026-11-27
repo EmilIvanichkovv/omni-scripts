@@ -7,16 +7,13 @@ use ratatui::Frame;
 
 use super::theme;
 use super::widgets::{
-    self, clean, field, fit, fmt_when, group_header, push_section, render_list, short_link,
-    BarItem, Cut, ListBlock,
+    self, clean, field, fit, fmt_when, group_header, push_section, render_list, BarItem, Cut,
+    ListBlock,
 };
 use crate::app::{App, BarHit, GroupHeader, ListRow, Tab, TodoFilter};
 use crate::todos::{Todo, TodoStatus};
 
 const MARK_W: usize = 3;
-const PRIO_W: usize = 1;
-const DATE_W: usize = 5;
-const TITLE_MIN: usize = 16;
 
 fn date_ts(app: &App, d: chrono::NaiveDate) -> Option<i64> {
     use chrono::TimeZone;
@@ -27,50 +24,21 @@ fn date_ts(app: &App, d: chrono::NaiveDate) -> Option<i64> {
         .map(|t| t.timestamp())
 }
 
-fn todo_line(app: &App, t: &Todo, width: usize, indent: usize) -> Line<'static> {
-    // " [~] A  title  link  date"
-    let fixed = 1 + indent + MARK_W + 1 + PRIO_W + 2;
-    let date_w = DATE_W + 1;
-    let rest = width.saturating_sub(fixed + date_w);
-    let link_w = if rest >= TITLE_MIN + 12 {
-        (rest - TITLE_MIN).min(36).min(rest / 2)
-    } else {
-        0
+/// A list row: the status box and the todo's name, nothing else. Priority, link, dates and
+/// notes are in the details pane.
+fn todo_line(t: &Todo, width: usize, indent: usize) -> Line<'static> {
+    let fixed = 1 + indent + MARK_W + 1;
+    let title_w = width.saturating_sub(fixed + 1);
+    let title_style = match t.status {
+        TodoStatus::Todo => Style::new(),
+        other => theme::todo_status(other),
     };
-    let title_w = rest.saturating_sub(if link_w > 0 { link_w + 1 } else { 0 });
-    let mut title_style = theme::todo_status(t.status);
-    if t.status == TodoStatus::Todo {
-        title_style = Style::new();
-    }
-    let mut spans = vec![
+    Line::from(vec![
         Span::raw(" ".repeat(1 + indent)),
         Span::styled(t.status.marker(), theme::todo_status(t.status)),
         Span::raw(" "),
-        Span::styled(
-            t.priority
-                .map_or(" ".to_string(), |p| p.as_char().to_string()),
-            Style::new().fg(theme::WARN).add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("  "),
         Span::styled(fit(&clean(&t.title), title_w), title_style),
-    ];
-    if link_w > 0 {
-        spans.push(Span::raw(" "));
-        spans.push(Span::styled(
-            fit(
-                &clean(&t.link.as_deref().map(short_link).unwrap_or_default()),
-                link_w,
-            ),
-            theme::accent(),
-        ));
-    }
-    let date = match (t.status, t.done) {
-        (TodoStatus::Done | TodoStatus::Dropped, Some(d)) => fmt_when(&app.now, date_ts(app, d)),
-        _ => String::new(),
-    };
-    spans.push(Span::raw(" "));
-    spans.push(Span::styled(fit(&date, DATE_W), theme::muted()));
-    Line::from(spans)
+    ])
 }
 
 pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
@@ -144,7 +112,7 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
             },
             ListRow::Item(i) => ListBlock {
                 header: false,
-                lines: vec![todo_line(app, &app.todos[*i], width, indent)],
+                lines: vec![todo_line(&app.todos[*i], width, indent)],
             },
         })
         .collect();
@@ -242,75 +210,182 @@ fn group_details(app: &App, g: &GroupHeader) -> Vec<Line<'static>> {
 
 /// Details pane lines for one todo (Todos tab and Summary targets).
 pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
+    // Title, then one line of status chips.
     let mut lines = vec![Line::from(Span::styled(
         clean(&t.title),
         theme::bold().patch(theme::todo_status(t.status)),
     ))];
-    let mut status = vec![Span::styled(
+    let sep = || Span::styled("  ·  ", theme::muted());
+    let mut chips = vec![Span::styled(
         format!("{} {}", t.status.marker(), t.status.as_str()),
-        theme::todo_status(t.status),
+        theme::todo_status(t.status).add_modifier(Modifier::BOLD),
     )];
     if let Some(p) = t.priority {
-        status.push(Span::raw(format!(" · priority {}", p.as_char())));
+        chips.push(sep());
+        chips.push(Span::styled(
+            format!("priority {}", p.as_char()),
+            Style::new().fg(theme::WARN).add_modifier(Modifier::BOLD),
+        ));
     }
-    lines.push(field("Status", status));
-    match &t.link {
-        Some(link) => {
-            let mut v = vec![Span::raw(clean(link))];
-            match app.item_for_link(link) {
-                Some(item) => v.push(Span::styled(
-                    format!("  {} {}", item.state.icon(), item.state.label()),
-                    theme::state(item.state),
-                )),
-                None => v.push(Span::styled("  (not tracked)", theme::muted())),
-            }
-            lines.push(field("Link", v));
+    match (t.status, t.done, t.created) {
+        (TodoStatus::Done | TodoStatus::Dropped, Some(d), _) => {
+            chips.push(sep());
+            let verb = if t.status == TodoStatus::Done {
+                "done"
+            } else {
+                "dropped"
+            };
+            chips.push(Span::styled(
+                format!("{verb} {}", fmt_when(&app.now, date_ts(app, d))),
+                theme::muted(),
+            ));
         }
-        None => lines.push(field(
-            "Link",
-            vec![Span::styled("none (L links)", theme::muted())],
-        )),
+        (_, _, Some(c)) => {
+            chips.push(sep());
+            chips.push(Span::styled(
+                format!("added {}", fmt_when(&app.now, date_ts(app, c))),
+                theme::muted(),
+            ));
+        }
+        _ => {}
     }
+    lines.push(Line::from(chips));
+
+    // Work: the linked branch with its state, PR, CI and Jira key.
+    push_section(&mut lines, "Work");
     let jira = t.jira.clone().or_else(|| {
         t.link
             .as_deref()
             .and_then(|l| app.jira_key(l))
             .or_else(|| app.jira_key(&t.title))
     });
+    match t.link.as_deref() {
+        None => lines.push(Line::from(Span::styled(
+            "  not linked to a branch · L links one",
+            theme::muted(),
+        ))),
+        Some(link) => match app.item_for_link(link) {
+            Some(item) => {
+                let st = theme::state(item.state);
+                let mut row = vec![
+                    Span::styled(format!("  {} ", item.state.icon()), st),
+                    Span::styled(clean(&item.branch), theme::bold()),
+                ];
+                // "PR needs work" + PR 44 → "PR #44 needs work"; no PR → "pushed", "local only".
+                let label = item.state.label();
+                let status = match &item.pr {
+                    Some(pr) => match label.strip_prefix("PR ") {
+                        Some(rest) => format!("PR #{} {rest}", pr.id),
+                        None => format!("PR #{} · {label}", pr.id),
+                    },
+                    None => label.to_string(),
+                };
+                row.push(Span::styled(format!("  {status}"), st));
+                if let Some(ci) = item.flags.ci {
+                    row.push(Span::styled(
+                        format!(" · {}", theme::ci_label(ci)),
+                        theme::ci(ci),
+                    ));
+                }
+                lines.push(Line::from(row));
+                let mut sub = vec![Span::styled(
+                    format!("    {}", clean(&item.repo_name)),
+                    theme::accent(),
+                )];
+                if let Some(path) = &item.local.worktree {
+                    sub.push(Span::styled(
+                        format!("  ·  {}", clean(&app.display_path(path))),
+                        theme::muted(),
+                    ));
+                }
+                lines.push(Line::from(sub));
+            }
+            None => {
+                lines.push(Line::from(Span::raw(format!("  {}", clean(link)))));
+                lines.push(Line::from(Span::styled(
+                    "    not a tracked branch (gone, or in a repo worktrack does not scan)",
+                    theme::muted(),
+                )));
+            }
+        },
+    }
     if let Some(j) = jira {
-        lines.push(field(
-            "Jira",
-            vec![Span::styled(clean(&j), theme::accent())],
-        ));
+        lines.push(Line::from(vec![
+            Span::styled("    Jira ", theme::muted()),
+            Span::styled(clean(&j), theme::accent()),
+            Span::styled(
+                if app.jira_browse_url.is_empty() {
+                    ""
+                } else {
+                    " ↗"
+                },
+                theme::accent(),
+            ),
+        ]));
     }
-    if let Some(s) = &t.source {
-        lines.push(field("Source", vec![Span::raw(clean(s))]));
-    }
+
+    // Session: where Enter goes.
     if let Some((s, kind)) = app.todo_session(t) {
+        push_section(&mut lines, "Session");
+        lines.push(Line::from(Span::raw(format!(
+            "  {}",
+            clean(&app.session_title(s))
+        ))));
         let how = match kind {
-            crate::app::TodoSessionKind::CreatedFrom => "created from",
-            crate::app::TodoSessionKind::LatestOnBranch => "latest on branch",
+            crate::app::TodoSessionKind::CreatedFrom => "this todo came from it",
+            crate::app::TodoSessionKind::LatestOnBranch => "latest on the branch",
         };
-        lines.push(field(
-            "Session",
-            vec![
-                Span::raw(clean(&app.session_title(s))),
-                Span::styled(format!("  {how} · enter opens"), theme::muted()),
-            ],
-        ));
+        let when = fmt_when(&app.now, s.last_activity_at.or(s.started_at));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {how} · {when} · "), theme::muted()),
+            Span::styled("enter", theme::key()),
+            Span::styled(" opens it", theme::muted()),
+        ]));
     }
+
+    // Notes.
+    push_section(&mut lines, "Notes");
+    let notes = crate::sanitize::clean(&t.notes);
+    if notes.trim().is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("  none · ", theme::muted()),
+            Span::styled("E", theme::key()),
+            Span::styled(" writes some", theme::muted()),
+        ]));
+    } else {
+        for l in notes.lines() {
+            lines.push(Line::from(format!("  {l}")));
+        }
+    }
+
+    // Record: dates and where the todo came from, indented like the other sections.
+    let field = |label: &str, value: Vec<Span<'static>>| {
+        let mut l = field(label, value);
+        l.spans.insert(0, Span::raw("  "));
+        l
+    };
+    push_section(&mut lines, "Record");
     if let Some(d) = t.created {
         lines.push(field(
-            "Created",
-            vec![Span::raw(d.format("%a %Y-%m-%d").to_string())],
+            "Added",
+            vec![Span::raw(d.format("%a %d %b %Y").to_string())],
         ));
     }
     if let Some(d) = t.done {
+        let label = if t.status == TodoStatus::Dropped {
+            "Dropped"
+        } else {
+            "Done"
+        };
         lines.push(field(
-            "Done",
-            vec![Span::raw(d.format("%a %Y-%m-%d").to_string())],
+            label,
+            vec![Span::raw(d.format("%a %d %b %Y").to_string())],
         ));
     }
+    lines.push(field(
+        "Source",
+        vec![Span::raw(source_text(t.source.as_deref()))],
+    ));
     if t.id.is_none() {
         lines.push(field(
             "Id",
@@ -320,15 +395,6 @@ pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
             )],
         ));
     }
-    push_section(&mut lines, "Notes");
-    let notes = crate::sanitize::clean(&t.notes);
-    if notes.trim().is_empty() {
-        lines.push(Line::from(Span::styled("  none (E edits)", theme::muted())));
-    } else {
-        for l in notes.lines() {
-            lines.push(Line::from(format!("  {l}")));
-        }
-    }
     if let Some(err) = &app.todo_error {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
@@ -337,4 +403,18 @@ pub fn todo_details(app: &App, t: &Todo) -> Vec<Line<'static>> {
         )));
     }
     lines
+}
+
+/// `manual` / `rule:<name>` / `session:<id>` in words.
+fn source_text(source: Option<&str>) -> String {
+    match source {
+        None | Some("manual") => "added by hand".to_string(),
+        Some(s) => match s.split_once(':') {
+            Some(("rule", r)) => format!("rule {}", clean(&r.replace('_', " "))),
+            Some(("session", id)) => {
+                format!("session {}", clean(&id.chars().take(8).collect::<String>()))
+            }
+            _ => clean(s),
+        },
+    }
 }

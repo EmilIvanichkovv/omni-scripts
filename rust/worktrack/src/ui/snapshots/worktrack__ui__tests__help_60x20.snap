@@ -16,9 +16,9 @@ expression: text
 │ │  J K                                                 ║ │
 │ │      scroll details                                  ║ │
 │ │  /                                                   ║ │
-│ │      search (@repo: @state: in Work); esc clears     ║ │
-│ │  f                                                   ║ │
-│ │      cycle filter (Summary: section)                 ▼ │
-╰─│  v                                                   │ ╯
+│ │      search (@repo: @state: in Work; session ids in  ║ │
+│ │Sessions); esc clears                                 ║ │
+│ │  f                                                   ▼ │
+╰─│      cycle filter (Summary: section)                 │ ╯
   ╰──────────────────────── ↑↓ scroll · other keys close ╯
  enter details · o PR · c resume · ? help · q quit

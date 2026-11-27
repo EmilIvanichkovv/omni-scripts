@@ -1143,7 +1143,8 @@ impl App {
             .filter(|&i| {
                 let s = &self.sessions[i];
                 q.split_whitespace().all(|w| {
-                    self.session_title(s).to_lowercase().contains(w)
+                    s.id.to_lowercase().contains(w)
+                        || self.session_title(s).to_lowercase().contains(w)
                         || s.branches.iter().any(|b| b.to_lowercase().contains(w))
                         || s.cwd.as_deref().unwrap_or("").to_lowercase().contains(w)
                         || self
@@ -3907,6 +3908,25 @@ mod tests {
                 }
             }]
         );
+    }
+
+    #[test]
+    fn session_search_matches_the_session_id() {
+        let mut app = sample::app();
+        press(&mut app, "3");
+        let id = "8d4b3f35-49c6-43b1-9380-9d6d3780b077";
+        let s = app.sessions.iter_mut().find(|s| s.id == "s-sso").unwrap();
+        s.id = id.into();
+        // Full id, a prefix (as `claude --resume` output shows), any case.
+        for q in [id, "8d4b3f35", "8D4B3F35-49C6"] {
+            app.search[Tab::Sessions.index()] = q.into();
+            let found: Vec<&str> = app
+                .visible_sessions()
+                .into_iter()
+                .map(|i| app.sessions[i].id.as_str())
+                .collect();
+            assert_eq!(found, vec![id], "{q}");
+        }
     }
 
     #[test]

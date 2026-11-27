@@ -10,21 +10,22 @@ expression: text
 ╭ Filter: Unfinished ▾  Sort: activity ───│  g G  Home End         top / bottom (G groups in Todos)                  █─────────────────────────────────────────╮
 │ ▾ API/upload-svc ───────────────────────│  Ctrl-d Ctrl-u         half page down / up                               █y                             PROJ-123 ↗ │
 │▌  ✎ feature/PROJ-123-retry              │  J K                   scroll details                                    █ork (since 13:20)                        │
-│   ◐ feature/PROJ-130-chunking           │  /                     search (@repo: @state: in Work); esc clears       █vc                                       │
-│   ○ chore/bump-deps                     │  f                     cycle filter (Summary: section)                   █d-svc-wt/retry                           │
-│   ↑ spike/s3-multipart                  │  v                     cycle layout: auto / side / stacked / list        █d 1 · ci failed · 2 open tasks ·         │
-│                                         │  Enter / Esc           details full screen on narrow layouts / back      █                                         │
-│ ▾ API/auth ─────────────────────────────│  r / R                 local reload / full sync                          █th backoff to uploads                    │
-│   ✓ feature/PROJ-118-sso                │  ctrl-l                repaint the screen                                █ work · maria ○ unapproved               │
-│   ✕ feature/PROJ-101-legacy             │  i                     diagnostics                                       █                                         │
-│                                         │  ? / q                 help / quit                                       █runk · last 2m                           │
-│ ▾ WEB/portal ───────────────────────────│                                                                          █                                         │
-│   ↑ feature/PROJ-140-webpack            │Groups (repos, days, directories)                                         █                                         │
-│                                         │  Enter / Space         on a group header: fold / unfold it               █ad retry logic                           │
+│   ◐ feature/PROJ-130-chunking           │  /                     search (@repo: @state: in Work; session ids in    █vc                                       │
+│   ○ chore/bump-deps                     │Sessions); esc clears                                                     █d-svc-wt/retry                           │
+│   ↑ spike/s3-multipart                  │  f                     cycle filter (Summary: section)                   █d 1 · ci failed · 2 open tasks ·         │
+│                                         │  v                     cycle layout: auto / side / stacked / list        █                                         │
+│ ▾ API/auth ─────────────────────────────│  Enter / Esc           details full screen on narrow layouts / back      █th backoff to uploads                    │
+│   ✓ feature/PROJ-118-sso                │  r / R                 local reload / full sync                          █ work · maria ○ unapproved               │
+│   ✕ feature/PROJ-101-legacy             │  ctrl-l                repaint the screen                                █                                         │
+│                                         │  i                     diagnostics                                       █runk · last 2m                           │
+│ ▾ WEB/portal ───────────────────────────│  ? / q                 help / quit                                       █                                         │
+│   ↑ feature/PROJ-140-webpack            │                                                                          █                                         │
+│                                         │Groups (repos, days, directories)                                         █ad retry logic                           │
+│                                         │  Enter / Space         on a group header: fold / unfold it               █                                         │
 │                                         │  z                     fold / unfold the group of the selected row       █                                         │
-│                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
-│                                         │  /                     searching shows every group open                  █to uploads                               │
-│                                         │                                                                          █                                         │
+│                                         │  Z                     fold all groups (unfold all when all are folded)  █to uploads                               │
+│                                         │  /                     searching shows every group open                  █                                         │
+│                                         │                                                                          ║                                         │
 │                                         │Work                                                                      ║                                         │
 │                                         │  o                     open PR in browser (Jira if no PR)                ║                                         │
 │                                         │  y / Y                 copy branch name / worktree path                  ║                                         │
@@ -42,8 +43,7 @@ expression: text
 │                                         │                                                                          ║                                         │
 │                                         │Todos                                                                     ║                                         │
 │                                         │  a / e / E             add / edit title / edit notes in editor           ║                                         │
-│                                         │  Space                 mark done (enter confirms) / reopen               ║                                         │
-│                                         │  Enter                 go to the todo's session (the one it came from,   ▼                                         │
-╰─────────────────────────────────────────│else the latest on its branch)                                            │─────────────────────────────────────────╯
+│                                         │  Space                 mark done (enter confirms) / reopen               ▼                                         │
+╰─────────────────────────────────────────│  Enter                 go to the todo's session (the one it came from,   │─────────────────────────────────────────╯
                                           ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t new todo · f filter · / search · ? help · q quit

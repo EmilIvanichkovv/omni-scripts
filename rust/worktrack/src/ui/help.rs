@@ -18,7 +18,10 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
             ("g G  Home End", "top / bottom (G groups in Todos)"),
             ("Ctrl-d Ctrl-u", "half page down / up"),
             ("J K", "scroll details"),
-            ("/", "search (@repo: @state: in Work); esc clears"),
+            (
+                "/",
+                "search (@repo: @state: in Work; session ids in Sessions); esc clears",
+            ),
             ("f", "cycle filter (Summary: section)"),
             ("v", "cycle layout: auto / side / stacked / list"),
             (

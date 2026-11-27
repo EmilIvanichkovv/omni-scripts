@@ -31,4 +31,4 @@ expression: text
 │Files touched (2)                                                                                 ▼
 ╰────────────────────────────────────────────────────────────────────────────────────── J/K scroll ╯
 
- c resume · t new todo · enter work item · s resummarize · / search · ? help · q quit
+ c resume · t new todo · enter work item · C zellij · s resummarize · / search · ? help · q quit

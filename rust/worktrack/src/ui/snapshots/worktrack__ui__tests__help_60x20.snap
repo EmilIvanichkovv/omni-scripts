@@ -6,7 +6,7 @@ expression: text
   ╭ Keys ────────────────────────────────────────────────╮
 ╭ │Global                                                ▲ ╮
 │ │  1–5  Tab  Shift-Tab                                 █ │
-│▌│      switch tab                                      █ │
+│▌│      switch tab                                      ║ │
 │ │  j k ↓ ↑                                             ║ │
 │ │      move                                            ║ │
 │ │  g G  Home End                                       ║ │

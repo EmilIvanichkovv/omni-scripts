@@ -16,6 +16,7 @@ pub struct Config {
     pub jira: Jira,
     pub summary: Summary,
     pub ui: Ui,
+    pub zellij: Zellij,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -209,6 +210,37 @@ pub struct Ui {
     pub editor: String,
 }
 
+/// Opening sessions in Zellij with `C` (experimental).
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Zellij {
+    pub enabled: bool,
+    /// Tried in order; see [`crate::zellij`].
+    pub target: Vec<ZellijTarget>,
+}
+
+impl Default for Zellij {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            target: Vec::new(),
+        }
+    }
+}
+
+/// Where sessions of one repo open: a Zellij session by name, or the running session that
+/// has a tab with a given name (sessions started from a layout get random names).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZellijTarget {
+    /// Main repo path; matches every worktree of it.
+    pub repo: String,
+    #[serde(default)]
+    pub session: String,
+    #[serde(default)]
+    pub session_with_tab: String,
+}
+
 /// Commented default written by the first-run screen.
 pub const DEFAULT_CONFIG_TOML: &str = r#"# worktrack configuration. See the spec for every key.
 
@@ -267,6 +299,15 @@ export_dir = "~/.local/share/worktrack/summaries"
 
 [ui]
 editor = ""                          # empty = $VISUAL, then $EDITOR, then vi
+
+[zellij]                             # experimental
+enabled = true                       # C opens a session in Zellij (c still copies the command)
+# Rules are tried in order; the first whose repo matches the session's repo wins. With no
+# matching rule, C uses the Zellij session worktrack runs in, if any.
+# [[zellij.target]]
+# repo = "~/work/my-service"         # main repo path; matches every worktree of it
+# session = "work"                   # a Zellij session by name; or
+# session_with_tab = "main"          # the running session that has a tab with this name
 "#;
 
 /// Secrets must not appear in the file (spec 3).
@@ -305,6 +346,17 @@ impl Config {
         }
         regex::Regex::new(&cfg.jira.key_pattern)
             .map_err(|e| eyre!("config error: jira.key_pattern is not a valid regex: {e}"))?;
+        for (i, t) in cfg.zellij.target.iter().enumerate() {
+            let n = i + 1;
+            if t.repo.trim().is_empty() {
+                return Err(eyre!("config error: zellij.target #{n} needs `repo`"));
+            }
+            if t.session.trim().is_empty() == t.session_with_tab.trim().is_empty() {
+                return Err(eyre!(
+                    "config error: zellij.target #{n} needs exactly one of `session` and `session_with_tab`"
+                ));
+            }
+        }
         if cfg.sessions.summarize_command.is_empty() {
             return Err(eyre!(
                 "config error: sessions.summarize_command must not be empty"
@@ -447,6 +499,61 @@ mod tests {
     #[test]
     fn secrets_rejected() {
         assert!(Config::parse("[bitbucket]\ntoken = \"x\"\n").is_err());
+    }
+
+    #[test]
+    fn zellij_section_absent_is_default() {
+        let cfg = Config::parse("[ui]\neditor = \"vi\"\n").unwrap();
+        assert_eq!(cfg.zellij, Zellij::default());
+        assert!(cfg.zellij.enabled);
+        assert!(cfg.zellij.target.is_empty());
+    }
+
+    #[test]
+    fn zellij_targets_parse_in_order() {
+        let cfg = Config::parse(
+            "[zellij]\nenabled = false\n\n[[zellij.target]]\nrepo = \"~/work/a\"\nsession = \"work\"\n\n[[zellij.target]]\nrepo = \"~/work/b\"\nsession_with_tab = \"main\"\n",
+        )
+        .unwrap();
+        assert!(!cfg.zellij.enabled);
+        assert_eq!(
+            cfg.zellij.target,
+            vec![
+                ZellijTarget {
+                    repo: "~/work/a".into(),
+                    session: "work".into(),
+                    session_with_tab: String::new(),
+                },
+                ZellijTarget {
+                    repo: "~/work/b".into(),
+                    session: String::new(),
+                    session_with_tab: "main".into(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn zellij_unknown_key_is_an_error() {
+        let err = Config::parse("[zellij]\nenabled = true\nbogus = 1\n")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("bogus") && err.contains("line 3"), "{err}");
+        let err = Config::parse("[[zellij.target]]\nrepo = \"~/w\"\ntab = \"x\"\n")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("tab"), "{err}");
+    }
+
+    #[test]
+    fn zellij_target_needs_repo_and_one_target() {
+        for bad in [
+            "[[zellij.target]]\nrepo = \"~/w\"\n",
+            "[[zellij.target]]\nrepo = \"~/w\"\nsession = \"a\"\nsession_with_tab = \"b\"\n",
+            "[[zellij.target]]\nrepo = \"\"\nsession = \"a\"\n",
+        ] {
+            assert!(Config::parse(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

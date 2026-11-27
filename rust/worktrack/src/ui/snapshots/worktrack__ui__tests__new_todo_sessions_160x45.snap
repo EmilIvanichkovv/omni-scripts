@@ -33,7 +33,7 @@ expression: text
 │                                         ╰──────────────────────────────────────────────────────────────────────────╯                                         │
 │                                                                                              ││  src/saml.rs                                                 │
 │                                                                                              ││                                                              │
-│                                                                                              ││Resume  c copies                                              │
+│                                                                                              ││Resume  c copies, C opens in Zellij                           │
 │                                                                                              ││  cd '/home/dev/work/auth-wt/sso' && claude --resume s-sso    │
 │                                                                                              ││                                                              │
 │                                                                                              ││                                                              │

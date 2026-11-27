@@ -26,7 +26,8 @@ Key words MUST, SHOULD, MAY are used as in RFC 2119.
 - claude.ai chats. There is no API for them.
 - GitHub, Bitbucket Cloud, Jira API, or any other provider.
 - Creating, approving, or merging PRs.
-- Opening terminals or Zellij panes. Resume is copy-to-clipboard only.
+- Opening terminals or Zellij panes. Resume is copy-to-clipboard only. (Since added as an
+  experiment: `C` opens a session in a Zellij tab; see the README.)
 - Windows support. Target is macOS and Linux.
 
 ### 1.3 Definition of done
@@ -700,6 +701,7 @@ with `f`.
 | Work     | `y` / `Y`                                   | copy branch name / worktree path                                  |
 | Work     | `t`                                         | add todo linked to this item                                      |
 | Work     | `c`                                         | copy resume command of latest session                             |
+| Work     | `C`                                         | open latest session in Zellij (experimental)                      |
 | Work     | `A` / `U`                                   | mark abandoned (confirm) / unmark                                 |
 | Work     | `X`                                         | remove worktree, only on `cleanup` items (confirm; dirty refused) |
 | Todos    | `a` / `e` / `E`                             | add / edit title / edit notes in editor                           |
@@ -710,6 +712,7 @@ with `f`.
 | Todos    | `D` / `d`                                   | drop / delete (confirm)                                           |
 | Todos    | `G` / `O`                                   | toggle group by repo / open file in editor                        |
 | Sessions | `c`                                         | copy resume command                                               |
+| Sessions | `C`                                         | open in Zellij: new tab, or focus its tab (experimental)          |
 | Sessions | `s`                                         | re-summarize                                                      |
 | Sessions | `Enter`                                     | jump to linked WorkItem                                           |
 | Summary  | `[` / `]`                                   | shift window start by one workday                                 |

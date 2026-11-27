@@ -150,6 +150,7 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | Todos: `Enter`                | go to the todo's session: the one it was created from, else the latest on its branch             |
 | Todos: `O`                    | open the whole todo file in the editor                                                           |
 | Sessions: `c`, `s`            | copy `cd … && claude --resume …`, summarize again                                                |
+| Work / Sessions: `C`          | open the session in Zellij (experimental, see below); on Work the item's latest session          |
 | Work / Sessions: `t`          | New todo dialog: link shown, `Tab` priority, `↑↓` + `Enter` takes a session suggestion           |
 | New todo: `Enter`, `Ctrl-s`   | add and close, add and keep open for the next one (also `Alt-Enter` where the terminal sends it) |
 | Summary: `h` `l` / `←` `→`    | previous / next section (Done, In progress, Todo, Blockers, Cleanup)                             |
@@ -167,6 +168,36 @@ on a header.
 The tabs and the filter and section bars of Todos and Summary also take a mouse click.
 
 The editor is `ui.editor`, else `$VISUAL`, else `$EDITOR`, else `vi`.
+
+### Zellij (experimental)
+
+`C` opens the selected session (on Work: the item's latest session) in a running Zellij session: a
+new tab named after the working branch (its last path segment, else the start directory's name) runs
+`claude --resume <id>` in the session's start directory. When that session already has a tab with
+that name, worktrack focuses it instead of resuming the session twice. `c` still copies the command.
+
+```toml
+[zellij]
+enabled = true
+
+# Rules are tried in order; the first whose repo matches the session's repo wins.
+[[zellij.target]]
+repo = "~/work/my-service"   # main repo path; matches every worktree of it
+session_with_tab = "main"    # the running Zellij session that has a tab named "main"
+# session = "work"           # or: a Zellij session by exact name
+```
+
+How the target is chosen:
+
+1. The session's repo: the repo of its working branch, else of the worktree it started in, else of
+   any other worktree it worked in.
+2. The first `[[zellij.target]]` rule for that repo picks the Zellij session: `session` by name, or
+   `session_with_tab`, which suits a session started from a layout (Zellij gives it a random name,
+   but its tabs are known). Exited sessions are ignored.
+3. No rule matches: the Zellij session worktrack runs in (`ZELLIJ_SESSION_NAME`). Outside Zellij
+   that is an error, and `c` is the way to resume.
+
+All `zellij` calls run without a shell, with a 5 s timeout each; what was run is in the log.
 
 ## Status
 

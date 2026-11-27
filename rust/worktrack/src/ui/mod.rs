@@ -746,6 +746,10 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
                 key_hint("f", "filter"),
                 key_hint("/", "search"),
             ]);
+            // Last: the first to go when the footer is narrow.
+            if app.zellij_enabled {
+                g.push(key_hint("C", "zellij"));
+            }
             g
         }
         Tab::Todos => vec![
@@ -757,13 +761,18 @@ fn footer_hints(app: &App) -> Vec<Vec<Span<'static>>> {
             key_hint("L", "link"),
             key_hint("h/l", "filter"),
         ],
-        Tab::Sessions => vec![
-            key_hint("c", "resume"),
-            key_hint("t", "new todo"),
-            key_hint("enter", if list_only { "details" } else { "work item" }),
-            key_hint("s", "resummarize"),
-            key_hint("/", "search"),
-        ],
+        Tab::Sessions => {
+            let mut g = vec![
+                key_hint("c", "resume"),
+                key_hint("t", "new todo"),
+                key_hint("enter", if list_only { "details" } else { "work item" }),
+            ];
+            if app.zellij_enabled {
+                g.push(key_hint("C", "zellij"));
+            }
+            g.extend([key_hint("s", "resummarize"), key_hint("/", "search")]);
+            g
+        }
         Tab::Summary => vec![
             key_hint("h/l", "section"),
             // List only: Enter opens the details, Enter there jumps.

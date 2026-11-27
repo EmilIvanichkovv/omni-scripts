@@ -20,7 +20,7 @@ expression: text
 │ 14:00 … upload-svc  feature/PROJ-130-chunking  Chunk size experiments                5 turns ││  src/upload.rs                                               │
 │                                                                                              ││  tests/retry.rs                                              │
 │                                                                                              ││                                                              │
-│                                                                                              ││Resume  c copies                                              │
+│                                                                                              ││Resume  c copies, C opens in Zellij                           │
 │                                                                                              ││  cd '/home/dev/work/upload-svc-wt/retry' && claude --resume  │
 │                                                                                              ││  s-live                                                      │
 │                                                                                              ││                                                              │
@@ -46,4 +46,4 @@ expression: text
 │                                                                                              ││                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────╯
 
- c resume · t new todo · enter work item · s resummarize · / search · ? help · q quit
+ c resume · t new todo · enter work item · C zellij · s resummarize · / search · ? help · q quit

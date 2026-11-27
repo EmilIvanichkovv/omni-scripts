@@ -12,7 +12,7 @@ expression: text
 │▌  ✎ featur│  J K                   scroll details                                    █2m T1 S2   █
 │   ◐ featur│  /                     search (@repo: @state: in Work; session ids in    █1h T0 S1   █
 │   ○ chore/│Sessions); esc clears                                                     █3h T1 S0   █
-│   ↑ spike/│  f                     cycle filter (Summary: section)                   █6d T0 S1   █
+│   ↑ spike/│  f                     cycle filter (Summary: section)                   ║6d T0 S1   █
 │           │  v                     cycle layout: auto / side / stacked / list        ║           █
 │ ▾ API/auth│  Enter / Esc           details full screen on narrow layouts / back      ║──────── 2 █
 │   ✓ featur│  r / R                 local reload / full sync                          ║1d T1 S2   █
@@ -31,4 +31,4 @@ expression: text
 │         4 │  o                     open PR in browser (Jira if no PR)                ▼           ▼
 ╰───────────│  y / Y                 copy branch name / worktree path                  │J/K scroll ╯
             ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
- o PR · c resume · t new todo · f filter · / search · ? help · q quit
+ o PR · c resume · t new todo · f filter · / search · C zellij · ? help · q quit

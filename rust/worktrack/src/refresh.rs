@@ -166,6 +166,10 @@ pub enum Command {
         since: chrono::NaiveDate,
     },
     OpenUrl(String),
+    /// Open the session in Zellij: a new tab running `claude --resume`, or focus its tab.
+    OpenInZellij {
+        session_id: String,
+    },
     Quit,
 }
 
@@ -1267,8 +1271,45 @@ impl Engine {
                     Err(e) => self.set_error("browser", e.to_string()),
                 }
             }
+            Command::OpenInZellij { session_id } => self.open_in_zellij(&session_id),
             Command::Quit => {}
         }
+    }
+
+    /// Runs on its own task: a few `zellij` calls with timeouts must not hold up other commands.
+    fn open_in_zellij(&mut self, session_id: &str) {
+        if !self.cfg.zellij.enabled {
+            self.status("Zellij is off (zellij.enabled = false)");
+            return;
+        }
+        let Some(session) = self.sessions.iter().find(|s| s.id == session_id).cloned() else {
+            self.emit(AppEvent::Error {
+                scope: "zellij".into(),
+                message: "that session is no longer known".into(),
+            });
+            return;
+        };
+        let req = crate::zellij::OpenRequest {
+            session,
+            worktrees: self.worktrees.clone(),
+            rules: self.cfg.zellij.target.clone(),
+            env_session: std::env::var("ZELLIJ_SESSION_NAME").ok(),
+        };
+        let events = self.events.clone();
+        tokio::spawn(async move {
+            let ev = match crate::zellij::open(req).await {
+                Ok(msg) => AppEvent::Status(msg),
+                Err(e) => {
+                    let message = crate::sanitize::clean_line(&e);
+                    tracing::warn!("zellij: {message}");
+                    AppEvent::Error {
+                        scope: "zellij".into(),
+                        message,
+                    }
+                }
+            };
+            let _ = events.send(ev);
+        });
     }
 
     async fn after_decision(&mut self, r: Result<Option<Accepted>>) {

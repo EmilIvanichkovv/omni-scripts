@@ -537,9 +537,12 @@ pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
     }
     lines.push(Line::from(""));
     let mut resume = section("Resume");
-    resume
-        .spans
-        .push(Span::styled("  c copies", theme::muted()));
+    let how = if app.zellij_enabled {
+        "  c copies, C opens in Zellij"
+    } else {
+        "  c copies"
+    };
+    resume.spans.push(Span::styled(how, theme::muted()));
     lines.push(resume);
     match app.session_resume(s) {
         Some(cmd) => lines.push(Line::from(Span::styled(

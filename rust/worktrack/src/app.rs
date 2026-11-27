@@ -606,6 +606,8 @@ pub struct App {
     // ---- config bits ----
     jira_re: Option<regex::Regex>,
     pub jira_browse_url: String,
+    /// `zellij.enabled`: `C` opens sessions in Zellij.
+    pub zellij_enabled: bool,
     workdays: Vec<Weekday>,
 
     // ---- view state ----
@@ -769,6 +771,7 @@ impl App {
             home: None,
             jira_re: regex::Regex::new(&config.jira.key_pattern).ok(),
             jira_browse_url: config.jira.browse_url.clone(),
+            zellij_enabled: config.zellij.enabled,
             workdays: config.workdays(),
             tab: initial_tab,
             layout_mode: LayoutMode::Auto,
@@ -2006,7 +2009,7 @@ impl App {
         let none = Some(Vec::new());
         if matches!(
             key.code,
-            KeyCode::Char('o' | 'y' | 'Y' | 't' | 'c' | 'A' | 'U' | 'X')
+            KeyCode::Char('o' | 'y' | 'Y' | 't' | 'c' | 'C' | 'A' | 'U' | 'X')
         ) && item.is_none()
         {
             return self.needs_item();
@@ -2042,11 +2045,12 @@ impl App {
                 self.open_new_todo(Some(item.link_ref()), &sessions);
                 none
             }
-            KeyCode::Char('c') => {
+            KeyCode::Char(k @ ('c' | 'C')) => {
                 let item = item?;
                 let latest = self.item_sessions(&item).first().map(|s| (*s).clone());
                 match latest {
-                    Some(s) => Some(self.copy_resume(&s)),
+                    Some(s) if k == 'c' => Some(self.copy_resume(&s)),
+                    Some(s) => Some(self.open_in_zellij(&s)),
                     None => {
                         self.set_status("no session on this branch");
                         none
@@ -2130,6 +2134,18 @@ impl App {
             branch: item.branch.clone(),
             commands,
         }));
+    }
+
+    /// `C`: the background opens the session in Zellij (a new tab, or focuses its tab).
+    fn open_in_zellij(&mut self, s: &Session) -> Vec<Effect> {
+        if !self.zellij_enabled {
+            self.set_status("Zellij is off (zellij.enabled = false); c copies the resume command");
+            return Vec::new();
+        }
+        self.set_status("opening in Zellij…");
+        vec![Effect::Command(Command::OpenInZellij {
+            session_id: s.id.clone(),
+        })]
     }
 
     fn copy_resume(&mut self, s: &Session) -> Vec<Effect> {
@@ -2527,7 +2543,9 @@ impl App {
     }
 
     fn sessions_key(&mut self, key: KeyEvent) -> Option<Vec<Effect>> {
-        if matches!(key.code, KeyCode::Char('c' | 's' | 't')) && self.selected_session().is_none() {
+        if matches!(key.code, KeyCode::Char('c' | 'C' | 's' | 't'))
+            && self.selected_session().is_none()
+        {
             return self.needs_item();
         }
         match key.code {
@@ -2540,6 +2558,10 @@ impl App {
             KeyCode::Char('c') => {
                 let s = self.selected_session()?.clone();
                 Some(self.copy_resume(&s))
+            }
+            KeyCode::Char('C') => {
+                let s = self.selected_session()?.clone();
+                Some(self.open_in_zellij(&s))
             }
             KeyCode::Char('s') => {
                 let s = self.selected_session()?;
@@ -4318,6 +4340,56 @@ mod tests {
             .unwrap()
             .text
             .contains("no recorded directory"));
+    }
+
+    #[test]
+    fn shift_c_opens_the_session_in_zellij() {
+        // Sessions: the selected session.
+        let mut app = sample::app();
+        press(&mut app, "3");
+        select_session_row(&mut app, "s-nobranch");
+        match commands(press(&mut app, "C")).as_slice() {
+            [Command::OpenInZellij { session_id }] => assert_eq!(session_id, "s-nobranch"),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(app.status.as_ref().unwrap().text, "opening in Zellij…");
+
+        // Work: the item's newest session, the same one `c` copies.
+        let mut app = sample::app();
+        app.cursor[0] = 1;
+        match commands(press(&mut app, "C")).as_slice() {
+            [Command::OpenInZellij { session_id }] => assert_eq!(session_id, "s-live"),
+            other => panic!("{other:?}"),
+        }
+        // `c` still copies.
+        assert!(matches!(
+            press(&mut app, "c").as_slice(),
+            [Effect::CopyToClipboard(_)]
+        ));
+    }
+
+    #[test]
+    fn shift_c_on_a_group_header_only_hints() {
+        let mut app = sample::app();
+        app.cursor[0] = 0;
+        assert!(press(&mut app, "C").is_empty());
+        assert!(app.status.as_ref().unwrap().text.contains("select an item"));
+
+        let mut app = sample::app();
+        press(&mut app, "3");
+        app.cursor[2] = 0;
+        assert!(app.on_group_header(Tab::Sessions));
+        assert!(press(&mut app, "C").is_empty());
+        assert!(app.status.as_ref().unwrap().text.contains("select an item"));
+    }
+
+    #[test]
+    fn shift_c_when_zellij_is_off() {
+        let mut app = sample::app();
+        app.zellij_enabled = false;
+        press(&mut app, "3");
+        assert!(press(&mut app, "C").is_empty());
+        assert!(app.status.as_ref().unwrap().text.contains("Zellij is off"));
     }
 
     #[test]

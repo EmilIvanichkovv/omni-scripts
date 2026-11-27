@@ -51,6 +51,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
             ("y / Y", "copy branch name / worktree path"),
             ("t", "new todo dialog, linked to this item"),
             ("c", "copy resume command of latest session"),
+            ("C", "open latest session in Zellij (experimental)"),
             ("A / U", "mark abandoned (confirm) / unmark"),
             ("X", "remove worktree, cleanup items only (confirm)"),
         ],
@@ -86,6 +87,10 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
         "Sessions",
         &[
             ("c", "copy resume command"),
+            (
+                "C",
+                "open in Zellij: new tab, or focus its tab (experimental)",
+            ),
             ("t", "new todo dialog, linked to its branch"),
             ("s", "re-summarize"),
             ("Enter", "jump to linked work item"),

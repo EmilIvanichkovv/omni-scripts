@@ -24,7 +24,7 @@ expression: text
 │                                         │Groups (repos, days, directories)                                         █                                         │
 │                                         │  Enter / Space         on a group header: fold / unfold it               █                                         │
 │                                         │  z                     fold / unfold the group of the selected row       █to uploads                               │
-│                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
+│                                         │  Z                     fold all groups (unfold all when all are folded)  ║                                         │
 │                                         │  /                     searching shows every group open                  ║                                         │
 │                                         │                                                                          ║                                         │
 │                                         │Work                                                                      ║                                         │
@@ -32,6 +32,7 @@ expression: text
 │                                         │  y / Y                 copy branch name / worktree path                  ║                                         │
 │                                         │  t                     new todo dialog, linked to this item              ║                                         │
 │                                         │  c                     copy resume command of latest session             ║                                         │
+│                                         │  C                     open latest session in Zellij (experimental)      ║                                         │
 │                                         │  A / U                 mark abandoned (confirm) / unmark                 ║                                         │
 │                                         │  X                     remove worktree, cleanup items only (confirm)     ║                                         │
 │                                         │                                                                          ║                                         │
@@ -42,8 +43,7 @@ expression: text
 │                                         │  Alt-Enter  Ctrl-s     add and keep the dialog open                      ║                                         │
 │                                         │  Esc                   cancel                                            ║                                         │
 │                                         │                                                                          ║                                         │
-│                                         │Todos                                                                     ║                                         │
-│                                         │  a / e / E             add / edit title / edit notes in editor           ▼                                         │
-╰─────────────────────────────────────────│  Space                 mark done (enter confirms) / reopen               │─────────────────────────────────────────╯
+│                                         │Todos                                                                     ▼                                         │
+╰─────────────────────────────────────────│  a / e / E             add / edit title / edit notes in editor           │─────────────────────────────────────────╯
                                           ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
- o PR · c resume · t new todo · f filter · / search · ? help · q quit
+ o PR · c resume · t new todo · f filter · / search · C zellij · ? help · q quit

@@ -23,6 +23,7 @@ mod summary;
 mod todos;
 mod ui;
 mod workitems;
+mod zellij;
 
 use std::io::{self, Stdout, Write as _};
 use std::path::{Path, PathBuf};

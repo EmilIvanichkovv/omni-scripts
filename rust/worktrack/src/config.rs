@@ -21,6 +21,9 @@ pub struct Config {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Discovery {
+    /// Main repositories tracked explicitly, no scanning needed. Their worktrees (wherever
+    /// they live) are found through `git worktree list` on every local reload.
+    pub repos: Vec<String>,
     pub roots: Vec<String>,
     pub max_depth: usize,
     pub exclude: Vec<String>,
@@ -29,6 +32,7 @@ pub struct Discovery {
 impl Default for Discovery {
     fn default() -> Self {
         Self {
+            repos: Vec::new(),
             roots: vec!["~/work".into(), "~/src".into()],
             max_depth: 4,
             exclude: vec!["**/node_modules".into(), "**/target".into()],
@@ -209,7 +213,10 @@ pub struct Ui {
 pub const DEFAULT_CONFIG_TOML: &str = r#"# worktrack configuration. See the spec for every key.
 
 [discovery]
-roots = ["~/work", "~/src"]          # scanned recursively
+# Main repositories to track explicitly. New worktrees of these repos are picked up
+# automatically (every local reload), wherever they are created.
+repos = []                           # e.g. ["~/code/my-service"]
+roots = ["~/work", "~/src"]          # also scanned recursively for repos
 max_depth = 4                        # directory depth below each root
 exclude = ["**/node_modules", "**/target"]
 
@@ -320,6 +327,13 @@ impl Config {
     }
     pub fn export_dir(&self) -> PathBuf {
         expand_tilde(&self.summary.export_dir)
+    }
+    pub fn explicit_repos(&self) -> Vec<PathBuf> {
+        self.discovery
+            .repos
+            .iter()
+            .map(|r| expand_tilde(r))
+            .collect()
     }
     pub fn roots(&self) -> Vec<PathBuf> {
         self.discovery

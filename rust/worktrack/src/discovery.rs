@@ -65,6 +65,17 @@ pub fn discover(cfg: &Config) -> DiscoveryResult {
     let mut diagnostics = Vec::new();
     let excludes = build_excludes(&cfg.discovery.exclude, &mut diagnostics);
     let mut candidates = Vec::new();
+    // Explicit repos first: no walking, no depth limit, no excludes.
+    for repo in cfg.explicit_repos() {
+        if repo.is_dir() {
+            candidates.push(repo);
+        } else {
+            diagnostics.push(format!(
+                "discovery.repos: {} does not exist or is not a directory",
+                repo.display()
+            ));
+        }
+    }
     for root in cfg.roots() {
         if !root.is_dir() {
             diagnostics.push(format!(
@@ -756,6 +767,55 @@ mod tests {
     }
 
     #[test]
+    fn explicit_repos_need_no_roots_and_new_worktrees_appear_on_reload() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = canonical(tmp.path());
+        let f = Fixture::new(&base.join("somewhere/deep/below/any/root"));
+        let mut cfg = Config::default();
+        cfg.discovery.roots = Vec::new();
+        cfg.discovery.repos = vec![
+            f.work.to_string_lossy().into_owned(),
+            base.join("missing").to_string_lossy().into_owned(),
+        ];
+        let res = discover(&cfg);
+        let tracked: Vec<_> = res.tracked_repos().cloned().collect();
+        assert_eq!(tracked.len(), 1, "{res:#?}");
+        assert_eq!(tracked[0].git_dir_for_commands, f.work);
+        assert!(res
+            .diagnostics
+            .iter()
+            .any(|d| d.contains("discovery.repos") && d.contains("missing")));
+        assert_eq!(res.worktrees.len(), 1);
+
+        // A worktree created later, anywhere on disk, shows up on the next local reload
+        // without running discovery again.
+        let wt = base.join("new-trees/feature-x");
+        git(
+            &f.work,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "feature-x",
+                wt.to_str().unwrap(),
+            ],
+        );
+        let reload = crate::localgit::local_reload(&tracked);
+        let wts = reload.all_worktrees();
+        assert!(
+            wts.iter()
+                .any(|w| w.path == wt && w.branch.as_deref() == Some("feature-x")),
+            "{wts:#?}"
+        );
+        assert!(reload
+            .branches_by_repo()
+            .values()
+            .flatten()
+            .any(|b| b.branch == "feature-x"));
+    }
+
+    #[test]
     fn discovers_normal_clone() {
         let tmp = tempfile::tempdir().unwrap();
         let root = canonical(tmp.path());
@@ -980,8 +1040,8 @@ mod tests {
     #[test]
     fn public_hosts_are_not_bitbucket_dc() {
         for (url, service) in [
-            ("git@github.com:EmilIvanichkovv/omni-scripts.git", "GitHub"),
-            ("https://github.com/storytold/pdfcraft", "GitHub"),
+            ("git@github.com:someone/tool.git", "GitHub"),
+            ("https://github.com/some-org/app", "GitHub"),
             ("ssh://git@ssh.github.com:443/owner/repo.git", "GitHub"),
             ("https://gitlab.com/group/repo.git", "GitLab"),
             ("git@bitbucket.org:team/repo.git", "Bitbucket Cloud"),
@@ -995,9 +1055,9 @@ mod tests {
         // A Bitbucket DC host is still accepted, and an explicit per-repo override wins.
         let dc = parse_remote_url(
             "origin",
-            "ssh://git@bitbucket.example.com:7999/og/crash-games.git",
+            "ssh://git@bitbucket.example.com:7999/proj/service.git",
         );
-        assert_eq!(resolve_identity(&dc, "", None).unwrap().repo, "crash-games");
+        assert_eq!(resolve_identity(&dc, "", None).unwrap().repo, "service");
         let gh = parse_remote_url("origin", "git@github.com:owner/repo.git");
         let id = resolve_identity(
             &gh,

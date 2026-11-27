@@ -30,13 +30,20 @@ The keys that matter first:
 
 ```toml
 [discovery]
-roots = ["~/work", "~/src"]   # scanned recursively for git repositories
+repos = ["~/code/my-service"] # main repos tracked explicitly (no scanning needed)
+roots = ["~/work", "~/src"]   # also scanned recursively for git repositories
 max_depth = 4
 
 [identity]
 emails = ["you@company.com"]  # your commit emails: branches with your commits are "yours"
 bitbucket_user = ""           # PR author slug; empty = resolved from Bitbucket
 ```
+
+Worktrees are tracked dynamically: every local reload (10 s) runs `git worktree list` for each known
+repo, so a worktree you add with `git worktree add` shows up within seconds wherever it lives, even
+outside `roots`, and one you remove drops out (an unfinished branch then gets a keep/abandon
+suggestion). List a repo under `repos` to track it without scanning a whole directory; either way
+only the main repo needs to be known.
 
 Unknown keys are an error that names the key and line. Every key is described in section 3 of the
 spec.

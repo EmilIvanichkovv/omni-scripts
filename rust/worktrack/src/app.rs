@@ -725,10 +725,12 @@ pub fn working_branch(s: &Session) -> Option<&str> {
     s.branches.last().map(String::as_str)
 }
 
-/// Link of the working branch; else the last link (sessions without recorded branches).
+/// Link of the working branch; else the last own link (sessions without recorded branches);
+/// else the last link (sessions linked only through work in other worktrees).
 pub fn working_link(s: &Session) -> Option<&SessionLink> {
     working_branch(s)
         .and_then(|b| s.links.iter().rev().find(|l| l.branch == b))
+        .or_else(|| s.own_links().last())
         .or_else(|| s.links.last())
 }
 
@@ -1219,7 +1221,7 @@ impl App {
     pub fn session_branch(&self, s: &Session) -> Option<String> {
         working_branch(s)
             .map(str::to_string)
-            .or_else(|| s.links.last().map(|l| l.branch.clone()))
+            .or_else(|| working_link(s).map(|l| l.branch.clone()))
     }
 
     /// Worktree path a session can be resumed in: the worktree of a linked branch, else the
@@ -4265,6 +4267,56 @@ mod tests {
         );
         match press(&mut app, "c").as_slice() {
             [Effect::CopyToClipboard(cmd)] => assert!(cmd.ends_with("--resume s-live")),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn work_c_finds_a_session_that_worked_in_the_branch_worktree() {
+        let mut app = sample::app();
+        // Started in another worktree on its own branch, edited files in the
+        // spike/s3-multipart worktree: newer than the session started there.
+        let mut s = app
+            .sessions
+            .iter()
+            .find(|s| s.id == "s-failed")
+            .unwrap()
+            .clone();
+        s.id = "s-elsewhere".into();
+        s.cwd = Some("/home/dev/work/upload-svc-wt/bugfix".into());
+        s.branches = vec!["bugfix/x".into()];
+        s.last_activity_at = s.last_activity_at.map(|t| t + 3600);
+        s.links = vec![
+            SessionLink {
+                repo_id: "r_upload".into(),
+                branch: "bugfix/x".into(),
+            },
+            SessionLink {
+                repo_id: "r_upload".into(),
+                branch: "spike/s3-multipart".into(),
+            },
+        ];
+        s.worked_in = vec![crate::sessions::WorkedIn {
+            path: "/home/dev/work/upload-svc".into(),
+            repo_id: "r_upload".into(),
+            branch: "spike/s3-multipart".into(),
+        }];
+        app.sessions.push(s);
+        app.search[0] = "spike".into();
+        app.cursor[0] = 1;
+        let item = app.selected_work_item().unwrap().clone();
+        assert_eq!(item.branch, "spike/s3-multipart");
+        let ids: Vec<&str> = app
+            .item_sessions(&item)
+            .iter()
+            .map(|s| s.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["s-elsewhere", "s-failed"]);
+        match press(&mut app, "c").as_slice() {
+            [Effect::CopyToClipboard(cmd)] => assert_eq!(
+                cmd,
+                "cd '/home/dev/work/upload-svc-wt/bugfix' && claude --resume s-elsewhere"
+            ),
             other => panic!("{other:?}"),
         }
     }

@@ -80,6 +80,29 @@ worktrack hook install --apply  # merge it into ~/.claude/settings.json (writes 
 Session summaries run `claude -p` in the background (`sessions.summarize_command`); set
 `sessions.summarize = false` to turn them off.
 
+### How sessions link to branches
+
+A session shows up on a Work item (its session count, the sessions list, `c`) when it is linked to
+that branch. Links come from two places:
+
+- **Where it ran.** Claude Code records the directory a session started in and the git branch there
+  (`gitBranch`) on every transcript line. The session links to every branch it was on in the
+  worktree containing that directory.
+- **Where it worked.** A session started in one worktree can do its work in another: edit files by
+  absolute path, or run `cd ~/work/other && git commit ...`. Claude Code records no branch for that.
+  worktrack collects the directories a session worked in: every `cwd` in the transcript, the
+  directory of each file given to `Edit`, `Write`, `MultiEdit` and `NotebookEdit`, and in Bash
+  commands `cd <dir>` (at the start or after `&&` / `;`) and `git -C <dir>`. Each one links the
+  session to the branch of the worktree containing it. Commands it cannot read without a shell
+  (`$(...)`, globs, variables other than `$HOME`) are skipped. Reads do not count: `Read`, `Grep`
+  and `Glob` in another worktree, or `ls` / `cat` there, do not link to it.
+
+The Sessions details show the second kind as `Worked in  ~/work/other  feature/x`, after the Branch
+row. A worktree's branch is taken the first time worktrack links the session to it and kept after
+the worktree moves to another branch. A worktree discovered later picks up its sessions on the next
+reload. Resuming (`c`) always `cd`s into the directory the session started in, because that is where
+Claude Code stores it.
+
 ## Usage
 
 ```sh

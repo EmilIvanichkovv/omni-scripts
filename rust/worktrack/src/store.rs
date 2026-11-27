@@ -11,7 +11,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Embedded migrations, applied in order; index + 1 = `PRAGMA user_version`.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_session_work_dirs.sql"),
+];
 
 pub fn now() -> i64 {
     chrono::Utc::now().timestamp()

@@ -6,6 +6,7 @@ pub mod ingest;
 pub mod link;
 pub mod resume;
 pub mod summarize;
+pub mod workdirs;
 
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +62,17 @@ pub struct SessionLink {
     pub branch: String,
 }
 
+/// A worktree a session worked in besides its own (edits, `cd`, `git -C`; see
+/// [`link`]): the reason for a link that no `gitBranch` in the transcript explains.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkedIn {
+    /// Worktree root.
+    pub path: String,
+    pub repo_id: String,
+    /// The worktree's branch when worktrack linked the session to it.
+    pub branch: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
@@ -78,10 +90,25 @@ pub struct Session {
     pub summary_status: SummaryStatus,
     pub summary: Option<SessionSummary>,
     pub summarized_at: Option<i64>,
+    /// Every link: the session's own branches and the worktrees it worked in.
     pub links: Vec<SessionLink>,
+    /// The links that come from work in another worktree, with that worktree's path.
+    #[serde(default)]
+    pub worked_in: Vec<WorkedIn>,
 }
 
 impl Session {
+    /// Links that come from the session's own `cwd` and `gitBranch` values, not from work in
+    /// another worktree.
+    pub fn own_links(&self) -> impl Iterator<Item = &SessionLink> {
+        self.links.iter().filter(|l| {
+            !self
+                .worked_in
+                .iter()
+                .any(|w| w.repo_id == l.repo_id && w.branch == l.branch)
+        })
+    }
+
     /// Activity within the last 5 minutes and not ended (spec 4.4 `session-live`).
     pub fn is_live(&self, now: i64) -> bool {
         self.ended_at.is_none() && self.last_activity_at.is_some_and(|t| now - t <= 300)

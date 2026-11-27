@@ -330,6 +330,7 @@ fn session(id: &str, title: &str, mins_ago: i64, turns: u32, status: SummaryStat
         summary: None,
         summarized_at: None,
         links: Vec::new(),
+        worked_in: Vec::new(),
     }
 }
 

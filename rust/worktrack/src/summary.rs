@@ -804,6 +804,7 @@ mod tests {
                 repo_id: "r1".into(),
                 branch: "feature/retry".into(),
             }],
+            worked_in: vec![],
         }];
         let input = SummaryInput {
             items: &items,
@@ -872,6 +873,7 @@ mod tests {
             }),
             summarized_at: None,
             links: vec![],
+            worked_in: vec![],
         }];
         let unresolved = vec![UnresolvedChoice {
             rule: "pr_declined".into(),

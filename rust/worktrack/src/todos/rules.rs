@@ -1479,6 +1479,7 @@ mod tests {
                 repo_id: REPO.into(),
                 branch: "feature/y".into(),
             }],
+            worked_in: vec![],
         }
     }
 

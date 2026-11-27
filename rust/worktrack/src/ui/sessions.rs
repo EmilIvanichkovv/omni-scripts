@@ -9,8 +9,8 @@ use ratatui::Frame;
 
 use super::theme;
 use super::widgets::{
-    self, clean, field, fit, fit_right, group_header, push_section, render_list, section, Cut,
-    ListBlock,
+    self, clean, field, field_cont, fit, fit_right, group_header, push_section, render_list,
+    section, Cut, ListBlock,
 };
 use crate::app::{day_label, App, GroupHeader, ListRow, Now, Tab};
 use crate::lgbc::responsive::str_width;
@@ -246,17 +246,47 @@ fn bullets(lines: &mut Vec<Line<'static>>, title: &str, items: &[String]) {
     }
 }
 
+/// One row per other worktree the session worked in (edits, `cd`, `git -C`):
+/// `~/path  branch  REPO` (repo only when it differs from the session's own).
+fn worked_in(app: &App, s: &Session) -> Vec<Vec<Span<'static>>> {
+    let own_repos: Vec<&str> = s.own_links().map(|l| l.repo_id.as_str()).collect();
+    s.worked_in
+        .iter()
+        .map(|w| {
+            let mut row = vec![
+                Span::raw(clean(&app.display_path(std::path::Path::new(&w.path)))),
+                Span::raw("  "),
+                Span::styled(clean(&w.branch), theme::bold()),
+            ];
+            if !own_repos.contains(&w.repo_id.as_str()) {
+                let repo = app
+                    .repo_name(&w.repo_id)
+                    .unwrap_or_else(|| w.repo_id.clone());
+                row.push(Span::styled(format!("  {}", clean(&repo)), theme::accent()));
+            }
+            row
+        })
+        .collect()
+}
+
 /// `start → … → working  REPO`: every branch the session was on, in order, with the working
-/// (last) one in normal text and the earlier ones muted. Repos only when they differ.
+/// (last) one in normal text and the earlier ones muted. Repos only when they differ. Links
+/// from work in other worktrees are not branches the session was on; [`worked_in`] shows them.
 fn branch_move(app: &App, s: &Session) -> Vec<Span<'static>> {
     let mut branches: Vec<String> = s.branches.clone();
-    for l in &s.links {
+    let own: Vec<&crate::sessions::SessionLink> = s.own_links().collect();
+    for l in &own {
         if !branches.contains(&l.branch) {
             branches.push(l.branch.clone());
         }
     }
     if branches.is_empty() {
-        return vec![Span::styled("(no branch) · unlinked", theme::muted())];
+        let text = if s.links.is_empty() {
+            "(no branch) · unlinked"
+        } else {
+            "(no branch)"
+        };
+        return vec![Span::styled(text, theme::muted())];
     }
     let last = branches.len() - 1;
     let mut spans = Vec::new();
@@ -272,7 +302,7 @@ fn branch_move(app: &App, s: &Session) -> Vec<Span<'static>> {
         spans.push(Span::styled(clean(b), style));
     }
     let mut repos: Vec<String> = Vec::new();
-    for l in &s.links {
+    for l in &own {
         let r = app
             .repo_name(&l.repo_id)
             .unwrap_or_else(|| l.repo_id.clone());
@@ -448,6 +478,13 @@ pub fn session_details(app: &App, s: &Session) -> Vec<Line<'static>> {
     }
     lines.push(field("When", when));
     lines.push(field("Branch", branch_move(app, s)));
+    for (i, row) in worked_in(app, s).into_iter().enumerate() {
+        lines.push(if i == 0 {
+            field("Worked in", row)
+        } else {
+            field_cont(row)
+        });
+    }
     if let Some(cwd) = &s.cwd {
         lines.push(field(
             "Cwd",
@@ -595,6 +632,63 @@ mod tests {
         s.branches.clear();
         s.links.clear();
         assert_eq!(text(&branch_move(&app, &s)), "(no branch) · unlinked");
+    }
+
+    #[test]
+    fn worked_in_rows_follow_the_branch_row() {
+        let mut app = crate::ui::sample::app();
+        app.home = Some("/home/dev".into());
+        let mut s = moved_session(&mut app);
+        let repo_id = s.links[0].repo_id.clone();
+        s.branches = vec!["bugfix/x".into()];
+        s.links = vec![
+            SessionLink {
+                repo_id: repo_id.clone(),
+                branch: "bugfix/x".into(),
+            },
+            SessionLink {
+                repo_id: repo_id.clone(),
+                branch: "feature/y".into(),
+            },
+            SessionLink {
+                repo_id: "r_other".into(),
+                branch: "feature/z".into(),
+            },
+        ];
+        s.worked_in = vec![
+            crate::sessions::WorkedIn {
+                path: "/home/dev/work/service-y".into(),
+                repo_id,
+                branch: "feature/y".into(),
+            },
+            crate::sessions::WorkedIn {
+                path: "/srv/other".into(),
+                repo_id: "r_other".into(),
+                branch: "feature/z".into(),
+            },
+        ];
+        // The Branch row shows only the session's own branch.
+        let branch = text(&branch_move(&app, &s));
+        assert!(branch.starts_with("bugfix/x  "), "{branch}");
+        assert!(!branch.contains("feature/y"), "{branch}");
+        assert_eq!(app.session_branch(&s).as_deref(), Some("bugfix/x"));
+        let rows: Vec<String> = session_details(&app, &s)
+            .iter()
+            .map(|l| text(&l.spans))
+            .collect();
+        let at = rows.iter().position(|r| r.starts_with("Branch")).unwrap();
+        assert!(rows[at + 1].starts_with("Worked in"), "{rows:?}");
+        assert!(
+            rows[at + 1].ends_with("~/work/service-y  feature/y"),
+            "{rows:?}"
+        );
+        assert!(rows[at + 2]
+            .trim_start()
+            .starts_with("/srv/other  feature/z  "));
+        // Only worked-in links: no own branch, but not unlinked either.
+        s.branches.clear();
+        s.links.retain(|l| l.branch != "bugfix/x");
+        assert_eq!(text(&branch_move(&app, &s)), "(no branch)");
     }
 
     #[test]

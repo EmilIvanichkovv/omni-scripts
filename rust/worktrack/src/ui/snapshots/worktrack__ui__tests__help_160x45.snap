@@ -19,12 +19,13 @@ expression: text
 │   ✕ feature/PROJ-101-legacy             │  ctrl-l                repaint the screen                                █                                         │
 │                                         │  i                     diagnostics                                       █runk · last 2m                           │
 │ ▾ WEB/portal ───────────────────────────│  ? / q                 help / quit                                       █                                         │
-│   ↑ feature/PROJ-140-webpack            │                                                                          █                                         │
-│                                         │Groups (repos, days, directories)                                         █ad retry logic                           │
+│   ↑ feature/PROJ-140-webpack            │  Esc Esc               quit (Esc twice within a second)                  █                                         │
+│                                         │                                                                          █ad retry logic                           │
+│                                         │Groups (repos, days, directories)                                         █                                         │
 │                                         │  Enter / Space         on a group header: fold / unfold it               █                                         │
-│                                         │  z                     fold / unfold the group of the selected row       █                                         │
-│                                         │  Z                     fold all groups (unfold all when all are folded)  █to uploads                               │
-│                                         │  /                     searching shows every group open                  █                                         │
+│                                         │  z                     fold / unfold the group of the selected row       █to uploads                               │
+│                                         │  Z                     fold all groups (unfold all when all are folded)  █                                         │
+│                                         │  /                     searching shows every group open                  ║                                         │
 │                                         │                                                                          ║                                         │
 │                                         │Work                                                                      ║                                         │
 │                                         │  o                     open PR in browser (Jira if no PR)                ║                                         │
@@ -42,8 +43,7 @@ expression: text
 │                                         │  Esc                   cancel                                            ║                                         │
 │                                         │                                                                          ║                                         │
 │                                         │Todos                                                                     ║                                         │
-│                                         │  a / e / E             add / edit title / edit notes in editor           ║                                         │
-│                                         │  Space                 mark done (enter confirms) / reopen               ▼                                         │
-╰─────────────────────────────────────────│  Enter                 go to the todo's session (the one it came from,   │─────────────────────────────────────────╯
+│                                         │  a / e / E             add / edit title / edit notes in editor           ▼                                         │
+╰─────────────────────────────────────────│  Space                 mark done (enter confirms) / reopen               │─────────────────────────────────────────╯
                                           ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t new todo · f filter · / search · ? help · q quit

@@ -141,6 +141,7 @@ The full list is in section 9.6 of the spec and behind `?` in the app.
 | `r` / `R`                     | local reload / full sync                                                                         |
 | `Ctrl-l`                      | repaint the screen                                                                               |
 | `i`, `?`, `q`                 | diagnostics, help, quit                                                                          |
+| `Esc` `Esc`                   | quit (twice within a second, when there is nothing left to close)                                |
 | Work: `o`, `t`, `c`           | open PR (or Jira), new linked todo (dialog), copy resume command                                 |
 | Work: `A` / `U`, `X`          | mark / unmark abandoned, remove a cleanup worktree                                               |
 | Todos: `h` `l` / `←` `→`      | previous / next status filter (Active, Todo, Doing, Done, Dropped, All)                          |

@@ -19,16 +19,16 @@ expression: text
 │   ✕ featur│  ctrl-l                repaint the screen                                ║4d T0 S0   █
 │           │  i                     diagnostics                                       ║           ║
 │ ▾ WEB/port│  ? / q                 help / quit                                       ║──────── 1 ▼
-╰───────────│                                                                          ║───────────╯
-╭ Details ──│Groups (repos, days, directories)                                         ║───────────╮
-│feature/PRO│  Enter / Space         on a group header: fold / unfold it               ║PROJ-123 ↗ ▲
-│State    ✎ │  z                     fold / unfold the group of the selected row       ║           █
-│Repo     AP│  Z                     fold all groups (unfold all when all are folded)  ║           █
-│Path     ~/│  /                     searching shows every group open                  ║           █
-│Flags    di│                                                                          ║           ║
-│PR #44   Ad│Work                                                                      ║           ║
-│         iv│  o                     open PR in browser (Jira if no PR)                ║           ║
-│         4 │  y / Y                 copy branch name / worktree path                  ▼           ▼
-╰───────────│  t                     new todo dialog, linked to this item              │J/K scroll ╯
+╰───────────│  Esc Esc               quit (Esc twice within a second)                  ║───────────╯
+╭ Details ──│                                                                          ║───────────╮
+│feature/PRO│Groups (repos, days, directories)                                         ║PROJ-123 ↗ ▲
+│State    ✎ │  Enter / Space         on a group header: fold / unfold it               ║           █
+│Repo     AP│  z                     fold / unfold the group of the selected row       ║           █
+│Path     ~/│  Z                     fold all groups (unfold all when all are folded)  ║           █
+│Flags    di│  /                     searching shows every group open                  ║           ║
+│PR #44   Ad│                                                                          ║           ║
+│         iv│Work                                                                      ║           ║
+│         4 │  o                     open PR in browser (Jira if no PR)                ▼           ▼
+╰───────────│  y / Y                 copy branch name / worktree path                  │J/K scroll ╯
             ╰──────────────────────────────────────────── ↑↓ scroll · other keys close ╯
  o PR · c resume · t new todo · f filter · / search · ? help · q quit

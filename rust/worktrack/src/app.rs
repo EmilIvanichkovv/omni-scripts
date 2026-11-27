@@ -627,7 +627,13 @@ pub struct App {
     pub overlay: Option<Overlay>,
     pub overlay_scroll: usize,
     pub feedback: RenderFeedback,
+    /// When `Esc` was pressed with nothing left to close (unix millis); a second `Esc`
+    /// within `ESC_QUIT_WINDOW_MS` quits, any other key disarms it.
+    pub esc_quit_armed_at: Option<i64>,
 }
+
+/// How long after a first `Esc` a second one quits (same as the git manager tool).
+pub const ESC_QUIT_WINDOW_MS: i64 = 1000;
 
 pub use crate::sessions::resume::shell_quote;
 
@@ -779,6 +785,7 @@ impl App {
             overlay: None,
             overlay_scroll: 0,
             feedback: RenderFeedback::default(),
+            esc_quit_armed_at: None,
         }
     }
 
@@ -798,6 +805,12 @@ impl App {
     /// window on the first tick.
     pub fn tick(&mut self, now: Now) {
         self.now = now;
+        if self
+            .esc_quit_armed_at
+            .is_some_and(|at| now.timestamp_millis() - at > ESC_QUIT_WINDOW_MS)
+        {
+            self.esc_quit_armed_at = None;
+        }
         if self
             .status
             .as_ref()
@@ -1702,6 +1715,10 @@ impl App {
         if key.kind == KeyEventKind::Release {
             return Vec::new();
         }
+        // Any key other than Esc cancels a pending Esc quit.
+        if key.code != KeyCode::Esc {
+            self.esc_quit_armed_at = None;
+        }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return vec![Effect::Quit];
         }
@@ -1808,6 +1825,17 @@ impl App {
                     let key = self.selected_key(self.tab);
                     self.search[idx].clear();
                     self.reselect(self.tab, key);
+                } else {
+                    // Nothing left to close: Esc twice quits (a single Esc is too easy to
+                    // hit right after closing a dialog).
+                    let now = self.now.timestamp_millis();
+                    match self.esc_quit_armed_at {
+                        Some(at) if now - at <= ESC_QUIT_WINDOW_MS => return vec![Effect::Quit],
+                        _ => {
+                            self.esc_quit_armed_at = Some(now);
+                            self.set_status("press Esc again to quit");
+                        }
+                    }
                 }
             }
             KeyCode::Enter => {
@@ -3929,6 +3957,41 @@ mod tests {
                 .collect();
             assert_eq!(found, vec![id], "{q}");
         }
+    }
+
+    #[test]
+    fn double_esc_quits_and_other_keys_disarm() {
+        let mut app = sample::app();
+        let t0 = app.now;
+        let esc = |app: &mut App| app.handle_key(key(KeyCode::Esc));
+        // First Esc arms and says so; the second quits.
+        assert!(esc(&mut app).is_empty());
+        assert!(app.status.as_ref().unwrap().text.contains("Esc again"));
+        assert!(matches!(esc(&mut app).as_slice(), [Effect::Quit]));
+
+        // Another key in between disarms.
+        let mut app = sample::app();
+        esc(&mut app);
+        press(&mut app, "j");
+        assert!(esc(&mut app).is_empty());
+        assert!(matches!(esc(&mut app).as_slice(), [Effect::Quit]));
+
+        // Too slow: the window passes and the next Esc only arms again.
+        let mut app = sample::app();
+        esc(&mut app);
+        app.tick(t0 + chrono::Duration::milliseconds(ESC_QUIT_WINDOW_MS + 100));
+        assert!(esc(&mut app).is_empty());
+
+        // Esc clears a search first, closes overlays and inputs first: none of that arms.
+        let mut app = sample::app();
+        app.search[app.tab.index()] = "x".into();
+        assert!(esc(&mut app).is_empty());
+        assert!(app.search[app.tab.index()].is_empty());
+        assert!(app.esc_quit_armed_at.is_none());
+        press(&mut app, "?");
+        assert!(esc(&mut app).is_empty());
+        assert!(app.overlay.is_none());
+        assert!(app.esc_quit_armed_at.is_none());
     }
 
     #[test]

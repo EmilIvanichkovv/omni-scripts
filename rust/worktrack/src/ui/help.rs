@@ -32,6 +32,7 @@ pub const KEYS: &[(&str, &[(&str, &str)])] = &[
             ("ctrl-l", "repaint the screen"),
             ("i", "diagnostics"),
             ("? / q", "help / quit"),
+            ("Esc Esc", "quit (Esc twice within a second)"),
         ],
     ),
     (

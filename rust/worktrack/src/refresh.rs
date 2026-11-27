@@ -370,6 +370,8 @@ struct Engine {
     /// Current problems by scope; shown in the status line once, kept in diagnostics until the
     /// scope succeeds again (spec 11.2).
     errors: BTreeMap<String, String>,
+    /// Ports recently handed out to Zellij layout tabs (`C`).
+    zellij_ports: Arc<crate::zellij::layout::PortLedger>,
 }
 
 fn today() -> NaiveDate {
@@ -416,6 +418,7 @@ impl Engine {
             pool,
             internal_tx,
             internal_rx: Some(internal_rx),
+            zellij_ports: Arc::default(),
             repos: Vec::new(),
             worktrees: Vec::new(),
             discovery_diags: Vec::new(),
@@ -1294,6 +1297,7 @@ impl Engine {
             worktrees: self.worktrees.clone(),
             rules: self.cfg.zellij.target.clone(),
             env_session: std::env::var("ZELLIJ_SESSION_NAME").ok(),
+            ports: self.zellij_ports.clone(),
         };
         let events = self.events.clone();
         tokio::spawn(async move {

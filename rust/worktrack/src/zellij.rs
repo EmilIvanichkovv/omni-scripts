@@ -20,18 +20,23 @@
 //! start directory's basename ([`tab_name`]). When the target session already has a tab with
 //! that name it is focused instead of running a second `claude --resume` of the same session.
 //! Otherwise a new tab runs `claude --resume <id>` in the session's start directory: Claude
-//! Code resolves sessions per start directory (spec 6.5). Every call passes its arguments as
-//! separate argv entries, without a shell, with stdin/stdout/stderr null or piped and a
-//! timeout.
+//! Code resolves sessions per start directory (spec 6.5). When the rule has a `layout`, the new
+//! tab is built from a tab of that layout file instead and opened with `new-tab
+//! --layout-string` ([`layout`]). Every call passes its arguments as separate argv entries,
+//! without a shell, with stdin/stdout/stderr null or piped and a timeout.
+
+pub mod layout;
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::app::working_link;
 use crate::config::ZellijTarget;
 use crate::model::{RepoId, Worktree};
 use crate::sessions::Session;
+use layout::{LayoutSpec, PortLedger};
 
 pub const PROGRAM: &str = "zellij";
 /// Each `zellij` call is killed after this long.
@@ -68,6 +73,8 @@ pub struct ResolvedRule {
     /// `None` when the path is not a git repo; such a rule never matches.
     pub repo_id: Option<RepoId>,
     pub target: TargetSpec,
+    /// New tabs are built from this layout file's template tab.
+    pub layout: Option<LayoutSpec>,
 }
 
 /// The Zellij session to open in, before checking which sessions run.
@@ -99,6 +106,8 @@ pub struct Plan {
     pub action: Action,
     /// The full command, `zellij` first.
     pub argv: Vec<String>,
+    /// The port given to the new tab (layout with `port` only).
+    pub port: Option<u16>,
 }
 
 impl Plan {
@@ -109,11 +118,34 @@ impl Plan {
                 "tab {} already exists in Zellij session {}; focused it",
                 self.tab, self.session
             ),
-            Action::NewTab => format!(
-                "opened in Zellij session {}, tab {}",
-                self.session, self.tab
-            ),
+            Action::NewTab => {
+                let mut m = format!(
+                    "opened in Zellij session {}, tab {}",
+                    self.session, self.tab
+                );
+                if let Some(p) = self.port {
+                    m.push_str(&format!(", port {p}"));
+                }
+                m
+            }
         }
+    }
+
+    /// Open the tab from a generated layout (`new-tab --layout-string`) instead.
+    pub fn use_layout(&mut self, built: &layout::Built) {
+        self.argv = layout_new_tab_argv(&self.session, &built.text);
+        self.port = built.port;
+    }
+
+    /// [`Self::argv`] for the log, with a generated layout shortened to `<layout>`.
+    pub fn argv_for_log(&self) -> Vec<&str> {
+        let mut out: Vec<&str> = self.argv.iter().map(String::as_str).collect();
+        if let Some(i) = out.iter().position(|a| *a == "--layout-string") {
+            if let Some(v) = out.get_mut(i + 1) {
+                *v = "<layout>";
+            }
+        }
+        out
     }
 }
 
@@ -258,6 +290,12 @@ pub fn new_tab_argv(session: &str, tab: &str, cwd: &Path, session_id: &str) -> V
     )
 }
 
+/// `zellij --session <s> action new-tab --layout-string <layout>`. No `--name` or `--cwd`:
+/// the layout's tab carries both, and Zellij lets the layout win anyway.
+pub fn layout_new_tab_argv(session: &str, layout: &str) -> Vec<String> {
+    with_session(session, &["new-tab", "--layout-string", layout])
+}
+
 /// `zellij --session <s> action go-to-tab-name <tab>`.
 pub fn focus_argv(session: &str, tab: &str) -> Vec<String> {
     with_session(session, &["go-to-tab-name", tab])
@@ -299,6 +337,7 @@ pub fn plan(
         tab,
         action,
         argv,
+        port: None,
     })
 }
 
@@ -336,6 +375,8 @@ pub struct OpenRequest {
     pub rules: Vec<ZellijTarget>,
     /// `ZELLIJ_SESSION_NAME`.
     pub env_session: Option<String>,
+    /// Ports handed out to layout tabs, shared across `C`s.
+    pub ports: Arc<PortLedger>,
 }
 
 /// Resolve the rules' repos and the start directory's repo (blocking: runs git).
@@ -361,6 +402,7 @@ fn resolve(req: &OpenRequest) -> (Vec<ResolvedRule>, Option<RepoId>) {
                 repo: t.repo.clone(),
                 repo_id,
                 target: TargetSpec::from_config(t),
+                layout: LayoutSpec::from_config(t),
             }
         })
         .collect();
@@ -453,15 +495,27 @@ pub async fn open(req: OpenRequest) -> Result<String, String> {
         };
         running.push(RunningSession { name, tabs });
     }
-    let p = plan(
+    let mut p = plan(
         &target,
         &running,
         &s.id,
         &cwd,
         crate::app::working_branch(s),
     )?;
-    tracing::info!("zellij: running {:?}", p.argv);
-    run(&p.argv).await?;
+    if p.action == Action::NewTab {
+        if let Some(spec) = rule.and_then(|r| r.layout.as_ref()) {
+            let built = layout::build(spec, &p.tab, &cwd, &s.id, &req.ports).await?;
+            tracing::debug!("zellij: generated layout:\n{}", built.text);
+            p.use_layout(&built);
+        }
+    }
+    tracing::info!("zellij: running {:?}", p.argv_for_log());
+    if let Err(e) = run(&p.argv).await {
+        if let Some(port) = p.port {
+            req.ports.release(port);
+        }
+        return Err(e);
+    }
     let msg = p.done_message();
     tracing::info!("zellij: {msg}");
     Ok(msg)
@@ -519,6 +573,7 @@ mod tests {
             repo: format!("~/work/{repo_id}"),
             repo_id: Some(repo_id.into()),
             target,
+            layout: None,
         }
     }
 
@@ -600,6 +655,7 @@ mod tests {
             repo: "~/missing".into(),
             repo_id: None,
             target: TargetSpec::Session("s".into()),
+            layout: None,
         }];
         assert!(match_rule(&rules, &session_repo_candidates(&s, &[], None)).is_none());
     }
@@ -707,6 +763,81 @@ mod tests {
     }
 
     #[test]
+    fn layout_tab_argv() {
+        let rs = [running("brave-fox", &["main"])];
+        let mut p = plan(
+            &Where::Rule(TargetSpec::WithTab("main".into())),
+            &rs,
+            "5f0c2a1e-7b3d",
+            Path::new("/w/a"),
+            Some("feature/x"),
+        )
+        .unwrap();
+        let text = "layout {\ntab name=\"x\" cwd=\"/w/a\" {\n}\n}\n";
+        p.use_layout(&layout::Built {
+            text: text.into(),
+            port: Some(8105),
+        });
+        assert_eq!(
+            p.argv,
+            [
+                "zellij",
+                "--session",
+                "brave-fox",
+                "action",
+                "new-tab",
+                "--layout-string",
+                text,
+            ]
+        );
+        assert_eq!(
+            p.argv_for_log(),
+            [
+                "zellij",
+                "--session",
+                "brave-fox",
+                "action",
+                "new-tab",
+                "--layout-string",
+                "<layout>",
+            ]
+        );
+        assert_eq!(
+            p.done_message(),
+            "opened in Zellij session brave-fox, tab x, port 8105"
+        );
+    }
+
+    #[test]
+    fn layout_spec_from_config() {
+        let mut t = ZellijTarget {
+            repo: "~/work/my-service".into(),
+            session: "work".into(),
+            ..Default::default()
+        };
+        assert_eq!(LayoutSpec::from_config(&t), None);
+        t.layout = "/l/my.kdl".into();
+        t.template_tab = "dev".into();
+        t.port = Some(crate::config::ZellijPort {
+            from: 8001,
+            range: [8100, 8199],
+        });
+        assert_eq!(
+            LayoutSpec::from_config(&t),
+            Some(LayoutSpec {
+                path: "/l/my.kdl".into(),
+                template_tab: "dev".into(),
+                claude_pane: layout::ClaudePane::FirstEmpty,
+                port: Some(layout::PortSpec {
+                    from: 8001,
+                    low: 8100,
+                    high: 8199
+                }),
+            })
+        );
+    }
+
+    #[test]
     fn existing_tab_is_focused() {
         let rs = [running("here", &["main", "x"])];
         let p = plan(
@@ -746,8 +877,8 @@ mod tests {
     fn target_spec_from_config() {
         let t = ZellijTarget {
             repo: "~/work/my-service".into(),
-            session: String::new(),
             session_with_tab: "main".into(),
+            ..Default::default()
         };
         assert_eq!(
             TargetSpec::from_config(&t),

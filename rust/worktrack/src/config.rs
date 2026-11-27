@@ -239,6 +239,28 @@ pub struct ZellijTarget {
     pub session: String,
     #[serde(default)]
     pub session_with_tab: String,
+    /// A Zellij layout file; new tabs copy its `template_tab`. Read on every `C`.
+    #[serde(default)]
+    pub layout: String,
+    /// The tab of `layout` whose shape new tabs copy.
+    #[serde(default)]
+    pub template_tab: String,
+    /// `first_empty` (empty = that) or `name:<pane name>`: the pane that runs claude.
+    #[serde(default)]
+    pub claude_pane: String,
+    /// Replace the template tab's port with a free one.
+    #[serde(default)]
+    pub port: Option<ZellijPort>,
+}
+
+/// `port = { from = 8001, range = [8100, 8199] }`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZellijPort {
+    /// The port as written in the template tab.
+    pub from: u16,
+    /// Inclusive `[low, high]`.
+    pub range: [u16; 2],
 }
 
 /// Commented default written by the first-run screen.
@@ -308,6 +330,11 @@ enabled = true                       # C opens a session in Zellij (c still copi
 # repo = "~/work/my-service"         # main repo path; matches every worktree of it
 # session = "work"                   # a Zellij session by name; or
 # session_with_tab = "main"          # the running session that has a tab with this name
+# Optional: build new tabs from a tab of your own layout file (read on every C).
+# layout = "~/.config/zellij/layouts/my.kdl"
+# template_tab = "dev"               # the tab whose panes new tabs copy
+# claude_pane = "first_empty"        # or "name:<pane name>": the pane that runs claude
+# port = { from = 8001, range = [8100, 8199] }  # replace the tab's port with a free one
 "#;
 
 /// Secrets must not appear in the file (spec 3).
@@ -355,6 +382,38 @@ impl Config {
                 return Err(eyre!(
                     "config error: zellij.target #{n} needs exactly one of `session` and `session_with_tab`"
                 ));
+            }
+            if t.layout.trim().is_empty() {
+                for (key, set) in [
+                    ("template_tab", !t.template_tab.trim().is_empty()),
+                    ("claude_pane", !t.claude_pane.trim().is_empty()),
+                    ("port", t.port.is_some()),
+                ] {
+                    if set {
+                        return Err(eyre!(
+                            "config error: zellij.target #{n} has `{key}` but no `layout`"
+                        ));
+                    }
+                }
+            } else if t.template_tab.trim().is_empty() {
+                return Err(eyre!(
+                    "config error: zellij.target #{n} has `layout` but no `template_tab`"
+                ));
+            }
+            crate::zellij::layout::ClaudePane::parse(&t.claude_pane)
+                .map_err(|e| eyre!("config error: zellij.target #{n} `claude_pane`: {e}"))?;
+            if let Some(p) = &t.port {
+                let [low, high] = p.range;
+                if p.from == 0 || low == 0 {
+                    return Err(eyre!(
+                        "config error: zellij.target #{n} `port`: ports start at 1"
+                    ));
+                }
+                if low > high {
+                    return Err(eyre!(
+                        "config error: zellij.target #{n} `port.range`: {low} is above {high}"
+                    ));
+                }
             }
         }
         if cfg.sessions.summarize_command.is_empty() {
@@ -522,12 +581,12 @@ mod tests {
                 ZellijTarget {
                     repo: "~/work/a".into(),
                     session: "work".into(),
-                    session_with_tab: String::new(),
+                    ..Default::default()
                 },
                 ZellijTarget {
                     repo: "~/work/b".into(),
-                    session: String::new(),
                     session_with_tab: "main".into(),
+                    ..Default::default()
                 },
             ]
         );
@@ -554,6 +613,60 @@ mod tests {
         ] {
             assert!(Config::parse(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn zellij_layout_fields_parse() {
+        let cfg = Config::parse(
+            "[[zellij.target]]\nrepo = \"~/work/a\"\nsession = \"work\"\nlayout = \"~/.config/zellij/layouts/my.kdl\"\ntemplate_tab = \"dev\"\nclaude_pane = \"name:agent\"\nport = { from = 8001, range = [8100, 8199] }\n",
+        )
+        .unwrap();
+        let t = &cfg.zellij.target[0];
+        assert_eq!(t.layout, "~/.config/zellij/layouts/my.kdl");
+        assert_eq!(t.template_tab, "dev");
+        assert_eq!(t.claude_pane, "name:agent");
+        assert_eq!(
+            t.port,
+            Some(ZellijPort {
+                from: 8001,
+                range: [8100, 8199]
+            })
+        );
+    }
+
+    #[test]
+    fn zellij_layout_fields_are_validated() {
+        let base = "[[zellij.target]]\nrepo = \"~/w\"\nsession = \"s\"\n";
+        let with_layout = format!("{base}layout = \"~/l.kdl\"\n");
+        for (extra, key) in [
+            (format!("{base}template_tab = \"dev\"\n"), "template_tab"),
+            (format!("{base}claude_pane = \"first_empty\"\n"), "claude_pane"),
+            (format!("{base}port = {{ from = 1, range = [2, 3] }}\n"), "port"),
+            (with_layout.clone(), "template_tab"),
+            (
+                format!("{with_layout}template_tab = \"dev\"\nclaude_pane = \"last\"\n"),
+                "claude_pane",
+            ),
+            (
+                format!("{with_layout}template_tab = \"dev\"\nport = {{ from = 8001, range = [8199, 8100] }}\n"),
+                "port.range",
+            ),
+            (
+                format!("{with_layout}template_tab = \"dev\"\nport = {{ from = 8001, range = [8100] }}\n"),
+                "line 6: invalid length 1",
+            ),
+            (
+                format!("{with_layout}template_tab = \"dev\"\nport = {{ from = 8001, to = 1, range = [1, 2] }}\n"),
+                "to",
+            ),
+        ] {
+            let err = Config::parse(&extra).unwrap_err().to_string();
+            assert!(err.contains(key), "{extra}: {err}");
+        }
+        assert!(Config::parse(&format!(
+            "{with_layout}template_tab = \"dev\"\nclaude_pane = \"first_empty\"\nport = {{ from = 8001, range = [8100, 8100] }}\n"
+        ))
+        .is_ok());
     }
 
     #[test]

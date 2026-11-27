@@ -197,6 +197,65 @@ How the target is chosen:
 3. No rule matches: the Zellij session worktrack runs in (`ZELLIJ_SESSION_NAME`). Outside Zellij
    that is an error, and `c` is the way to resume.
 
+#### New tabs from your own layout
+
+By default the new tab is a single pane running `claude`. A rule can instead copy a tab of your own
+Zellij layout file, so the new tab gets the same panes (dev server, shell, …):
+
+```toml
+[[zellij.target]]
+repo = "~/work/my-service"
+session_with_tab = "main"
+layout = "~/.config/zellij/layouts/my.kdl"   # read on every C, never cached
+template_tab = "dev"                          # the tab whose panes new tabs copy (required)
+claude_pane = "first_empty"                   # or "name:<pane name>"; default first_empty
+port = { from = 8001, range = [8100, 8199] }  # optional
+```
+
+On `C` worktrack reads the file, takes its `default_tab_template { … }` (if any) and the tab with
+`name="<template_tab>"`, changes that tab as below and opens it with
+`zellij action new-tab --layout-string <layout>`. Everything it does not change is kept as written.
+
+- `name` becomes the new tab's name (the branch, as above) and `cwd` the session's start directory
+  (added when missing). `focus` is dropped: it only picks the first tab of a session started from
+  the layout, and `new-tab` focuses the new tab anyway.
+- `port`: every value in the tab that is exactly the template's port, `"8001"` or a bare `8001`,
+  becomes the first port in `range` that is free on `127.0.0.1` and `0.0.0.0` and that worktrack has
+  not handed out in the last 60 s (so two quick `C`s do not collide). `"--port=8001"` is not
+  changed, nor are other tabs. If the port does not appear in the tab, or no port in the range is
+  free, `C` fails with a message.
+- `claude_pane`: `first_empty` is the first `pane` (in file order) without `command`, `plugin`,
+  `edit` or child nodes, such as `pane size="60%"` or a bare `pane`. `name:<x>` is the pane with
+  `name="<x>"`; an existing `command` and `args` on it are replaced. That pane becomes
+  `command="claude"` with `args "--resume" "<session id>"`; its other attributes and children stay.
+
+An example layout:
+
+```kdl
+layout {
+    default_tab_template {
+        pane size=1 borderless=true { plugin location="zellij:tab-bar"; }
+        children
+        pane size=2 borderless=true { plugin location="zellij:status-bar"; }
+    }
+    tab name="dev" cwd="/home/me/work/my-service" {
+        pane split_direction="vertical" {
+            pane size="60%"                       // claude runs here
+            pane split_direction="horizontal" {
+                pane size="20%" command="npm" {
+                    args "run" "dev" "--port" "8001"   // 8001 -> a free port
+                }
+                pane
+            }
+        }
+    }
+}
+```
+
+The status line says `opened in Zellij session <s>, tab <name>, port <p>`; the generated layout is
+in the log at debug level. Errors name the layout file and the problem (unreadable file, tab not
+found, unbalanced braces, no pane for claude).
+
 All `zellij` calls run without a shell, with a 5 s timeout each; what was run is in the log.
 
 ## Status

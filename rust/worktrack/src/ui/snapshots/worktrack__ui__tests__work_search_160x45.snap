@@ -10,12 +10,12 @@ expression: text
 ╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 4 items ╮╭ Details ─────────────────────────────────────────────────────╮
 │ / @state:pr                                                                                  ││feature/PROJ-123-retry                             PROJ-123 ↗ │
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 2 ││State    ✎ PR needs work (since 13:20)                        │
-│▌  ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││Repo     API/upload-svc                                       │
-│   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Path     ~/work/upload-svc-wt/retry                           │
+│▌  ✎ feature/PROJ-123-retry                                 #44    ✗ci ☐2 * ↑1 ●   2m T1 S2   ││Repo     API/upload-svc                                       │
+│   ◐ feature/PROJ-130-chunking                              #47    …ci    ↓3 ∅     1h T0 S1   ││Path     ~/work/upload-svc-wt/retry                           │
 │                                                                                              ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 2 ││         session live                                         │
-│   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││PR #44   Add retry with backoff to uploads                    │
-│   ✕ feature/PROJ-101-legacy                         PR #31                        4d T0 S0   ││         ivan ✗ needs work · maria ○ unapproved               │
+│   ✓ feature/PROJ-118-sso                                   #39    ✓ci             1d T1 S2   ││PR #44   Add retry with backoff to uploads                    │
+│   ✕ feature/PROJ-101-legacy                                #31                    4d T0 S0   ││         ivan ✗ needs work · maria ○ unapproved               │
 │                                                                                              ││         4 comments                                           │
 │                                                                                              ││Commits  3 ahead of trunk · last 2m                           │
 │                                                                                              ││                                                              │

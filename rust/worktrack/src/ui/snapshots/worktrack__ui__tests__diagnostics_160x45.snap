@@ -9,13 +9,13 @@ expression: text
 
 ╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────── 7 items ╮╭ Details ─────────────────────────────────────────────────────╮
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────── 4 ││feature/PROJ-123-retry                             PROJ-123 ↗ │
-│▌  ✎ feature/PROJ-123-retry                          PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   ││State    ✎ PR needs work (since 13:20)                        │
-│   ◐ feature/PROJ-130-chunking                       PR #47  …ci     ↓3 ∅          1h T0 S1   ││Repo     API/upload-svc                                       │
-│   ○ chore/bump-deps                                 —               * ↑2          3h T1 S0   ││Path     ~/work/upload-svc-wt/retry                           │
-│   ↑ spike/s3-multipart                              —               ∅ z          16d T0 S1   ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
+│▌  ✎ feature/PROJ-123-retry                                 #44    ✗ci ☐2 * ↑1 ●   2m T1 S2   ││State    ✎ PR needs work (since 13:20)                        │
+│   ◐ feature/PROJ-130-chunking                              #47    …ci    ↓3 ∅     1h T0 S1   ││Repo     API/upload-svc                                       │
+│   ○ chore/bump-deps                                        —             * ↑2     3h T1 S0   ││Path     ~/work/upload-svc-wt/retry                           │
+│   ↑ spike/s3-multipart                                     —             ∅ z     16d T0 S1   ││Flags    dirty · ahead 1 · ci failed · 2 open tasks ·         │
 │                                                                                              ││         session live                                         │
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 2 ││PR #44   Add retry with backoff to uploads                    │
-│   ✓ feature/PROJ-118-sso                            PR #39  ✓ci                   1d T1 S2   ││         ivan ✗ needs work · maria ○ unapproved               │
+│   ✓ feature/PROJ-118-sso                                   #39    ✓ci             1d T1 S2   ││         ivan ✗ needs work · maria ○ unapproved               │
 │   ✕ feature/PROJ-101-legacy   ╭ Diagnostics ─────────────────────────────────────────────────────────────────────────────────╮                               │
 │                               │Bitbucket:                                                                                    │t 2m                           │
 │ ▾ WEB/portal ─────────────────│  token  set (BITBUCKET_TOKEN)                                                                │                               │

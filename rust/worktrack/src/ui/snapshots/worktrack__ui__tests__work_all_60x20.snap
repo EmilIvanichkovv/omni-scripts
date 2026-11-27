@@ -6,15 +6,15 @@ expression: text
   1 Work   2 Todos   3 Sessions ●   4 Summary   5 Inbox 4
 ╭ Filter: All ▾  Sort: activity ────────────────── 9 items ╮
 │▌▾ API/upload-svc ───────────────────────────────────── 4 │
-│   ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
-│   ◐ feature/PROJ-130-c… PR #47  …ci     ↓3 ∅          1h │
-│   ○ chore/bump-deps     —               * ↑2          3h │
-│   ↑ spike/s3-multipart  —               ∅ z          16d │
+│   ✎ feature/PROJ-123-retry     #44    ✗ci ☐2 * ↑1 ●   2m │
+│   ◐ feature/PROJ-130-chunking  #47    …ci    ↓3 ∅     1h │
+│   ○ chore/bump-deps            —             * ↑2     3h │
+│   ↑ spike/s3-multipart         —             ∅ z     16d │
 │                                                          │
 │ ▾ API/auth ─────────────────────────────────────────── 3 │
-│   ✔ bugfix/flaky        PR #41          ⌫            20h │
-│   ✓ feature/PROJ-118-s… PR #39  ✓ci                   1d │
-│   ✕ feature/PROJ-101-l… PR #31                        4d │
+│   ✔ bugfix/flaky               #41           ⌫       20h │
+│   ✓ feature/PROJ-118-sso       #39    ✓ci             1d │
+│   ✕ feature/PROJ-101-legacy    #31                    4d │
 │                                                          │
 │ ▸ WEB/portal ───────────────────────────────────────── 2 │
 │                                                          │

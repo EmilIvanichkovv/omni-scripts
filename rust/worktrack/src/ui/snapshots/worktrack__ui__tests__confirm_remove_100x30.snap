@@ -9,7 +9,7 @@ expression: text
 
 ╭ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────────── 1 items ╮
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────────── 1 │
-│▌  ✔ bugfix/flaky                                        PR #41          ⌫            20h T1 S0   │
+│▌  ✔ bugfix/flaky                                                       #41        ⌫  20h T1 S0   │
 │                                                                                                  │
 │             ╭ Remove worktree ─────────────────────────────────────────────────────╮             │
 │             │Clean up bugfix/flaky? These commands run:                            │             │

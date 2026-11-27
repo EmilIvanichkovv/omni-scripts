@@ -7,12 +7,12 @@ expression: text
 ╭ Filter: Unfinished ▾  Sort: activity ─────────── 4 items ╮
 │ / @state:pr                                              │
 │ ▾ API/upload-svc ───────────────────────────────────── 2 │
-│▌  ✎ feature/PROJ-123-r… PR #44  ✗ci ☐2  * ↑1 ●        2m │
-│   ◐ feature/PROJ-130-c… PR #47  …ci     ↓3 ∅          1h │
+│▌  ✎ feature/PROJ-123-retry     #44    ✗ci ☐2 * ↑1 ●   2m │
+│   ◐ feature/PROJ-130-chunking  #47    …ci    ↓3 ∅     1h │
 │                                                          │
 │ ▾ API/auth ─────────────────────────────────────────── 2 │
-│   ✓ feature/PROJ-118-s… PR #39  ✓ci                   1d │
-│   ✕ feature/PROJ-101-l… PR #31                        4d │
+│   ✓ feature/PROJ-118-sso       #39    ✓ci             1d │
+│   ✕ feature/PROJ-101-legacy    #31                    4d │
 │                                                          │
 │                                                          │
 │                                                          │

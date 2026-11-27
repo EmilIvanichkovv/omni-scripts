@@ -17,46 +17,137 @@ use crate::model::{ReviewerStatus, WorkItem, WorkState};
 const INDENT: usize = 3;
 const ICON: usize = 2;
 const BRANCH_MIN: usize = 14;
-const PR_W: usize = 7;
+/// `#12345`; `—` without a PR.
+const PR_W: usize = 6;
 const CI_W: usize = 3;
-const TASKS_W: usize = 3;
-const FLAGS_W: usize = 11;
+/// Widest the flags column gets; it shrinks to the widest flags on screen.
+const FLAGS_MAX: usize = 11;
 const AGE_W: usize = 4;
 const TS_W: usize = 7;
+/// The branch is kept at least this wide (or its full width) before CI goes.
+const BRANCH_BEFORE_CI: usize = 24;
+/// ... and before the flags go.
+const BRANCH_BEFORE_FLAGS: usize = 32;
 
-/// Which optional columns fit; dropped right to left: S/T, then flags, then CI (spec 9.2).
+/// What the visible rows need, so empty or narrow columns take no space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ColumnNeeds {
+    /// Widest branch name on screen.
+    pub branch: usize,
+    /// Widest open-tasks cell (`☐2` = 2); 0 when no row has tasks.
+    pub tasks: usize,
+    /// Widest flags cell; 0 when no row has flags.
+    pub flags: usize,
+}
+
+impl ColumnNeeds {
+    pub fn of<'a>(items: impl IntoIterator<Item = &'a WorkItem>) -> Self {
+        let mut n = ColumnNeeds::default();
+        for it in items {
+            n.branch = n.branch.max(str_width(&clean(&it.branch)));
+            n.tasks = n.tasks.max(tasks_text(it).chars().count());
+            let flags: usize = flag_spans(it).iter().map(|s| s.width()).sum();
+            n.flags = n.flags.max(flags.min(FLAGS_MAX));
+        }
+        n
+    }
+}
+
+/// Which optional columns fit (spec 9.2) and how wide the branch and the sized columns are.
+/// The branch gets priority: T/S, then flags, then CI are dropped before a branch on screen
+/// is cut below its full width (or below `BRANCH_BEFORE_FLAGS` / `BRANCH_BEFORE_CI`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkColumns {
     pub ci: bool,
     pub flags: bool,
     pub ts: bool,
     pub branch: usize,
+    pub tasks_w: usize,
+    pub flags_w: usize,
 }
 
-pub fn columns(width: usize) -> WorkColumns {
-    let base = INDENT + ICON + BRANCH_MIN + (1 + PR_W) + (1 + TASKS_W) + (1 + AGE_W);
+pub fn columns(width: usize, needs: ColumnNeeds) -> WorkColumns {
+    let tasks_w = needs.tasks;
+    let flags_w = needs.flags;
+    let opt = |w: usize| if w == 0 { 0 } else { 1 + w };
+    let base = INDENT + ICON + (1 + PR_W) + opt(tasks_w) + (1 + AGE_W);
     let mut c = WorkColumns {
         ci: true,
-        flags: true,
+        flags: flags_w > 0,
         ts: true,
         branch: 0,
+        tasks_w,
+        flags_w,
     };
     let need = |c: &WorkColumns| {
         base + if c.ci { 1 + CI_W } else { 0 }
-            + if c.flags { 1 + FLAGS_W } else { 0 }
+            + if c.flags { opt(c.flags_w) } else { 0 }
             + if c.ts { 1 + TS_W } else { 0 }
     };
-    if need(&c) > width {
+    let room = |c: &WorkColumns| width.saturating_sub(need(c));
+    let wanted = needs.branch.max(BRANCH_MIN);
+    if room(&c) < wanted {
         c.ts = false;
     }
-    if need(&c) > width {
+    if c.flags && room(&c) < wanted.min(BRANCH_BEFORE_FLAGS) {
         c.flags = false;
     }
-    if need(&c) > width {
+    if room(&c) < wanted.min(BRANCH_BEFORE_CI) {
         c.ci = false;
     }
-    c.branch = BRANCH_MIN + width.saturating_sub(need(&c));
+    c.branch = room(&c).max(BRANCH_MIN);
     c
+}
+
+/// A branch name cut to `width` columns, keeping what identifies it: first the type prefix
+/// shrinks (`feature/` → `f/`), then the middle goes, keeping everything up to the ticket key
+/// (`jira.key_pattern`) and as much of the end as fits.
+pub fn fit_branch(app: &App, branch: &str, width: usize) -> String {
+    let b = clean(branch);
+    if str_width(&b) <= width {
+        return b;
+    }
+    let short = match b.split_once('/') {
+        Some((kind, rest)) if !kind.is_empty() && !rest.is_empty() && !kind.contains(' ') => {
+            format!("{}/{rest}", kind.chars().next().unwrap_or('?'))
+        }
+        _ => b.clone(),
+    };
+    if str_width(&short) <= width {
+        return short;
+    }
+    if let Some(key) = app.jira_key(&short) {
+        if let Some(pos) = short.find(&key) {
+            let head: String = short[..pos + key.len()].to_string();
+            let head_w = str_width(&head);
+            // Head, the ellipsis, and at least 6 columns of the ending.
+            if head_w + 1 + 6 <= width {
+                let tail_budget = width - head_w - 1;
+                let rest = &short[pos + key.len()..];
+                let mut tail: Vec<char> = Vec::new();
+                let mut w = 0;
+                for ch in rest.chars().rev() {
+                    let cw = str_width(&ch.to_string());
+                    if w + cw > tail_budget {
+                        break;
+                    }
+                    w += cw;
+                    tail.push(ch);
+                }
+                let tail: String = tail.into_iter().rev().collect();
+                return format!("{head}…{tail}");
+            }
+        }
+    }
+    truncate_middle(&short, width)
+}
+
+fn tasks_text(item: &WorkItem) -> String {
+    if item.flags.open_tasks > 0 {
+        format!("☐{}", item.flags.open_tasks)
+    } else {
+        String::new()
+    }
 }
 
 /// Flag icons of the list (spec 9.8) as styled spans.
@@ -113,13 +204,16 @@ fn item_line(app: &App, item: &WorkItem, cols: WorkColumns) -> Line<'static> {
     let mut spans = vec![
         Span::raw(" ".repeat(INDENT)),
         Span::styled(format!("{} ", item.state.icon()), st),
-        Span::styled(fit(&clean(&item.branch), cols.branch), Style::new()),
+        Span::styled(
+            fit(&fit_branch(app, &item.branch, cols.branch), cols.branch),
+            Style::new(),
+        ),
         Span::raw(" "),
     ];
     let pr = item
         .pr
         .as_ref()
-        .map_or("—".to_string(), |p| format!("PR #{}", p.id));
+        .map_or("—".to_string(), |p| format!("#{}", p.id));
     spans.push(Span::styled(fit(&pr, PR_W), st));
     if cols.ci {
         spans.push(Span::raw(" "));
@@ -128,19 +222,16 @@ fn item_line(app: &App, item: &WorkItem, cols: WorkColumns) -> Line<'static> {
             None => Span::raw(" ".repeat(CI_W)),
         });
     }
-    spans.push(Span::raw(" "));
-    let tasks = if item.flags.open_tasks > 0 {
-        format!("☐{}", item.flags.open_tasks)
-    } else {
-        String::new()
-    };
-    spans.push(Span::styled(
-        fit(&tasks, TASKS_W),
-        Style::new().fg(theme::WARN),
-    ));
-    if cols.flags {
+    if cols.tasks_w > 0 {
         spans.push(Span::raw(" "));
-        spans.extend(fit_spans(flag_spans(item), FLAGS_W));
+        spans.push(Span::styled(
+            fit(&tasks_text(item), cols.tasks_w),
+            Style::new().fg(theme::WARN),
+        ));
+    }
+    if cols.flags && cols.flags_w > 0 {
+        spans.push(Span::raw(" "));
+        spans.extend(fit_spans(flag_spans(item), cols.flags_w));
     }
     spans.push(Span::raw(" "));
     spans.push(Span::styled(
@@ -182,7 +273,11 @@ pub fn draw_list(frame: &mut Frame, app: &App, area: Rect) {
     }
     let width = rows_area.width as usize;
     // One column of air before the border.
-    let cols = columns(width.saturating_sub(1));
+    let needs = ColumnNeeds::of(rows.iter().filter_map(|r| match r {
+        ListRow::Item(i) => app.work_items.get(*i),
+        ListRow::Group(_) => None,
+    }));
+    let cols = columns(width.saturating_sub(1), needs);
     let blocks = rows
         .iter()
         .map(|r| match r {
@@ -469,15 +564,58 @@ mod tests {
     use super::*;
 
     #[test]
-    fn columns_drop_right_to_left() {
-        let wide = columns(120);
+    fn columns_drop_right_to_left_only_when_the_branch_needs_the_room() {
+        let needs = ColumnNeeds {
+            branch: 48,
+            tasks: 2,
+            flags: 7,
+        };
+        let wide = columns(160, needs);
         assert!(wide.ci && wide.flags && wide.ts);
-        let c = columns(58);
-        assert!(c.ci && c.flags && !c.ts);
-        let c = columns(48);
-        assert!(c.ci && !c.flags && !c.ts);
-        let c = columns(38);
-        assert!(!c.ci && !c.flags && !c.ts);
+        assert!(wide.branch >= 48);
+        // T/S goes first so the full branch fits.
+        let c = columns(80, needs);
+        assert!(c.ci && c.flags && !c.ts, "{c:?}");
+        assert!(c.branch >= 48, "{c:?}");
+        // Then flags, before the branch drops below 32.
+        let c = columns(60, needs);
+        assert!(c.ci && !c.flags && !c.ts, "{c:?}");
+        let c = columns(36, needs);
+        assert!(!c.ci && !c.flags && !c.ts, "{c:?}");
         assert!(c.branch >= BRANCH_MIN);
+        // Short branches keep every column on a narrow pane.
+        let short = ColumnNeeds {
+            branch: 12,
+            ..needs
+        };
+        let c = columns(70, short);
+        assert!(c.ci && c.flags && c.ts, "{c:?}");
+        // Empty columns take no space.
+        let none = ColumnNeeds {
+            branch: 20,
+            tasks: 0,
+            flags: 0,
+        };
+        let c = columns(80, none);
+        assert_eq!((c.tasks_w, c.flags), (0, false));
+    }
+
+    #[test]
+    fn long_branches_keep_their_ticket_and_ending() {
+        let app = crate::ui::sample::app();
+        let b = "feature/ON-175765-rxcrash-clover-chance-minigame";
+        assert_eq!(fit_branch(&app, b, 60), b);
+        assert_eq!(
+            fit_branch(&app, b, 42),
+            "f/ON-175765-rxcrash-clover-chance-minigame"
+        );
+        let cut = fit_branch(&app, b, 30);
+        assert_eq!(str_width(&cut), 30);
+        assert!(cut.starts_with("f/ON-175765…"), "{cut}");
+        assert!(cut.ends_with("chance-minigame"), "{cut}");
+        // Without a ticket key: plain middle cut.
+        let cut = fit_branch(&app, "chore/bump-all-the-dependencies-everywhere", 20);
+        assert_eq!(str_width(&cut), 20);
+        assert!(cut.contains('…'));
     }
 }

@@ -9,7 +9,7 @@ expression: text
 
 ╭ Filter: Cleanup ▾  Sort: activity ────────────────────────────────────────────────── 1 items ╮╭ Details ─────────────────────────────────────────────────────╮
 │ ▾ API/auth ─────────────────────────────────────────────────────────────────────────────── 1 ││bugfix/flaky                                                  │
-│▌  ✔ bugfix/flaky                                    PR #41          ⌫            20h T1 S0   ││State    ✔ merged (since Tue)                                 │
+│▌  ✔ bugfix/flaky                                                   #41        ⌫  20h T1 S0   ││State    ✔ merged (since Tue)                                 │
 │                                                                                              ││Repo     API/auth                                             │
 │                                                                                              ││Path     ~/work/auth-wt/flaky                                 │
 │                                                                                              ││Flags    cleanup (X removes)                                  │

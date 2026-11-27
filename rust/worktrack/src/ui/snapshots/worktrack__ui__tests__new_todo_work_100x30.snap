@@ -9,7 +9,7 @@ expression: text
 
 ╭ Filter: Unfinished ▾  Sort: activity ─────────────────────────────────────────────────── 7 items ╮
 │ ▾ API/upload-svc ───────────────────────────────────────────────────────────────────────────── 4 ▲
-│   ✎ feature/PROJ-123-retry                              PR #44  ✗ci ☐2  * ↑1 ●        2m T1 S2   █
+│   ✎ feature/PROJ-123-retry                                     #44    ✗ci ☐2 * ↑1 ●   2m T1 S2   █
 │   ◐ featur╭ New todo ────────────────────────────────────────────────────────────────╮1h T0 S1   █
 │   ○ chore/│ Link     API/auth:feature/PROJ-118-sso                                   │3h T1 S0   █
 │   ↑ spike/│ Priority none · A · B · C                                                │6d T0 S1   █

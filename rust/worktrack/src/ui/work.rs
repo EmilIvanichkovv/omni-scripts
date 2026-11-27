@@ -603,16 +603,16 @@ mod tests {
     #[test]
     fn long_branches_keep_their_ticket_and_ending() {
         let app = crate::ui::sample::app();
-        let b = "feature/ON-175765-rxcrash-clover-chance-minigame";
+        let b = "feature/PROJ-123456-upload-retry-with-backoff-ok";
         assert_eq!(fit_branch(&app, b, 60), b);
         assert_eq!(
             fit_branch(&app, b, 42),
-            "f/ON-175765-rxcrash-clover-chance-minigame"
+            "f/PROJ-123456-upload-retry-with-backoff-ok"
         );
         let cut = fit_branch(&app, b, 30);
         assert_eq!(str_width(&cut), 30);
-        assert!(cut.starts_with("f/ON-175765…"), "{cut}");
-        assert!(cut.ends_with("chance-minigame"), "{cut}");
+        assert!(cut.starts_with("f/PROJ-123456…"), "{cut}");
+        assert!(cut.ends_with("with-backoff-ok"), "{cut}");
         // Without a ticket key: plain middle cut.
         let cut = fit_branch(&app, "chore/bump-all-the-dependencies-everywhere", 20);
         assert_eq!(str_width(&cut), 20);
